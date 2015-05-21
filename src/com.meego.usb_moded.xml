@@ -1,0 +1,44 @@
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<node name="/com/meego/usb_moded">
+  <interface name="com.meego.usb_moded">
+    <method name="mode_request">
+      <arg name="mode" type="s" direction="out"/>
+    </method>
+    <method name="set_mode">
+      <arg name="mode" type="s" direction="in"/>
+      <arg name="mode" type="s" direction="out"/>
+    </method>
+    <method name="set_config">
+      <arg name="config" type="s" direction="in"/>
+      <arg name="config" type="s" direction="out"/>
+    </method>
+    <method name="net_config">
+      <arg name="key" type="s" direction="in"/>
+      <arg name="value" type="s" direction="in"/>
+      <arg name="key" type="s" direction="out"/>
+      <arg name="value" type="s" direction="out"/>
+    </method>
+    <method name="get_net_config">
+      <arg name="key" type="s" direction="in"/>
+      <arg name="key" type="s" direction="out"/>
+      <arg name="value" type="s" direction="out"/>
+    </method>
+    <method name="get_config">
+      <arg name="mode" type="s" direction="out"/>
+    </method>
+    <method name="get_modes">
+      <arg name="modes" type="s" direction="out"/>
+    </method>
+    <method name="rescue_off"/>
+    <signal name="sig_usb_state_ind">
+      <arg name="mode" type="s"/>
+    </signal>
+    <signal name="sig_usb_state_error_ind">
+      <arg name="error" type="s"/>
+    </signal>
+    <signal name="sig_usb_supported_modes_ind">
+      <arg name="modes" type="s"/>
+    </signal>
+  </interface>
+</node>
