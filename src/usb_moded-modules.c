@@ -2,7 +2,7 @@
   @file usb_moded-modules.c
  
   Copyright (C) 2010 Nokia Corporation. All rights reserved.
-  Copyright (C) 2012 Jolla. All rights reserved.
+  Copyright (C) 2012-2015 Jolla. All rights reserved.
 
   @author: Philippe De Swert <philippe.de-swert@nokia.com>
   @author: Philippe De Swert <philippe.deswert@jollamobile.com>
@@ -38,7 +38,6 @@
 #include "usb_moded-config.h"
 #include "usb_moded-dbus.h"
 #include "usb_moded-dbus-private.h"
-#include "usb_moded-config.h"
 #include "usb_moded-modesetting.h"
 #include "usb_moded-modes.h"
 

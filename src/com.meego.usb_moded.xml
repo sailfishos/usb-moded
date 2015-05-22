@@ -40,5 +40,10 @@
     <signal name="sig_usb_supported_modes_ind">
       <arg name="modes" type="s"/>
     </signal>
+    <signal name="sig_usb_config_ind">
+      <arg name="section" type="s"/>
+      <arg name="key" type="s"/>
+      <arg name="value" type="s"/>
+    </signal>
   </interface>
 </node>

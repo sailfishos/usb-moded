@@ -34,12 +34,33 @@
 #include "usb_moded.h"
 #include "usb_moded-modes.h"
 #include "usb_moded-modesetting.h"
+#include "usb_moded-config.h"
 #include "usb_moded-config-private.h"
 #include "usb_moded-network.h"
 #include "usb_moded-log.h"
 
 static DBusConnection *dbus_connection_sys = NULL;
 extern gboolean rescue_mode;
+
+/**
+ * Issues "sig_usb_config_ind" signal.
+*/
+static void usb_moded_send_config_signal(const char *section, const char *key, const char *value)
+{
+  log_debug(USB_MODE_CONFIG_SIGNAL_NAME ": %s %s %s\n", section, key, value);
+  if (dbus_connection_sys)
+  {
+	DBusMessage* msg = dbus_message_new_signal(USB_MODE_OBJECT, USB_MODE_INTERFACE, USB_MODE_CONFIG_SIGNAL_NAME);
+	if (msg) {
+		dbus_message_append_args(msg, DBUS_TYPE_STRING, &section,
+		                              DBUS_TYPE_STRING, &key,
+		                              DBUS_TYPE_STRING, &value,
+		                              DBUS_TYPE_INVALID);
+		dbus_connection_send(dbus_connection_sys, msg, NULL);
+		dbus_message_unref(msg);
+	}
+  }
+}
 
 static DBusHandlerResult msg_handler(DBusConnection *const connection, DBusMessage *const msg, gpointer const user_data)
 {
@@ -95,6 +116,11 @@ static DBusHandlerResult msg_handler(DBusConnection *const connection, DBusMessa
 			"    </signal>\n"
 			"    <signal name=\"" USB_MODE_SUPPORTED_MODES_SIGNAL_NAME "\">\n"
 			"      <arg name=\"modes\" type=\"s\"/>\n"
+			"    </signal>\n"
+			"    <signal name=\"" USB_MODE_CONFIG_SIGNAL_NAME "\">\n"
+			"      <arg name=\"section\" type=\"s\"/>\n"
+			"      <arg name=\"key\" type=\"s\"/>\n"
+			"      <arg name=\"value\" type=\"s\"/>\n"
 			"    </signal>\n"
 			"  </interface>\n"
 			"</node>\n";
@@ -159,7 +185,10 @@ error_reply:
 		else
 		{
 			/* error checking is done when setting configuration */
-			if(!set_mode_setting(config))
+			int ret = set_mode_setting(config);
+			if (ret == SET_CONFIG_UPDATED)
+				usb_moded_send_config_signal(MODE_SETTING_ENTRY, MODE_SETTING_KEY, config);
+			if (SET_CONFIG_OK(ret))
 			{
  				if((reply = dbus_message_new_method_return(msg)))
 			       	dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID);
@@ -179,7 +208,10 @@ error_reply:
 		else
 		{
 			/* error checking is done when setting configuration */
-			if(!set_network_setting(config, setting))
+			int ret = set_network_setting(config, setting);
+			if (ret == SET_CONFIG_UPDATED)
+				usb_moded_send_config_signal(NETWORK_ENTRY, config, setting);
+			if (SET_CONFIG_OK(ret))
 			{
  				if((reply = dbus_message_new_method_return(msg)))
 			       	dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_STRING, &setting, DBUS_TYPE_INVALID);

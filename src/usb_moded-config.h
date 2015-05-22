@@ -1,6 +1,7 @@
 /*
  
   Copyright (C) 2010 Nokia Corporation. All rights reserved.
+  Copyright (C) 2012-2015 Jolla. All rights reserved.
 
   author: Philippe De Swert <philippe.de-swert@nokia.com>
 
@@ -83,5 +84,13 @@ int check_android_section(void);
 
 int is_roaming_not_allowed(void);
 
+typedef enum set_config_result_t {
+	SET_CONFIG_ERROR = -1,
+	SET_CONFIG_UPDATED,
+	SET_CONFIG_UNCHANGED
+} set_config_result_t;
+
 int conf_file_merge(void);
-int set_config_setting(const char *entry, const char *key, const char *value);
+set_config_result_t set_config_setting(const char *entry, const char *key, const char *value);
+
+#define SET_CONFIG_OK(ret) ((ret) >= SET_CONFIG_UPDATED)

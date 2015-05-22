@@ -2,6 +2,7 @@
   @file usb_moded-config.c
  
   Copyright (C) 2010 Nokia Corporation. All rights reserved.
+  Copyright (C) 2012-2015 Jolla. All rights reserved.
 
   @author: Philippe De Swert <philippe.de-swert@nokia.com>
 
@@ -330,16 +331,30 @@ char * get_mode_setting(void)
   return(get_conf_string(MODE_SETTING_ENTRY, MODE_SETTING_KEY));
 }
 
-int set_config_setting(const char *entry, const char *key, const char *value)
+set_config_result_t set_config_setting(const char *entry, const char *key, const char *value)
 {
   GKeyFile *settingsfile;
   gboolean test = FALSE;
-  int ret = 0; 
+  set_config_result_t ret = SET_CONFIG_ERROR;
   gchar *keyfile;
 
   settingsfile = g_key_file_new();
   test = g_key_file_load_from_file(settingsfile, FS_MOUNT_CONFIG_FILE, G_KEY_FILE_NONE, NULL);
-  if(!test)
+  if(test)
+  {
+      char *old = g_key_file_get_string(settingsfile, entry, key, NULL);
+      if (old)
+      {
+          gboolean unchanged = (g_strcmp0(old, value) == 0);
+          g_free(old);
+          if (unchanged)
+          {
+              g_key_file_free(settingsfile);
+              return SET_CONFIG_UNCHANGED;
+          }
+      }
+  }
+  else
   {
       log_debug("No conffile. Creating.\n");
       create_conf_file();
@@ -351,14 +366,14 @@ int set_config_setting(const char *entry, const char *key, const char *value)
      the contents will be correctly written to file afterwards.
      Just a precaution. */
   g_key_file_free(settingsfile);
-  ret = g_file_set_contents(FS_MOUNT_CONFIG_FILE, keyfile, -1, NULL);
+  if (g_file_set_contents(FS_MOUNT_CONFIG_FILE, keyfile, -1, NULL))
+      ret = SET_CONFIG_UPDATED;
   g_free(keyfile);
   
-  /* g_file_set_contents returns 1 on succes, since set_mode_settings returns 0 on succes we return the ! value */
-  return(!ret);
+  return (ret);
 }
 
-int set_mode_setting(const char *mode)
+set_config_result_t set_mode_setting(const char *mode)
 {
   return (set_config_setting(MODE_SETTING_ENTRY, MODE_SETTING_KEY, mode));
 }
@@ -367,43 +382,58 @@ int set_mode_setting(const char *mode)
  * @param config : the key to be set
  * @param setting : The value to be set
  */
-int set_network_setting(const char *config, const char *setting)
+set_config_result_t set_network_setting(const char *config, const char *setting)
 {
   GKeyFile *settingsfile;
   gboolean test = FALSE;
-  int ret = 0; 
   gchar *keyfile;
 
   if(!strcmp(config, NETWORK_IP_KEY) || !strcmp(config, NETWORK_GATEWAY_KEY))
 	if(validate_ip(setting) != 0)
-		return(1);
+		return SET_CONFIG_ERROR;
 
   settingsfile = g_key_file_new();
   test = g_key_file_load_from_file(settingsfile, FS_MOUNT_CONFIG_FILE, G_KEY_FILE_NONE, NULL);
-  if(!test)
-  {
-      log_debug("No conffile. Creating.\n");
-      create_conf_file();
-  }
 
   if(!strcmp(config, NETWORK_IP_KEY) || !strcmp(config, NETWORK_INTERFACE_KEY) || !strcmp(config, NETWORK_GATEWAY_KEY))
   {
+	set_config_result_t ret = SET_CONFIG_ERROR;
+	if (test)
+	{
+		char *old = g_key_file_get_string(settingsfile, NETWORK_ENTRY, config, NULL);
+		if (old)
+		{
+			gboolean unchanged = (g_strcmp0(old, setting) == 0);
+			g_free(old);
+			if (unchanged)
+			{
+				g_key_file_free(settingsfile);
+				return SET_CONFIG_UNCHANGED;
+			}
+		}
+	}
+	else
+	{
+		log_debug("No conffile. Creating.\n");
+		create_conf_file();
+	}
+
 	g_key_file_set_string(settingsfile, NETWORK_ENTRY, config, setting);
   	keyfile = g_key_file_to_data (settingsfile, NULL, NULL); 
   	/* free the settingsfile before writing things out to be sure 
      	the contents will be correctly written to file afterwards.
      	Just a precaution. */
   	g_key_file_free(settingsfile);
-  	ret = g_file_set_contents(FS_MOUNT_CONFIG_FILE, keyfile, -1, NULL);
+	if (g_file_set_contents(FS_MOUNT_CONFIG_FILE, keyfile, -1, NULL))
+		ret = SET_CONFIG_UPDATED;
 	free(keyfile);
+	return ret;
   }
   else
   {
 	g_key_file_free(settingsfile);
-	return(1);
+	return SET_CONFIG_ERROR;
   }
-  /* g_file_set_contents returns 1 on succes, since set_mode_settings returns 0 on succes we return the ! value */
-  return(!ret);
 }
 
 char * get_network_setting(const char *config)

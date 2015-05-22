@@ -1,5 +1,6 @@
 /*
   Copyright (C) 2010 Nokia Corporation. All rights reserved.
+  Copyright (C) 2012-2015 Jolla. All rights reserved.
 
   Author: Philippe De Swert <philippe.de-swert@meego.com>
 
@@ -33,7 +34,7 @@
  * states listed in usb_moded-modes.h.
  **/
 #define USB_MODE_SIGNAL_NAME		"sig_usb_state_ind"
-
+#define USB_MODE_CONFIG_SIGNAL_NAME	"sig_usb_config_ind"
 #define USB_MODE_ERROR_SIGNAL_NAME	"sig_usb_state_error_ind"
 #define USB_MODE_SUPPORTED_MODES_SIGNAL_NAME "sig_usb_supported_modes_ind"
 

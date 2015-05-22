@@ -1,5 +1,6 @@
 /*
   Copyright (C) 2010 Nokia Corporation. All rights reserved.
+  Copyright (C) 2012-2015 Jolla. All rights reserved.
 
   Author: Philippe De Swert <philippe.de-swert@nokia.com>
 
@@ -24,6 +25,6 @@
 /*============================================================================= */
 
 char * get_mode_setting(void);
-int set_mode_setting(const char *mode);
-int set_network_setting(const char *config, const char *setting);
+set_config_result_t set_mode_setting(const char *mode);
+set_config_result_t set_network_setting(const char *config, const char *setting);
 char *get_network_setting(const char *config);
