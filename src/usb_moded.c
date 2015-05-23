@@ -131,6 +131,9 @@ void set_usb_connected(gboolean connected)
 	 */
 	if(current_mode.android_usb_broken)
 		set_android_charging_mode();
+	if (android_ignore_udev_events) {
+		android_ignore_next_udev_disconnect_event = TRUE;
+	}
   }		
 
 }
