@@ -1,3 +1,12 @@
+usb-moded (0.82.1) unstable; urgency=low
+
+  * [config] Clean-up and add function to check for value changes
+  * [dbus] Added "sig_usb_config_ind" signal. Contributes to JB#29035
+  * [usb-moded] Additional fix for broken usb drivers when setting mode
+  * [dbus] Include D-Bus spec in the devel package.
+
+ -- Philippe De Swert <philippe.deswert@jolla.com>  Wed, 27 May 2015 14:25:41 +0300
+
 usb-moded (0.82) unstable; urgency=low
 
   * [rpm] Fix build, do not attempt to remove nonexistent file
