@@ -330,6 +330,29 @@ char * get_mode_setting(void)
 
   return(get_conf_string(MODE_SETTING_ENTRY, MODE_SETTING_KEY));
 }
+/*
+ *  @param settingsfile: already opened settingsfile we want to read an entry from
+ *  @param entry: entry we want to read
+ *  @param key: key value of the entry we want to read
+ *  @new_value: potentially new value we want to compare against
+ *
+ *  @return: 1 when the old value is the same as the new one, 0 otherwise
+ */
+int config_value_changed(GKeyFile *settingsfile, const char *entry, const char *key, const char *new_value)
+{
+  char *old = g_key_file_get_string(settingsfile, entry, key, NULL);
+  if (old)
+  {
+	gboolean unchanged = (g_strcmp0(old, entry) == 0);
+        g_free(old);
+        if (unchanged)
+        {
+                return 1;
+        }
+  }
+	
+  return 0;
+}
 
 set_config_result_t set_config_setting(const char *entry, const char *key, const char *value)
 {
@@ -342,16 +365,10 @@ set_config_result_t set_config_setting(const char *entry, const char *key, const
   test = g_key_file_load_from_file(settingsfile, FS_MOUNT_CONFIG_FILE, G_KEY_FILE_NONE, NULL);
   if(test)
   {
-      char *old = g_key_file_get_string(settingsfile, entry, key, NULL);
-      if (old)
+      if(config_value_changed(settingsfile, entry, key, value))
       {
-          gboolean unchanged = (g_strcmp0(old, value) == 0);
-          g_free(old);
-          if (unchanged)
-          {
               g_key_file_free(settingsfile);
               return SET_CONFIG_UNCHANGED;
-          }
       }
   }
   else
@@ -400,16 +417,10 @@ set_config_result_t set_network_setting(const char *config, const char *setting)
 	set_config_result_t ret = SET_CONFIG_ERROR;
 	if (test)
 	{
-		char *old = g_key_file_get_string(settingsfile, NETWORK_ENTRY, config, NULL);
-		if (old)
+		if(config_value_changed(settingsfile, NETWORK_ENTRY, config, setting))
 		{
-			gboolean unchanged = (g_strcmp0(old, setting) == 0);
-			g_free(old);
-			if (unchanged)
-			{
-				g_key_file_free(settingsfile);
-				return SET_CONFIG_UNCHANGED;
-			}
+			g_key_file_free(settingsfile);
+			return SET_CONFIG_UNCHANGED;
 		}
 	}
 	else

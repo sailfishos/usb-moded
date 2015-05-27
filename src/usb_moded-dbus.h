@@ -2,7 +2,7 @@
   Copyright (C) 2010 Nokia Corporation. All rights reserved.
   Copyright (C) 2012-2015 Jolla. All rights reserved.
 
-  Author: Philippe De Swert <philippe.de-swert@meego.com>
+  Author: Philippe De Swert <philippedeswert@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the Lesser GNU General Public License 

@@ -91,6 +91,8 @@ typedef enum set_config_result_t {
 } set_config_result_t;
 
 int conf_file_merge(void);
+
+int config_value_changed(GKeyFile *settingsfile, const char *entry, const char *key, const char *new_value);
 set_config_result_t set_config_setting(const char *entry, const char *key, const char *value);
 
 #define SET_CONFIG_OK(ret) ((ret) >= SET_CONFIG_UPDATED)
