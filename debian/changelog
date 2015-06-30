@@ -1,3 +1,9 @@
+usb-moded (0.82.2) unstable; urgency=low
+
+  * [adb] Adapt to the new adbd functionfs. Contributes: JB#30264
+
+ -- Philippe De Swert <philippe.deswert@jolla.com>  Mon, 29 Jun 2015 13:36:05 +0300
+
 usb-moded (0.82.1) unstable; urgency=low
 
   * [config] Clean-up and add function to check for value changes
