@@ -399,7 +399,8 @@ systemctl daemon-reload || :
 %files adb-mode
 %defattr(-,root,root,-)
 %{_sysconfdir}/usb-moded/dyn-modes/adb_mode.ini
-%{_sysconfdir}/usb-moded/run/adb.ini
+%{_sysconfdir}/usb-moded/run/adb-startserver.ini
+%{_sysconfdir}/usb-moded/run/adb-prepare.ini
 
 %files mtp-mode-android
 %defattr(-,root,root,-)
