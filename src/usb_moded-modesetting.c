@@ -318,6 +318,7 @@ int set_dynamic_mode(void)
 
   struct mode_list_elem *data; 
   int ret = 1;
+  int network = 1;
 
   data = get_usb_mode_data();
 
@@ -377,14 +378,14 @@ int set_dynamic_mode(void)
         system(command);
 #else
 	usb_network_down(data);
-	usb_network_up(data);
+	network = usb_network_up(data);
 #endif /* DEBIAN */
   }
 
   /* Needs to be called before application post synching so
      that the dhcp server has the right config */
   if(data->nat || data->dhcp_server)
-	ret = usb_network_set_up_dhcpd(data);
+	usb_network_set_up_dhcpd(data);
 
   /* no need to execute the post sync if there was an error setting the mode */
   if(data->appsync && !ret)
@@ -394,6 +395,15 @@ int set_dynamic_mode(void)
   if(data->connman_tethering)
 	connman_set_tethering(data->connman_tethering, TRUE);
 #endif
+
+  /* try a second time to bring up the network if it failed the first time,
+     this can happen with functionfs based gadgets (which is why we sleep for a bit */
+  if(network != 0)
+  {
+	log_debug("Retry setting up te network\n");
+	sleep(1);
+	usb_network_up(data);
+  }
 
   if(ret)
 	usb_moded_send_error_signal(MODE_SETTING_FAILED);

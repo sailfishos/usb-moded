@@ -122,8 +122,10 @@ static char* get_interface(struct mode_list_elem *data)
 
   check = check_interface(interface);
   if(check)
+  {
 	log_warning("Configured interface is incorrect, nor does usb0 exists. Check your config!\n");
-  /* TODO: Make it so that interface configuration gets skipped when no usable interface exists */
+	return(0);
+  }
 
   log_debug("interface = %s\n", interface);
   return interface;
@@ -139,6 +141,8 @@ static int set_usb_ip_forward(struct mode_list_elem *data, struct ipforward_data
   char command[128];
 
   interface = get_interface(data);
+  if(interface == NULL)
+	return(1);
   nat_interface = get_network_nat_interface();
   if((nat_interface == NULL) && (ipforward->nat_interface != NULL))
 	nat_interface = strdup(ipforward->nat_interface);
@@ -362,6 +366,8 @@ static int write_udhcpd_conf(struct ipforward_data *ipforward, struct mode_list_
   strcat(ipend, "10");
 
   interface = get_interface(data);
+  if(interface == NULL)
+	return(1);
   /* print all data in the file */
   fprintf(conffile, "start\t%s\n", ipstart);
   fprintf(conffile, "end\t%s\n", ipend);
@@ -1071,6 +1077,9 @@ int usb_network_up(struct mode_list_elem *data)
   ip = get_network_ip();
   gateway = get_network_gateway();
 
+  if(interface == NULL)
+	return(1);
+
   if(ip == NULL)
   {
 	sprintf(command,"ifconfig %s 192.168.2.15", interface);
@@ -1166,6 +1175,8 @@ int usb_network_down(struct mode_list_elem *data)
   char command[128];
 
   interface = get_interface(data);
+  if(interface == NULL)
+	return(0);
 
   sprintf(command, "ifconfig %s down\n", interface);
   system(command);
