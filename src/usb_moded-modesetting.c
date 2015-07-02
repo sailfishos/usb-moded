@@ -367,22 +367,11 @@ int set_dynamic_mode(void)
 	ret = write_to_file(data->softconnect_path, data->softconnect);
   }
 
-  /* Needs to be called before application post synching so
-     that the dhcp server has the right config */
-  if(data->nat || data->dhcp_server)
-	ret = usb_network_set_up_dhcpd(data);
-
-#ifdef APP_SYNC
-  /* no need to execute the post sync if there was an error setting the mode */
-  if(data->appsync && !ret)
-	activate_sync_post(data->mode_name);
-#endif
-
   /* functionality should be enabled, so we can enable the network now */
   if(data->network)
   {
 #ifdef DEBIAN
-	char command[256];
+  	char command[256];
 
 	g_snprintf(command, 256, "ifdown %s ; ifup %s", data->network_interface, data->network_interface);
         system(command);
@@ -391,6 +380,15 @@ int set_dynamic_mode(void)
 	usb_network_up(data);
 #endif /* DEBIAN */
   }
+
+  /* Needs to be called before application post synching so
+     that the dhcp server has the right config */
+  if(data->nat || data->dhcp_server)
+	ret = usb_network_set_up_dhcpd(data);
+
+  /* no need to execute the post sync if there was an error setting the mode */
+  if(data->appsync && !ret)
+	activate_sync_post(data->mode_name);
 
 #ifdef CONNMAN
   if(data->connman_tethering)
