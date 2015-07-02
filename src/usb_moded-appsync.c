@@ -76,6 +76,11 @@ void free_appsync_list(void)
   }
 }
 
+static gint list_sort_func(gconstpointer a, gconstpointer b)
+{ 
+  return strcasecmp( (char*)a, (char*)b ); 
+}
+
 void readlist(int diag)
 {
   GDir *confdir = 0;
@@ -105,6 +110,10 @@ void readlist(int diag)
 
 cleanup:
   if( confdir ) g_dir_close(confdir);
+
+  /* sort list alphabetically so services for a mode
+     can be run in a certain order */
+  sync_list=g_list_sort(sync_list, list_sort_func);
 
   /* set up session bus connection if app sync in use
    * so we do not need to make the time consuming connect
