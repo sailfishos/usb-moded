@@ -1,3 +1,11 @@
+usb-moded (0.82.3) unstable; urgency=low
+
+  * [spec] Make sure all adb services are packaged. Contributes: JB#30264
+  * [adb] Make extra sure adb prep comes before adbd start. Contributes: JB#30264
+  * Revert "[modesetting] Set up network after post services have run"
+
+ -- Philippe De Swert <philippe.deswert@jolla.com>  Thu, 02 Jul 2015 19:35:45 +0000
+
 usb-moded (0.82.2) unstable; urgency=low
 
   * [adb] Adapt to the new adbd functionfs. Contributes: JB#30264
