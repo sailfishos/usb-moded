@@ -81,11 +81,11 @@ static void free_ipforward_data (struct ipforward_data *ipforward)
 /* This function checks if the configured interface exists */
 static int check_interface(char *interface)
 {
-  char command[32];
+  char path[25];
   int ret = 0;
 
-   snprintf(command, 32, "ifconfig %s > /dev/null\n", interface );
-   ret = system(command);
+   snprintf(path, 25, "/sys/class/net/%s", interface );
+   ret = access(path, F_OK);
 
    return(ret);
 }
