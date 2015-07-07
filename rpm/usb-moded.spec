@@ -1,6 +1,6 @@
 Name:     usb-moded
 Version:  0.82
-Release:  3
+Release:  4
 Summary:  USB mode controller
 Group:    System/System Control
 License:  LGPLv2
