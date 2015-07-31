@@ -367,13 +367,15 @@ static int write_udhcpd_conf(struct ipforward_data *ipforward, struct mode_list_
         i++;
   }
   strcat(ipstart,"1");
-  strcat(ipend, "10");
+  strcat(ipend, "15");
 
   /* print all data in the file */
   fprintf(conffile, "start\t%s\n", ipstart);
   fprintf(conffile, "end\t%s\n", ipend);
   fprintf(conffile, "interface\t%s\n", interface);
   fprintf(conffile, "option\tsubnet\t255.255.255.0\n");
+  fprintf(conffile, "option\tlease\t3600\n");
+
   if(ipforward != NULL)
   {
 	if(!ipforward->dns1 || !ipforward->dns2)
