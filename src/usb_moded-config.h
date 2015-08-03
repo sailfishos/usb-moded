@@ -50,6 +50,7 @@
 #define NETWORK_INTERFACE_KEY		"interface"
 #define NETWORK_GATEWAY_KEY		"gateway"
 #define NETWORK_NAT_INTERFACE_KEY	"nat_interface"
+#define NETWORK_NETMASK_KEY		"netmask"
 #define NO_ROAMING_KEY			"noroaming"
 #define ANDROID_ENTRY			"android"
 #define ANDROID_MANUFACTURER_KEY	"iManufacturer"
@@ -70,9 +71,11 @@ char * get_trigger_mode(void);
 char * get_trigger_property(void);
 char * get_trigger_value(void);
 
+char * get_network_setting(const char *config);
 char * get_network_ip(void);
 char * get_network_interface(void);
 char * get_network_gateway(void);
+char * get_network_netmask(void);
 char * get_network_nat_interface(void);
 
 char * get_android_manufacturer(void);

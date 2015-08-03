@@ -145,6 +145,15 @@ char * get_network_gateway(void)
   return(get_conf_string(NETWORK_ENTRY, NETWORK_GATEWAY_KEY));
 }
 
+char * get_network_netmask(void)
+{
+  char * netmask = get_kcmdline_string(NETWORK_NETMASK_KEY);
+  if (netmask != NULL)
+    return(netmask);
+
+  return(get_conf_string(NETWORK_ENTRY, NETWORK_NETMASK_KEY));
+}
+
 char * get_network_nat_interface(void)
 {
   return(get_conf_string(NETWORK_ENTRY, NETWORK_NAT_INTERFACE_KEY));
@@ -312,6 +321,11 @@ static char * get_kcmdline_string(const char *entry)
 		  log_debug("Command line gateway = %s\n", ret);
 		}
 	}
+	if(!strcmp(entry, NETWORK_NETMASK_KEY))
+	{
+		ret = g_strdup(network_tokens[3]);
+		log_debug("Command line netmask = %s\n", ret);
+	}
       } 
     }
     g_strfreev(arg_tokens);
@@ -475,6 +489,12 @@ char * get_network_setting(const char *config)
   }
   else if(!strcmp(config, NETWORK_GATEWAY_KEY))
 	return(get_network_gateway());
+  else if(strcmp(config, NETWORK_NETMASK_KEY))
+  {
+	ret = get_network_netmask();
+	if(!ret)
+		ret = strdup("255.255.255.0");
+  }
   else
 	/* no matching keys, return error */
 	return(NULL);

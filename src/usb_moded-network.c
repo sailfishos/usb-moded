@@ -124,6 +124,7 @@ static char* get_interface(struct mode_list_elem *data)
   if(check)
   {
 	log_warning("Configured interface is incorrect, nor does usb0 exists. Check your config!\n");
+	free((char *)interface);
 	return(0);
   }
 
@@ -323,7 +324,7 @@ static int checklink(void)
 static int write_udhcpd_conf(struct ipforward_data *ipforward, struct mode_list_elem *data)
 {
   FILE *conffile;
-  char *ip, *interface;
+  char *ip, *interface, *netmask;
   char *ipstart, *ipend;
   int dot = 0, i = 0, test;
   struct stat st;
@@ -339,14 +340,12 @@ static int write_udhcpd_conf(struct ipforward_data *ipforward, struct mode_list_
 
   interface = get_interface(data);
   if(interface == NULL)
-	return(1);
-
-  /* generate start and end ip based on the setting */
-  ip = get_network_ip();
-  if(ip == NULL)
   {
-	ip = strdup("192.168.2.15");
+	fclose(conffile);
+	return(1);
   }
+  /* generate start and end ip based on the setting */
+  ip = get_network_setting(NETWORK_IP_KEY);
   ipstart = malloc(sizeof(char)*15);
   ipend = malloc(sizeof(char)*15);
   while(i < 15)
@@ -369,11 +368,13 @@ static int write_udhcpd_conf(struct ipforward_data *ipforward, struct mode_list_
   strcat(ipstart,"1");
   strcat(ipend, "15");
 
+  netmask = get_network_setting(NETWORK_NETMASK_KEY);
+
   /* print all data in the file */
   fprintf(conffile, "start\t%s\n", ipstart);
   fprintf(conffile, "end\t%s\n", ipend);
   fprintf(conffile, "interface\t%s\n", interface);
-  fprintf(conffile, "option\tsubnet\t255.255.255.0\n");
+  fprintf(conffile, "option\tsubnet\t%s\n", netmask);
   fprintf(conffile, "option\tlease\t3600\n");
 
   if(ipforward != NULL)
@@ -391,6 +392,7 @@ static int write_udhcpd_conf(struct ipforward_data *ipforward, struct mode_list_
   free(ipend);
   free(ip);
   free(interface);
+  free(netmask);
   fclose(conffile);
 
   /* check if it is a symlink, if not remove and link, create the link if missing */
@@ -1075,17 +1077,21 @@ int usb_network_up(struct mode_list_elem *data)
 #else
   char command[128];
   const char *interface;
+  char *netmask;
 
   interface = get_interface(data); 
-  ip = get_network_ip();
-  gateway = get_network_gateway();
 
   if(interface == NULL)
 	return(1);
 
+  /* interface found, so we can get all the rest */
+  ip = get_network_ip();
+  gateway = get_network_gateway();
+  netmask = get_network_setting(NETWORK_NETMASK_KEY);
+
   if(ip == NULL)
   {
-	sprintf(command,"ifconfig %s 192.168.2.15", interface);
+	sprintf(command,"ifconfig %s 192.168.2.15 %s", interface, netmask);
 	system(command);
 	goto clean;
   }
@@ -1102,7 +1108,7 @@ int usb_network_up(struct mode_list_elem *data)
   }
   else
   {
-	sprintf(command, "ifconfig %s %s\n", interface, ip);
+	sprintf(command, "ifconfig %s %s %s\n", interface, ip, netmask);
 	system(command);
   }
 
@@ -1117,6 +1123,7 @@ clean:
   free((char *)interface);
   free((char *)gateway);
   free((char *)ip);
+  free(netmask);
 
   return(0);
 #endif /* CONNMAN */
