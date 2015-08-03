@@ -95,26 +95,13 @@ static char* get_interface(struct mode_list_elem *data)
   char *interface = NULL;
   int check = 0;
 
-  /* check main configuration before using
-     the information from the specific mode */
-  interface = (char *)get_network_interface();
-  /* no interface override specified, let's use the one
-     from the mode config */
-  if(data && !interface)
-  {
-	if(data->network_interface)
-	{	
-		interface = strdup(data->network_interface);
-	}
-  }
+  interface = get_network_setting(NETWORK_INTERFACE_KEY);
+  check = check_interface(interface);
 
-  if(interface != NULL)
-	check = check_interface(interface);
-
-  if(interface == NULL || check != 0)
+  if(check != 0)
   {
 	if(interface != NULL)
-		free((char *)interface);
+		free(interface);
 	/* no known interface configured and existing, falling back to usb0 */
 	interface = malloc(sizeof(default_interface)*sizeof(char));
 	strncpy(interface, default_interface, sizeof(default_interface));
@@ -124,7 +111,7 @@ static char* get_interface(struct mode_list_elem *data)
   if(check)
   {
 	log_warning("Configured interface is incorrect, nor does usb0 exists. Check your config!\n");
-	free((char *)interface);
+	free(interface);
 	return(0);
   }
 
@@ -144,7 +131,7 @@ static int set_usb_ip_forward(struct mode_list_elem *data, struct ipforward_data
   interface = get_interface(data);
   if(interface == NULL)
 	return(1);
-  nat_interface = get_network_nat_interface();
+  nat_interface = get_network_setting(NETWORK_NAT_INTERFACE_KEY);
   if((nat_interface == NULL) && (ipforward->nat_interface != NULL))
 	nat_interface = strdup(ipforward->nat_interface);
   else
@@ -154,7 +141,8 @@ static int set_usb_ip_forward(struct mode_list_elem *data, struct ipforward_data
 	/* in case the cellular did not come up we want to make sure wifi gets restored */
 	connman_reset_state();
 #endif
-	free((char *)interface);
+	free(interface);
+	free(nat_interface);
 	return(1);
   }
   write_to_file("/proc/sys/net/ipv4/ip_forward", "1");
@@ -1031,9 +1019,7 @@ int usb_network_up(struct mode_list_elem *data)
 	dbus_message_iter_close_container(&dict, &dict_entry);
 
 	log_debug("Set ip\n");
-	ip = get_network_ip();
-	if(ip == NULL)
-		ip = strdup("192.168.2.15");
+	ip = get_network_settings(NETWORK_IP_KEY);
 	dbus_message_iter_open_container(&dict, DBUS_TYPE_DICT_ENTRY, NULL, &dict_entry);
 	append_variant(&dict_entry, "Address", DBUS_TYPE_STRING, ip);
 	dbus_message_iter_close_container(&dict, &dict_entry);
@@ -1044,7 +1030,7 @@ int usb_network_up(struct mode_list_elem *data)
 	dbus_message_iter_close_container(&dict, &dict_entry);
 
 	log_debug("set gateway\n");
-	gateway = get_network_gateway();
+	gateway = get_network_setting(NETWORK_GATEWAY_KEY);
 	if(gateway)
 	{
 		dbus_message_iter_open_container(&dict, DBUS_TYPE_DICT_ENTRY, NULL, &dict_entry);
@@ -1076,7 +1062,7 @@ int usb_network_up(struct mode_list_elem *data)
 
 #else
   char command[128];
-  const char *interface;
+  char *interface;
   char *netmask;
 
   interface = get_interface(data); 
@@ -1085,17 +1071,11 @@ int usb_network_up(struct mode_list_elem *data)
 	return(1);
 
   /* interface found, so we can get all the rest */
-  ip = get_network_ip();
-  gateway = get_network_gateway();
+  ip = get_network_setting(NETWORK_IP_KEY);
+  gateway = get_network_setting(NETWORK_GATEWAY_KEY);
   netmask = get_network_setting(NETWORK_NETMASK_KEY);
 
-  if(ip == NULL)
-  {
-	sprintf(command,"ifconfig %s 192.168.2.15 %s", interface, netmask);
-	system(command);
-	goto clean;
-  }
-  else if(!strcmp(ip, "dhcp"))
+  if(!strcmp(ip, "dhcp"))
   {
 	sprintf(command, "dhclient -d %s\n", interface);
 	ret = system(command);
@@ -1119,10 +1099,9 @@ int usb_network_up(struct mode_list_elem *data)
         system(command);
   }
 
-clean:
-  free((char *)interface);
-  free((char *)gateway);
-  free((char *)ip);
+  free(interface);
+  free(gateway);
+  free(ip);
   free(netmask);
 
   return(0);
@@ -1181,7 +1160,7 @@ int usb_network_down(struct mode_list_elem *data)
 
   return(ret);
 #else
-  const char *interface;
+  char *interface;
   char command[128];
 
   interface = get_interface(data);
@@ -1195,7 +1174,7 @@ int usb_network_down(struct mode_list_elem *data)
   if(data->nat)
 	clean_usb_ip_forward();
 
-  free((char *)interface);
+  free(interface);
   
   return(0);
 #endif /* CONNMAN_IS_EVER_FIXED_FOR_USB */

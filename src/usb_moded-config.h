@@ -72,11 +72,6 @@ char * get_trigger_property(void);
 char * get_trigger_value(void);
 
 char * get_network_setting(const char *config);
-char * get_network_ip(void);
-char * get_network_interface(void);
-char * get_network_gateway(void);
-char * get_network_netmask(void);
-char * get_network_nat_interface(void);
 
 char * get_android_manufacturer(void);
 char * get_android_vendor_id(void);
