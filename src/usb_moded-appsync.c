@@ -245,14 +245,14 @@ int activate_sync(const char *mode)
       /* do not launch items marked as post, will be launched after usb is up */
       if(data->post)
       {
-	mark_active(data->name);
+	mark_active(data->name, data->post);
 	continue;
       }
       log_debug("launching app %s\n", data->name);
       if(data->systemd)
       {
         if(!systemd_control_service(data->name, SYSTEMD_START))
-		mark_active(data->name);
+		mark_active(data->name, 0);
 	else
 		goto error;
       }
@@ -261,11 +261,11 @@ int activate_sync(const char *mode)
 		/* skipping if dbus session bus is not available,
 		   or not compiled in */
 		if(no_dbus)
-			mark_active(data->name);
+			mark_active(data->name, 0);
 #ifdef APP_SYNC_DBUS
 		else
 			if(!usb_moded_dbus_app_launch(data->launch))
-				mark_active(data->name);
+				mark_active(data->name, 0);
 			else
 				goto error;
 #endif /* APP_SYNC_DBUS */
@@ -338,14 +338,15 @@ error:
   return(1);
 }
 
-int mark_active(const gchar *name)
+int mark_active(const gchar *name, int post)
 {
   int ret = -1; // assume name not found
   int missing = 0;
 
   GList *iter;
 
-  log_debug("App %s notified it is ready\n", name);
+  if(post)
+    log_debug("App %s notified it is ready\n", name);
 
   for( iter = sync_list; iter; iter = g_list_next(iter) )
   {
