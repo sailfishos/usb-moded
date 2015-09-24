@@ -5,7 +5,6 @@ Wants=systemd-udev-settle.service
 Requires=dbus.socket
 After=local-fs.target dbus.socket systemd-udev-settle.service
 Conflicts=shutdown.target
-BusName=com.meego.usb_moded
 
 [Service]
 Type=notify
@@ -15,6 +14,7 @@ EnvironmentFile=-/run/usb-moded/*.conf
 ExecStart=/usr/sbin/usb_moded --systemd --force-syslog $USB_MODED_ARGS
 Restart=always
 ExecReload=/bin/kill -HUP $MAINPID
+BusName=com.meego.usb_moded
 
 [Install]
 WantedBy=basic.target
