@@ -43,6 +43,7 @@
 #include "usb_moded-android.h"
 
 static void report_mass_storage_blocker(const char *mountpoint, int try);
+guint delayed_network = 0;
 
 int write_to_file(const char *path, const char *text)
 {
@@ -85,6 +86,12 @@ cleanup:
   if( fd != -1 ) TEMP_FAILURE_RETRY(close(fd));
 
   return err;
+}
+
+static gboolean network_retry(gpointer data)
+{
+	usb_network_up(data);
+	return(FALSE);
 }
 
 static int set_mass_storage_mode(struct mode_list_elem *data)
@@ -386,9 +393,8 @@ int set_dynamic_mode(void)
      this can happen with functionfs based gadgets (which is why we sleep for a bit */
   if(network != 0)
   {
-	log_debug("Retry setting up te network\n");
-	sleep(1);
-	usb_network_up(data);
+	log_debug("Retry setting up the network later\n");
+	delayed_network = g_timeout_add_seconds(3, network_retry, data);
   }
 
   /* Needs to be called before application post synching so
@@ -398,7 +404,11 @@ int set_dynamic_mode(void)
 
   /* no need to execute the post sync if there was an error setting the mode */
   if(data->appsync && !ret)
+  {
+	/* let's sleep for a bit (350ms) to allow interfaces to settle before running postsync */
+	usleep(350000);
 	activate_sync_post(data->mode_name);
+  }
 
 #ifdef CONNMAN
   if(data->connman_tethering)
@@ -416,6 +426,12 @@ void unset_dynamic_mode(void)
   struct mode_list_elem *data; 
 
   data = get_usb_mode_data();
+
+  if(delayed_network)
+  {
+	g_source_remove(delayed_network);
+	delayed_network = 0;
+  }
 
   /* the modelist could be empty */
   if(!data)
