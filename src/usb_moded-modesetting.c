@@ -175,7 +175,7 @@ umount:                 command = g_strconcat("mount | grep ", mountpath, NULL);
               	}
 		
 	        /* activate mounts after sleeping 1s to be sure enumeration happened and autoplay will work in windows*/
-		usleep(1800);
+		sleep(1);
                 for(i=0 ; mounts[i] != NULL; i++)
                 {       
 			
@@ -391,7 +391,7 @@ int set_dynamic_mode(void)
 
   /* try a second time to bring up the network if it failed the first time,
      this can happen with functionfs based gadgets (which is why we sleep for a bit */
-  if(network != 0)
+  if(network != 0 && data->network)
   {
 	log_debug("Retry setting up the network later\n");
 	delayed_network = g_timeout_add_seconds(3, network_retry, data);
