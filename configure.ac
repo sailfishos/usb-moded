@@ -1,4 +1,4 @@
-AC_INIT([usb_moded], [0.82.5])
+AC_INIT([usb_moded], [0.85])
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 
 AM_CONFIG_HEADER([config.h])
@@ -26,7 +26,7 @@ CFLAGS="-Os -std=gnu99 -Wall -W -Wextra -pedantic -pipe -Wformat -Wold-style-def
 
 AC_ARG_ENABLE([debug], AS_HELP_STRING([--enable-debug],[Enable debug @<:@default=false@:>@]),
   [case "${enableval}" in
-   yes) debug=true ; CFLAGS="-g -ggdb -O0 -DDEBUG -DOSSOLOG_STDERR $CFLAGS" ;;
+   yes) debug=true ; CFLAGS="-g -ggdb -DDEBUG $CFLAGS" ;;
    no)  debug=false ;;
    *) AC_MSG_ERROR([bad value ${enableval} for --enable-debug]) ;;
    esac],[debug=false])
