@@ -50,6 +50,10 @@ void list_item_free(mode_list_elem *list_item)
   free(list_item->android_extra_sysfs_value);
   free(list_item->android_extra_sysfs_path2);
   free(list_item->android_extra_sysfs_value2);
+  free(list_item->android_extra_sysfs_path3);
+  free(list_item->android_extra_sysfs_value3);
+  free(list_item->android_extra_sysfs_path4);
+  free(list_item->android_extra_sysfs_value4);
   free(list_item->idProduct);
 #ifdef CONNMAN
   free(list_item->connman_tethering);
@@ -142,9 +146,13 @@ static struct mode_list_elem *read_mode_file(const gchar *filename)
   list_item->softconnect_path = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_SOFTCONNECT_PATH, NULL);
   list_item->android_extra_sysfs_path = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_PATH, NULL);
   list_item->android_extra_sysfs_path2 = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_PATH2, NULL);
+  list_item->android_extra_sysfs_path3 = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_PATH3, NULL);
+  list_item->android_extra_sysfs_path4 = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_PATH4, NULL);
   //log_debug("Android extra mode sysfs path2 = %s\n", list_item->android_extra_sysfs_path2);
   list_item->android_extra_sysfs_value = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_VALUE, NULL);
   list_item->android_extra_sysfs_value2 = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_VALUE2, NULL);
+  list_item->android_extra_sysfs_value3 = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_VALUE3, NULL);
+  list_item->android_extra_sysfs_value4 = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_VALUE4, NULL);
   //log_debug("Android extra value2 = %s\n", list_item->android_extra_sysfs_value2);
   list_item->idProduct = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_IDPRODUCT, NULL);
   list_item->nat = g_key_file_get_integer(settingsfile, MODE_OPTIONS_ENTRY, MODE_HAS_NAT, NULL);

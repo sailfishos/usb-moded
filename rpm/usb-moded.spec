@@ -117,6 +117,20 @@ system bus.
 This package contains the diag config for use with the android
 gadget driver.
 
+%package diag-mode-androidv5+qcom
+Summary:  USB mode controller - android v5 or newer diag mode config for qcom
+Group:  Config
+
+%description diag-mode-androidv5+qcom
+Usb_moded is a daemon to control the USB states. For this
+it loads unloads the relevant usb gadget modules, keeps track
+of the filesystem(s) and notifies about changes on the DBUS
+system bus.
+
+This package contains the diag config for use with the android
+gadget driver.
+
+
 %package acm-mode-android
 Summary:  USB mode controller - android acm mode config
 Group:  Config
@@ -384,8 +398,14 @@ systemctl daemon-reload || :
 
 %files diag-mode-android
 %defattr(-,root,root,-)
+%{_sysconfdir}/usb-moded/dyn-modes/diag_mode_old.ini
+%{_sysconfdir}/usb-moded/run/adb-diag.ini
+
+%files diag-mode-androidv5+qcom
+%defattr(-,root,root,-)
 %{_sysconfdir}/usb-moded/dyn-modes/diag_mode.ini
 %{_sysconfdir}/usb-moded/run/adb-diag.ini
+%{_sysconfdir}/usb-moded/run/diag-adb-prepare.ini
 
 %files acm-mode-android
 %defattr(-,root,root,-)

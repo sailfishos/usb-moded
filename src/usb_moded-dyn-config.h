@@ -47,6 +47,10 @@ android engineers prefered to have sysfs entries... go figure... */
 /* in combined android gadgets we sometime need more than one extra sysfs path or value */
 #define MODE_ANDROID_EXTRA_SYSFS_PATH2	"android_extra_sysfs_path2"
 #define MODE_ANDROID_EXTRA_SYSFS_VALUE2	"android_extra_sysfs_value2"
+#define MODE_ANDROID_EXTRA_SYSFS_PATH3	"android_extra_sysfs_path3"
+#define MODE_ANDROID_EXTRA_SYSFS_VALUE3	"android_extra_sysfs_value3"
+#define MODE_ANDROID_EXTRA_SYSFS_PATH4	"android_extra_sysfs_path4"
+#define MODE_ANDROID_EXTRA_SYSFS_VALUE4	"android_extra_sysfs_value4"
 /* For windows different modes/usb profiles need their own idProduct */
 #define MODE_IDPRODUCT			"idProduct"
 #define MODE_HAS_NAT			"nat"
@@ -77,6 +81,10 @@ typedef struct mode_list_elem
   char *android_extra_sysfs_value;	/* static value that never changes that needs to be set by sysfs :( */
   char *android_extra_sysfs_path2;	/* path for static value that never changes that needs to be set by sysfs :( */
   char *android_extra_sysfs_value2;	/* static value that never changes that needs to be set by sysfs :( */
+  char *android_extra_sysfs_path3;	/* path for static value that never changes that needs to be set by sysfs :( */
+  char *android_extra_sysfs_value3;	/* static value that never changes that needs to be set by sysfs :( */
+  char *android_extra_sysfs_path4;	/* path for static value that never changes that needs to be set by sysfs :( */
+  char *android_extra_sysfs_value4;	/* static value that never changes that needs to be set by sysfs :( */
   char *idProduct;			/* product id to assign to a specific profile */
   int nat;				/* If NAT should be set up in this mode or not */
   int dhcp_server;			/* if a DHCP server needs to be configured and started or not */
