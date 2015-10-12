@@ -1,6 +1,6 @@
 Name:     usb-moded
-Version:  0.82
-Release:  5
+Version:  0.85
+Release:  1
 Summary:  USB mode controller
 Group:    System/System Control
 License:  LGPLv2
@@ -117,11 +117,11 @@ system bus.
 This package contains the diag config for use with the android
 gadget driver.
 
-%package diag-mode-androidv5+qcom
+%package diag-mode-androidv5-qcom
 Summary:  USB mode controller - android v5 or newer diag mode config for qcom
 Group:  Config
 
-%description diag-mode-androidv5+qcom
+%description diag-mode-androidv5-qcom
 Usb_moded is a daemon to control the USB states. For this
 it loads unloads the relevant usb gadget modules, keeps track
 of the filesystem(s) and notifies about changes on the DBUS
@@ -401,7 +401,7 @@ systemctl daemon-reload || :
 %{_sysconfdir}/usb-moded/dyn-modes/diag_mode_old.ini
 %{_sysconfdir}/usb-moded/run/adb-diag.ini
 
-%files diag-mode-androidv5+qcom
+%files diag-mode-androidv5-qcom
 %defattr(-,root,root,-)
 %{_sysconfdir}/usb-moded/dyn-modes/diag_mode.ini
 %{_sysconfdir}/usb-moded/run/adb-diag.ini

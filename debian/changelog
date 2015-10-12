@@ -1,3 +1,9 @@
+usb-moded (0.85.1) unstable; urgency=low
+
+  * [diag] update diag mode to newer android standard.
+
+ -- Philippe De Swert <philippe.deswert@jolla.com>  Mon, 05 Oct 2015 16:41:10 +0300
+
 usb-moded (0.85) unstable; urgency=low
 
   * [usb-moded] Do not retry network when there is no need.
