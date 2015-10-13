@@ -1,3 +1,9 @@
+usb-moded (0.85.2) unstable; urgency=low
+
+  * [devel] Fix DIAG_MODE definition. Fixes: JB#32805  
+
+ -- Philippe De Swert <philippe.deswert@jolla.com>  Tue, 13 Oct 2015 14:34:48 +0300
+
 usb-moded (0.85.1) unstable; urgency=low
 
   * [diag] update diag mode to newer android standard.
