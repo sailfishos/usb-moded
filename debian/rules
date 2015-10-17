@@ -60,8 +60,8 @@ install: build
 
 	# Add here commands to install the package into debian/usb-moded.
 	$(MAKE) DESTDIR=$(CURDIR)/debian/usb-moded install
-	#mkdir -p  $(CURDIR)/debian/usb-moded/etc/dbus-1/system.d/
-	#install -m 644 $(CURDIR)/debian/usb_moded.conf $(CURDIR)/debian/usb-moded/etc/dbus-1/system.d/usb_moded.conf
+	mkdir -p  $(CURDIR)/debian/usb-moded/etc/dbus-1/system.d/
+	install -m 644 $(CURDIR)/debian/usb_moded.conf $(CURDIR)/debian/usb-moded/etc/dbus-1/system.d/usb_moded.conf
 	mkdir -p $(CURDIR)/debian/usb-moded-dev/usr/include/usb-moded/
 	install -m 644 $(CURDIR)/src/usb_moded-dbus.h $(CURDIR)/debian/usb-moded-dev/usr/include/usb-moded/usb_moded-dbus.h
 	install -m 644 $(CURDIR)/src/usb_moded-modes.h $(CURDIR)/debian/usb-moded-dev/usr/include/usb-moded/usb_moded-modes.h
