@@ -117,3 +117,19 @@ int set_android_productid(char *id)
    else
 	return(ret);
 }
+
+/* Set a vendor id for the android gadget
+ *
+ * @return 0 if successful, 1 on failure
+ */
+int set_android_vendorid(char *id)
+{
+   int ret = 0;
+
+   /* disable, set functions to "mass_storage", re-enable */
+   ret = write_to_file("/sys/class/android_usb/android0/idVendor", id);
+   if(ret < 0)
+	return(1);
+   else
+	return(ret);
+}
