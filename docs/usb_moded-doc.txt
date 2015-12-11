@@ -14,9 +14,11 @@ Thus if you need this functionality, usb_moded needs to be started
 with the session. 
 (functionality not verified yet on multi-user setups. See TODO)
 
-Usb cable detection is supported by several different methods.
-Old deprecated hal, through Nokia's own battery monitoring bme, 
-or the preferred udev option. (This has to be chosen at compile time)
+Usb cable detection is handled with udev, it even tries to guess
+which is the correct power_supply entry to use. 
+
+A Qt lib to interact with usb-moded is available here: 
+https://git.merproject.org/mer-core/libusb-moded-qt
 
 Starting usb_moded
 -------------------
