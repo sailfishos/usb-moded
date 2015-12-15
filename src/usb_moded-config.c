@@ -411,12 +411,22 @@ set_config_result_t set_mode_setting(const char *mode)
 
 set_config_result_t set_hide_mode_setting(const char *mode)
 {
-  return (set_config_setting(MODE_SETTING_ENTRY, MODE_HIDE_KEY, mode));
+  set_config_result_t ret;
+
+  ret = set_config_setting(MODE_SETTING_ENTRY, MODE_HIDE_KEY, mode);
+  if(ret == SET_CONFIG_UPDATED)
+	send_supported_modes_signal();
+  return(ret);
 }
 
 set_config_result_t set_unhide_mode_setting(const char *mode)
 {
-  return (set_config_setting(MODE_SETTING_ENTRY, MODE_HIDE_KEY, ""));
+  set_config_result_t ret;
+
+  ret = set_config_setting(MODE_SETTING_ENTRY, MODE_HIDE_KEY, "");
+  if(ret == SET_CONFIG_UPDATED)
+	send_supported_modes_signal();
+  return(ret);
 }
 
 /*

@@ -83,8 +83,6 @@ static gboolean set_disconnected_silent(gpointer data);
 static void usb_moded_init(void);
 static gboolean charging_fallback(gpointer data);
 static void usage(void);
-static void send_supported_modes_signal(void);
-
 
 /* ============= Implementation starts here =========================================== */
 /** set the usb connection status 
@@ -705,7 +703,7 @@ static void usage(void)
                   "\n");
 }
 
-static void send_supported_modes_signal(void)
+void send_supported_modes_signal(void)
 {
     /* Send supported modes signal */
     gchar *mode_list = get_mode_list();
