@@ -434,6 +434,16 @@ gchar *get_mode_list(void)
 {
 
   GString *modelist_str;
+  char *hidden_modes_list;
+  gchar **hidden_mode_split;
+  int hiddenmode = 0, i;
+
+
+  hidden_modes_list = get_hidden_modes();
+  if(hidden_modes_list)
+  {
+    hidden_mode_split = g_strsplit(hidden_modes_list, ",", 0);
+  }
 
   modelist_str = g_string_new(NULL);
 
@@ -447,6 +457,18 @@ gchar *get_mode_list(void)
       for( iter = modelist; iter; iter = g_list_next(iter) )
       {
         struct mode_list_elem *data = iter->data;
+	if(hidden_modes_list)
+          for(i = 0; hidden_mode_split[i] != NULL; i++)
+	  {
+             if(!strcmp(hidden_mode_split[i], data->mode_name))
+		hiddenmode = 1;
+          }
+
+        if(hiddenmode)
+	{
+	  hiddenmode = 0;
+	  continue;
+	}
 	modelist_str = g_string_append(modelist_str, data->mode_name);
 	modelist_str = g_string_append(modelist_str, ", ");
       }

@@ -409,6 +409,16 @@ set_config_result_t set_mode_setting(const char *mode)
   return (set_config_setting(MODE_SETTING_ENTRY, MODE_SETTING_KEY, mode));
 }
 
+set_config_result_t set_hide_mode_setting(const char *mode)
+{
+  return (set_config_setting(MODE_SETTING_ENTRY, MODE_HIDE_KEY, mode));
+}
+
+set_config_result_t set_unhide_mode_setting(const char *mode)
+{
+  return (set_config_setting(MODE_SETTING_ENTRY, MODE_HIDE_KEY, ""));
+}
+
 /*
  * @param config : the key to be set
  * @param setting : The value to be set
@@ -653,6 +663,11 @@ char * get_android_product(void)
 char * get_android_product_id(void)
 {
   return(get_conf_string(ANDROID_ENTRY, ANDROID_PRODUCT_ID_KEY));
+}
+
+char * get_hidden_modes(void)
+{
+  return(get_conf_string(MODE_SETTING_ENTRY, MODE_HIDE_KEY));
 }
 
 int check_android_section(void)
