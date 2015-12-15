@@ -8,14 +8,14 @@
   @author: Philippe De Swert <philippe.deswert@jollamobile.com>
 
   This program is free software; you can redistribute it and/or
-  modify it under the terms of the Lesser GNU General Public License 
-  version 2 as published by the Free Software Foundation. 
+  modify it under the terms of the Lesser GNU General Public License
+  version 2 as published by the Free Software Foundation.
 
   This program is distributed in the hope that it will be useful, but
   WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
   General Public License for more details.
- 
+
   You should have received a copy of the Lesser GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
@@ -70,7 +70,7 @@ static DBusHandlerResult msg_handler(DBusConnection *const connection, DBusMessa
   const char         *member    = dbus_message_get_member(msg);
   const char         *object    = dbus_message_get_path(msg);
   int                 type      = dbus_message_get_type(msg);
-  const char *xml = 	"<!DOCTYPE node PUBLIC \"-//freedesktop//DTD D-BUS Object Introspection 1.0//EN\" "
+  const char *xml =	"<!DOCTYPE node PUBLIC \"-//freedesktop//DTD D-BUS Object Introspection 1.0//EN\" "
 			"\"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd\">\n"
 			"<node name=\"" USB_MODE_OBJECT "\">\n"
 			"  <interface name=\"org.freedesktop.DBus.Introspectable\">\n"
@@ -131,25 +131,25 @@ static DBusHandlerResult msg_handler(DBusConnection *const connection, DBusMessa
 
   if( type == DBUS_MESSAGE_TYPE_METHOD_CALL && !strcmp(interface, USB_MODE_INTERFACE) && !strcmp(object, USB_MODE_OBJECT))
   {
-  	status = DBUS_HANDLER_RESULT_HANDLED;
-  	
-    	if(!strcmp(member, USB_MODE_STATE_REQUEST))
-    	{
+	status = DBUS_HANDLER_RESULT_HANDLED;
+
+	if(!strcmp(member, USB_MODE_STATE_REQUEST))
+	{
 		const char *mode = get_usb_mode();
 
 		/* To the outside we want to keep CHARGING and CHARGING_FALLBACK the same */
 		if(!strcmp(MODE_CHARGING_FALLBACK, mode))
 			mode = MODE_CHARGING;
-      		if((reply = dbus_message_new_method_return(msg)))
-        		dbus_message_append_args (reply, DBUS_TYPE_STRING, &mode, DBUS_TYPE_INVALID);
-    	}
-    	else if(!strcmp(member, USB_MODE_STATE_SET))
-    	{
-      		char *use = 0;
-      		DBusError   err = DBUS_ERROR_INIT;
+		if((reply = dbus_message_new_method_return(msg)))
+			dbus_message_append_args (reply, DBUS_TYPE_STRING, &mode, DBUS_TYPE_INVALID);
+	}
+	else if(!strcmp(member, USB_MODE_STATE_SET))
+	{
+		char *use = 0;
+		DBusError   err = DBUS_ERROR_INIT;
 
-      		if(!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &use, DBUS_TYPE_INVALID))
-        		reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
+		if(!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &use, DBUS_TYPE_INVALID))
+			reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
 		else
 		{
 				/* check if usb is connected, since it makes no sense to change mode if it isn't */
@@ -167,21 +167,21 @@ static DBusHandlerResult msg_handler(DBusConnection *const connection, DBusMessa
 					usb_moded_mode_cleanup(get_usb_module());
 					set_usb_mode(use);
 				}
-      				if((reply = dbus_message_new_method_return(msg)))
-			        	dbus_message_append_args (reply, DBUS_TYPE_STRING, &use, DBUS_TYPE_INVALID);
+				if((reply = dbus_message_new_method_return(msg)))
+					dbus_message_append_args (reply, DBUS_TYPE_STRING, &use, DBUS_TYPE_INVALID);
 				else
 error_reply:
-       					reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
+					reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
 		}
 		dbus_error_free(&err);
         }
 	else if(!strcmp(member, USB_MODE_CONFIG_SET))
 	{
-	  	char *config = 0;
-      		DBusError   err = DBUS_ERROR_INIT;
+		char *config = 0;
+		DBusError   err = DBUS_ERROR_INIT;
 
-      		if(!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID))
-        		reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
+		if(!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID))
+			reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
 		else
 		{
 			/* error checking is done when setting configuration */
@@ -190,21 +190,21 @@ error_reply:
 				usb_moded_send_config_signal(MODE_SETTING_ENTRY, MODE_SETTING_KEY, config);
 			if (SET_CONFIG_OK(ret))
 			{
- 				if((reply = dbus_message_new_method_return(msg)))
-			       	dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID);
+				if((reply = dbus_message_new_method_return(msg)))
+				dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID);
 			}
 			else
-       				reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, config);
+				reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, config);
 		}
-		dbus_error_free(&err);	
+		dbus_error_free(&err);
 	}
 	else if(!strcmp(member, USB_MODE_HIDE))
 	{
-	  	char *config = 0;
-      		DBusError   err = DBUS_ERROR_INIT;
+		char *config = 0;
+		DBusError   err = DBUS_ERROR_INIT;
 
-      		if(!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID))
-        		reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
+		if(!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID))
+			reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
 		else
 		{
 			/* error checking is done when setting configuration */
@@ -213,21 +213,21 @@ error_reply:
 				usb_moded_send_config_signal(MODE_SETTING_ENTRY, MODE_HIDE_KEY, config);
 			if (SET_CONFIG_OK(ret))
 			{
- 				if((reply = dbus_message_new_method_return(msg)))
-			       	dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID);
+				if((reply = dbus_message_new_method_return(msg)))
+				dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID);
 			}
 			else
-       				reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, config);
+				reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, config);
 		}
-		dbus_error_free(&err);	
+		dbus_error_free(&err);
 	}
 	else if(!strcmp(member, USB_MODE_UNHIDE))
 	{
-	  	char *config = 0;
-      		DBusError   err = DBUS_ERROR_INIT;
+		char *config = 0;
+		DBusError   err = DBUS_ERROR_INIT;
 
-      		if(!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID))
-        		reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
+		if(!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID))
+			reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
 		else
 		{
 			/* error checking is done when setting configuration */
@@ -236,21 +236,21 @@ error_reply:
 				usb_moded_send_config_signal(MODE_SETTING_ENTRY, MODE_HIDE_KEY, config);
 			if (SET_CONFIG_OK(ret))
 			{
- 				if((reply = dbus_message_new_method_return(msg)))
-			       	dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID);
+				if((reply = dbus_message_new_method_return(msg)))
+				dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID);
 			}
 			else
-       				reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, config);
+				reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, config);
 		}
-		dbus_error_free(&err);	
+		dbus_error_free(&err);
 	}
 	else if(!strcmp(member, USB_MODE_NETWORK_SET))
 	{
-	  	char *config = 0, *setting = 0;
-      		DBusError   err = DBUS_ERROR_INIT;
+		char *config = 0, *setting = 0;
+		DBusError   err = DBUS_ERROR_INIT;
 
-      		if(!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &config, DBUS_TYPE_STRING, &setting, DBUS_TYPE_INVALID))
-        		reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
+		if(!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &config, DBUS_TYPE_STRING, &setting, DBUS_TYPE_INVALID))
+			reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
 		else
 		{
 			/* error checking is done when setting configuration */
@@ -259,14 +259,14 @@ error_reply:
 				usb_moded_send_config_signal(NETWORK_ENTRY, config, setting);
 			if (SET_CONFIG_OK(ret))
 			{
- 				if((reply = dbus_message_new_method_return(msg)))
-			       	dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_STRING, &setting, DBUS_TYPE_INVALID);
+				if((reply = dbus_message_new_method_return(msg)))
+				dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_STRING, &setting, DBUS_TYPE_INVALID);
 				usb_network_update();
 			}
 			else
-       				reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, config);
+				reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, config);
 		}
-		dbus_error_free(&err);	
+		dbus_error_free(&err);
 	}
 	else if(!strcmp(member, USB_MODE_NETWORK_GET))
 	{
@@ -294,9 +294,9 @@ error_reply:
 	else if(!strcmp(member, USB_MODE_CONFIG_GET))
 	{
 		char *config = get_mode_setting();
-		
-      		if((reply = dbus_message_new_method_return(msg)))
-        		dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID);
+
+		if((reply = dbus_message_new_method_return(msg)))
+			dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID);
 		free(config);
 	}
 	else if(!strcmp(member, USB_MODE_LIST))
@@ -313,23 +313,23 @@ error_reply:
 		log_debug("Rescue mode off\n ");
 		reply = dbus_message_new_method_return(msg);
 	}
-  	else
-    	{ 
-        	/*unknown methods are handled here */
-      		reply = dbus_message_new_error(msg, DBUS_ERROR_UNKNOWN_METHOD, member);
-    	}
+	else
+	{
+		/*unknown methods are handled here */
+		reply = dbus_message_new_error(msg, DBUS_ERROR_UNKNOWN_METHOD, member);
+	}
 
-    	if( !reply )
-    	{
-      		reply = dbus_message_new_error(msg, DBUS_ERROR_FAILED, member);
-    	}
+	if( !reply )
+	{
+		reply = dbus_message_new_error(msg, DBUS_ERROR_FAILED, member);
+	}
   }
   else if( type == DBUS_MESSAGE_TYPE_METHOD_CALL && !strcmp(interface, "org.freedesktop.DBus.Introspectable") &&
            !strcmp(object, USB_MODE_OBJECT) && !strcmp(member, "Introspect"))
   {
-  	status = DBUS_HANDLER_RESULT_HANDLED;
+	status = DBUS_HANDLER_RESULT_HANDLED;
 
-      	if((reply = dbus_message_new_method_return(msg)))
+	if((reply = dbus_message_new_method_return(msg)))
                dbus_message_append_args (reply, DBUS_TYPE_STRING, &xml, DBUS_TYPE_INVALID);
   }
 
@@ -338,12 +338,12 @@ EXIT:
 
   if(reply)
   {
-  	if( !dbus_message_get_no_reply(msg) )
-    	{	
-      		if( !dbus_connection_send(connection, reply, 0) )
-        		log_debug("Failed sending reply. Out Of Memory!\n");
-      	}
-    	dbus_message_unref(reply);
+	if( !dbus_message_get_no_reply(msg) )
+	{
+		if( !dbus_connection_send(connection, reply, 0) )
+			log_debug("Failed sending reply. Out Of Memory!\n");
+	}
+	dbus_message_unref(reply);
   }
 
   return status;
@@ -363,19 +363,19 @@ gboolean usb_moded_dbus_init(void)
   dbus_error_init(&error);
 
   /* connect to system bus */
-  if ((dbus_connection_sys = dbus_bus_get(DBUS_BUS_SYSTEM, &error)) == NULL) 
+  if ((dbus_connection_sys = dbus_bus_get(DBUS_BUS_SYSTEM, &error)) == NULL)
   {
-   	log_debug("Failed to open connection to system message bus; %s\n",  error.message);
+	log_debug("Failed to open connection to system message bus; %s\n",  error.message);
         goto EXIT;
   }
 
   /* Initialise message handlers */
-  if (!dbus_connection_add_filter(dbus_connection_sys, msg_handler, NULL, NULL)) 
-   	goto EXIT;
+  if (!dbus_connection_add_filter(dbus_connection_sys, msg_handler, NULL, NULL))
+	goto EXIT;
 
   /* Acquire D-Bus service */
   ret = dbus_bus_request_name(dbus_connection_sys, USB_MODE_SERVICE, DBUS_NAME_FLAG_DO_NOT_QUEUE, &error);
-  if (ret != DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER) 
+  if (ret != DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER)
   {
 	log_debug("failed claiming dbus name\n");
 	if( dbus_error_is_set(&error) )
@@ -395,7 +395,7 @@ gboolean usb_moded_dbus_init(void)
   /* everything went fine */
   status = TRUE;
 
-EXIT:		
+EXIT:
   dbus_error_free(&error);
   return status;
 }
@@ -407,7 +407,7 @@ EXIT:
 void usb_moded_dbus_cleanup(void)
 {
   /* clean up system bus connection */
-  if (dbus_connection_sys != NULL) 
+  if (dbus_connection_sys != NULL)
   {
 	  dbus_bus_release_name(dbus_connection_sys, USB_MODE_SERVICE, NULL);
 	  dbus_connection_remove_filter(dbus_connection_sys, msg_handler, NULL);
@@ -433,31 +433,31 @@ static int usb_moded_dbus_signal(const char *signal_type, const char *content)
 	log_err("Dbus system connection broken!\n");
 	goto EXIT;
   }
-  // create a signal and check for errors 
+  // create a signal and check for errors
   msg = dbus_message_new_signal(USB_MODE_OBJECT, USB_MODE_INTERFACE, signal_type );
-  if (NULL == msg) 
-  { 
-      log_debug("Message Null\n"); 
+  if (NULL == msg)
+  {
+      log_debug("Message Null\n");
       goto EXIT;
    }
 
   // append arguments onto signal
-  if (!dbus_message_append_args(msg, DBUS_TYPE_STRING, &content, DBUS_TYPE_INVALID)) 
-  { 
-      log_debug("Appending arguments failed. Out Of Memory!\n"); 
+  if (!dbus_message_append_args(msg, DBUS_TYPE_STRING, &content, DBUS_TYPE_INVALID))
+  {
+      log_debug("Appending arguments failed. Out Of Memory!\n");
       goto EXIT;
   }
 
   // send the message on the correct bus  and flush the connection
-  if (!dbus_connection_send(dbus_connection_sys, msg, 0)) 
+  if (!dbus_connection_send(dbus_connection_sys, msg, 0))
   {
- 	log_debug("Failed sending message. Out Of Memory!\n");
+	log_debug("Failed sending message. Out Of Memory!\n");
 	goto EXIT;
   }
   result = 0;
 
-EXIT:   
-  // free the message 
+EXIT:
+  // free the message
   if(msg != 0)
 	  dbus_message_unref(msg);
 
