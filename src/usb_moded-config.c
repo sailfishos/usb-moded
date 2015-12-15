@@ -535,7 +535,7 @@ int conf_file_merge(void)
 {
   GDir *confdir;
   struct stat fileinfo, dir;
-  char *mode = 0, *ip = 0, *gateway = 0, *udev = 0;
+  char *mode = 0, *ip = 0, *gateway = 0, *udev = 0, *hide = 0;
   gchar *filename_full;
   const gchar *filename;
   GString *keyfile_string = NULL;
@@ -595,8 +595,11 @@ int conf_file_merge(void)
 		mode = get_mode_setting();
 		/* store udev path (especially important for the upgrade path */
 		udev = find_udev_path();
+		/* store network info */
 		ip = get_conf_string(NETWORK_ENTRY, NETWORK_IP_KEY);
 		gateway = get_conf_string(NETWORK_ENTRY, NETWORK_GATEWAY_KEY);
+		/* store hidden modes */
+		hide = get_hidden_modes();
 		continue;
 	}
 	/* load contents of file, if it fails skip to next one */
@@ -637,6 +640,9 @@ next:
 		set_network_setting(NETWORK_IP_KEY, ip);
 	if(gateway)
 		set_network_setting(NETWORK_GATEWAY_KEY, gateway);
+	/* re-add hidden modes info */
+	if(hide)
+		set_hide_mode_setting(hide);
   }
   else
 	ret = 1;
