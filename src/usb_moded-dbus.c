@@ -198,6 +198,52 @@ error_reply:
 		}
 		dbus_error_free(&err);	
 	}
+	else if(!strcmp(member, USB_MODE_HIDE))
+	{
+	  	char *config = 0;
+      		DBusError   err = DBUS_ERROR_INIT;
+
+      		if(!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID))
+        		reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
+		else
+		{
+			/* error checking is done when setting configuration */
+			int ret = set_hide_mode_setting(config);
+			if (ret == SET_CONFIG_UPDATED)
+				usb_moded_send_config_signal(MODE_SETTING_ENTRY, MODE_HIDE_KEY, config);
+			if (SET_CONFIG_OK(ret))
+			{
+ 				if((reply = dbus_message_new_method_return(msg)))
+			       	dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID);
+			}
+			else
+       				reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, config);
+		}
+		dbus_error_free(&err);	
+	}
+	else if(!strcmp(member, USB_MODE_UNHIDE))
+	{
+	  	char *config = 0;
+      		DBusError   err = DBUS_ERROR_INIT;
+
+      		if(!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID))
+        		reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
+		else
+		{
+			/* error checking is done when setting configuration */
+			int ret = set_unhide_mode_setting(config);
+			if (ret == SET_CONFIG_UPDATED)
+				usb_moded_send_config_signal(MODE_SETTING_ENTRY, MODE_HIDE_KEY, config);
+			if (SET_CONFIG_OK(ret))
+			{
+ 				if((reply = dbus_message_new_method_return(msg)))
+			       	dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID);
+			}
+			else
+       				reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, config);
+		}
+		dbus_error_free(&err);	
+	}
 	else if(!strcmp(member, USB_MODE_NETWORK_SET))
 	{
 	  	char *config = 0, *setting = 0;

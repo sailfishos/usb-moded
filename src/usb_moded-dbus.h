@@ -43,10 +43,8 @@
 #define USB_MODE_RESCUE_OFF	"rescue_off"    /* turns rescue mode off so normal mode selection is restored */
 #define USB_MODE_CONFIG_GET	"get_config"	/* returns the mode set in the config */
 #define USB_MODE_LIST		"get_modes"	/* returns a comma-separated list of supported modes for ui's */
-
-/**
-  * @credential usb-moded::USBControl	Credential needed to be able to call the set_mode or set_config methods
-**/
+#define USB_MODE_HIDE		"hide_mode"     /* hide a mode */
+#define USB_MODE_UNHIDE		"unhide_mode"   /* unhide a mode */
 #define USB_MODE_STATE_SET	"set_mode"	/* set a mode (only works when connected) */
 #define USB_MODE_CONFIG_SET	"set_config"	/* set the mode that needs to be activated in the config file */
 #define USB_MODE_NETWORK_SET	"net_config"    /* set the network config in the config file */
