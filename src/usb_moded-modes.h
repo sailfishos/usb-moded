@@ -44,3 +44,5 @@
  **/
 #define MODE_CHARGING_FALLBACK  "charging_only_fallback"
 #define MODE_CHARGER		"dedicated_charger"
+
+void send_supported_modes_signal(void);
