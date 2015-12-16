@@ -369,6 +369,12 @@ int set_dynamic_mode(void)
 	/* only works for android since the idProduct is a module parameter */
 	set_android_productid(data->idProduct);
   }
+  if(data->idVendorOverride)
+  {
+	/* only works for android since the idProduct is a module parameter */
+	set_android_vendorid(data->idVendorOverride);
+  }
+
   /* enable the device */
   if(data->softconnect)
   {
@@ -462,6 +468,14 @@ void unset_dynamic_mode(void)
   {
 	write_to_file(data->sysfs_path, data->sysfs_reset_value);
 	log_debug("writing to file %s, value %s\n", data->sysfs_path, data->sysfs_reset_value);
+  }
+  /* restore vendorid if the mode had an override */
+  if(data->idVendorOverride)
+  {
+	char *id;
+	id = get_android_vendor_id();
+	set_android_vendorid(id);
+	g_free(id);
   }
 }
 

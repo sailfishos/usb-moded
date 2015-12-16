@@ -24,3 +24,4 @@ int android_settings(void);
 void android_init_values(void);
 int set_android_charging_mode(void);
 int set_android_productid(char *id);
+int set_android_vendorid(char *id);
