@@ -433,7 +433,7 @@ gchar *get_mode_list(void)
 
   GString *modelist_str;
   char *hidden_modes_list;
-  gchar **hidden_mode_split;
+  gchar **hidden_mode_split = NULL;
   int hiddenmode = 0, i;
 
 
@@ -444,6 +444,9 @@ gchar *get_mode_list(void)
   }
 
   modelist_str = g_string_new(NULL);
+
+  if(!hidden_mode_split)
+	goto nomodelist;
 
   if(!diag_mode)
   {
@@ -472,6 +475,9 @@ gchar *get_mode_list(void)
       }
     }
 
+    g_strfreev(hidden_mode_split);
+
+nomodelist:
     /* end with charging mode */
     g_string_append(modelist_str, MODE_CHARGING);
     return(g_string_free(modelist_str, FALSE));
