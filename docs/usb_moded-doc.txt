@@ -400,3 +400,19 @@ For this are the
 
 Network options. nat_interface documents which interfaces the internet facing modem. noroaming when set to 1
 will prohibit enabling the modem interface in case you are roaming (this requires ofono). 
+
+
+hidden modes
+------------
+
+Sometimes it is useful to hide modes from the ui (the mode can be queried through dbus).
+To hide modes this can be done by adding a hide= key to the
+[usbmode] section. If you want to hide more modes this needs
+to be a comma separated list.
+
+For example
+[usbmode]
+hide=developer_mode,bastard_mode
+
+Modes can also be set and removed through dbus (one mode at a time)
+See usb_moded_util (-i and -u)
