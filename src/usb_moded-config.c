@@ -409,11 +409,58 @@ set_config_result_t set_mode_setting(const char *mode)
   return (set_config_setting(MODE_SETTING_ENTRY, MODE_SETTING_KEY, mode));
 }
 
+/* Builds the string used for hidden modes, when hide set to one builds the
+   new string of hidden modes when adding one, otherwise it will remove one */
+static const char * make_hidden_modes_string(const char *hidden, int hide)
+{
+  GString *modelist_str;
+  char *hidden_modes_list;
+  gchar **hidden_mode_split;
+  int i;
+
+
+  hidden_modes_list = get_hidden_modes();
+  if(hidden_modes_list)
+  {
+    hidden_mode_split = g_strsplit(hidden_modes_list, ",", 0);
+  }
+  else
+  {
+    /* no hidden modes yet. So just return the original string */
+    return hidden;
+  }
+
+  modelist_str = g_string_new(NULL);
+
+  for(i = 0; hidden_mode_split[i] != NULL; i++)
+  {
+     if(!strcmp(hidden_mode_split[i], hidden))
+     {
+	/* if hiding a mode that is already hidden do nothing */
+	if(hide)
+		return(NULL);
+        if(!hide)
+        	continue;
+     }
+     modelist_str = g_string_append(modelist_str, hidden_mode_split[i]);
+     if(hidden_mode_split[i+1] != NULL) 
+     	modelist_str = g_string_append(modelist_str, ",");
+  }
+  if(hide)
+  {
+     modelist_str = g_string_append(modelist_str, ",");
+     modelist_str = g_string_append(modelist_str, hidden);
+  }
+  
+  g_strfreev(hidden_mode_split);
+  return(g_string_free(modelist_str, FALSE));
+}
+
 set_config_result_t set_hide_mode_setting(const char *mode)
 {
   set_config_result_t ret;
 
-  ret = set_config_setting(MODE_SETTING_ENTRY, MODE_HIDE_KEY, mode);
+  ret = set_config_setting(MODE_SETTING_ENTRY, MODE_HIDE_KEY, make_hidden_modes_string(mode, 1));
   if(ret == SET_CONFIG_UPDATED)
 	send_supported_modes_signal();
   return(ret);
@@ -423,7 +470,7 @@ set_config_result_t set_unhide_mode_setting(const char *mode)
 {
   set_config_result_t ret;
 
-  ret = set_config_setting(MODE_SETTING_ENTRY, MODE_HIDE_KEY, "");
+  ret = set_config_setting(MODE_SETTING_ENTRY, MODE_HIDE_KEY, make_hidden_modes_string(mode, 0));
   if(ret == SET_CONFIG_UPDATED)
 	send_supported_modes_signal();
   return(ret);
