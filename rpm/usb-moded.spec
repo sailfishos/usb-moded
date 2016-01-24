@@ -346,7 +346,9 @@ install -m 755 -D systemd/turn-usb-rescue-mode-off %{buildroot}/%{_bindir}/turn-
 install -m 644 -D systemd/usb-rescue-mode-off.service %{buildroot}/lib/systemd/system/usb-rescue-mode-off.service
 install -m 644 -D systemd/usb-rescue-mode-off.service %{buildroot}/lib/systemd/system/graphical.target.wants/usb-rescue-mode-off.service
 install -m 644 -D systemd/usb-moded.conf %{buildroot}/%{_sysconfdir}/tmpfiles.d/usb-moded.conf
-
+install -m 644 -D systemd/adbd-prepare.service %{buildroot}/lib/systemd/system/adbd-prepare.service
+install -m 644 -D systemd/adbd-prepare.service %{buildroot}/lib/systemd/system/graphical.target.wants/adbd-prepare.service
+install -m 744 -D systemd/adbd-functionfs.sh %{buildroot}/usr/sbin/adbd-functionfs.sh
 
 %preun
 systemctl daemon-reload || :
@@ -422,6 +424,9 @@ systemctl daemon-reload || :
 %{_sysconfdir}/usb-moded/run/adb-startserver.ini
 %{_sysconfdir}/usb-moded/run/adb-prepare.ini
 %{_sysconfdir}/usb-moded/run/udhcpd-adb-mode.ini
+/lib/systemd/system/adbd-prepare.service
+/lib/systemd/system/graphical.target.wants/adbd-prepare.service
+/usr/sbin/adbd-functionfs.sh
 
 %files mtp-mode-android
 %defattr(-,root,root,-)
