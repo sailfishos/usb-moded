@@ -624,8 +624,10 @@ static void usb_moded_init(void)
   readlist(diag_mode);
   /* make sure all services are down when starting */
   appsync_stop(1);
-  modelist = read_mode_list(diag_mode);
 #endif /* APP_SYNC */
+
+  /* always read dyn modes even if appsync is not used */
+  modelist = read_mode_list(diag_mode);
 
   if(check_trigger())
 	trigger_init();
