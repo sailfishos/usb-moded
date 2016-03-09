@@ -445,9 +445,6 @@ gchar *get_mode_list(void)
 
   modelist_str = g_string_new(NULL);
 
-  if(!hidden_mode_split)
-	goto nomodelist;
-
   if(!diag_mode)
   {
     /* check dynamic modes */
@@ -458,7 +455,7 @@ gchar *get_mode_list(void)
       for( iter = modelist; iter; iter = g_list_next(iter) )
       {
         struct mode_list_elem *data = iter->data;
-	if(hidden_modes_list)
+	if(hidden_modes_list && hidden_mode_split)
           for(i = 0; hidden_mode_split[i] != NULL; i++)
 	  {
              if(!strcmp(hidden_mode_split[i], data->mode_name))
@@ -475,9 +472,9 @@ gchar *get_mode_list(void)
       }
     }
 
+  if(hidden_mode_split)
     g_strfreev(hidden_mode_split);
 
-nomodelist:
     /* end with charging mode */
     g_string_append(modelist_str, MODE_CHARGING);
     return(g_string_free(modelist_str, FALSE));
