@@ -83,8 +83,6 @@ static gboolean set_disconnected_silent(gpointer data);
 static void usb_moded_init(void);
 static gboolean charging_fallback(gpointer data);
 static void usage(void);
-static void send_supported_modes_signal(void);
-
 
 /* ============= Implementation starts here =========================================== */
 /** set the usb connection status 
@@ -434,6 +432,16 @@ gchar *get_mode_list(void)
 {
 
   GString *modelist_str;
+  char *hidden_modes_list;
+  gchar **hidden_mode_split = NULL;
+  int hiddenmode = 0, i;
+
+
+  hidden_modes_list = get_hidden_modes();
+  if(hidden_modes_list)
+  {
+    hidden_mode_split = g_strsplit(hidden_modes_list, ",", 0);
+  }
 
   modelist_str = g_string_new(NULL);
 
@@ -447,10 +455,25 @@ gchar *get_mode_list(void)
       for( iter = modelist; iter; iter = g_list_next(iter) )
       {
         struct mode_list_elem *data = iter->data;
+	if(hidden_modes_list && hidden_mode_split)
+          for(i = 0; hidden_mode_split[i] != NULL; i++)
+	  {
+             if(!strcmp(hidden_mode_split[i], data->mode_name))
+		hiddenmode = 1;
+          }
+
+        if(hiddenmode)
+	{
+	  hiddenmode = 0;
+	  continue;
+	}
 	modelist_str = g_string_append(modelist_str, data->mode_name);
 	modelist_str = g_string_append(modelist_str, ", ");
       }
     }
+
+  if(hidden_mode_split)
+    g_strfreev(hidden_mode_split);
 
     /* end with charging mode */
     g_string_append(modelist_str, MODE_CHARGING);
@@ -683,7 +706,7 @@ static void usage(void)
                   "\n");
 }
 
-static void send_supported_modes_signal(void)
+void send_supported_modes_signal(void)
 {
     /* Send supported modes signal */
     gchar *mode_list = get_mode_list();

@@ -615,8 +615,10 @@ static int connman_fill_connection_data(DBusMessage *reply, struct ipforward_dat
 					/* if cellular not online, connect it */
 					if(strcmp(string, "online"))
 					{
-						log_debug("Not online. Turning on cellular data connection.\n");
-						return(1);
+						/* if in ready state connection might be up anyway */
+						if(strcmp(string, "ready"))
+							log_debug("Not online. Turning on cellular data connection.\n");
+							return(1);
 					}
 					
 				}

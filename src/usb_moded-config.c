@@ -409,6 +409,73 @@ set_config_result_t set_mode_setting(const char *mode)
   return (set_config_setting(MODE_SETTING_ENTRY, MODE_SETTING_KEY, mode));
 }
 
+/* Builds the string used for hidden modes, when hide set to one builds the
+   new string of hidden modes when adding one, otherwise it will remove one */
+static const char * make_hidden_modes_string(const char *hidden, int hide)
+{
+  GString *modelist_str;
+  char *hidden_modes_list;
+  gchar **hidden_mode_split;
+  int i;
+
+
+  hidden_modes_list = get_hidden_modes();
+  if(hidden_modes_list)
+  {
+    hidden_mode_split = g_strsplit(hidden_modes_list, ",", 0);
+  }
+  else
+  {
+    /* no hidden modes yet. So just return the original string */
+    return hidden;
+  }
+
+  modelist_str = g_string_new(NULL);
+
+  for(i = 0; hidden_mode_split[i] != NULL; i++)
+  {
+     if(!strcmp(hidden_mode_split[i], hidden))
+     {
+	/* if hiding a mode that is already hidden do nothing */
+	if(hide)
+		return(NULL);
+        if(!hide)
+        	continue;
+     }
+     modelist_str = g_string_append(modelist_str, hidden_mode_split[i]);
+     if(hidden_mode_split[i+1] != NULL) 
+     	modelist_str = g_string_append(modelist_str, ",");
+  }
+  if(hide)
+  {
+     modelist_str = g_string_append(modelist_str, ",");
+     modelist_str = g_string_append(modelist_str, hidden);
+  }
+  
+  g_strfreev(hidden_mode_split);
+  return(g_string_free(modelist_str, FALSE));
+}
+
+set_config_result_t set_hide_mode_setting(const char *mode)
+{
+  set_config_result_t ret;
+
+  ret = set_config_setting(MODE_SETTING_ENTRY, MODE_HIDE_KEY, make_hidden_modes_string(mode, 1));
+  if(ret == SET_CONFIG_UPDATED)
+	send_supported_modes_signal();
+  return(ret);
+}
+
+set_config_result_t set_unhide_mode_setting(const char *mode)
+{
+  set_config_result_t ret;
+
+  ret = set_config_setting(MODE_SETTING_ENTRY, MODE_HIDE_KEY, make_hidden_modes_string(mode, 0));
+  if(ret == SET_CONFIG_UPDATED)
+	send_supported_modes_signal();
+  return(ret);
+}
+
 /*
  * @param config : the key to be set
  * @param setting : The value to be set
@@ -515,7 +582,7 @@ int conf_file_merge(void)
 {
   GDir *confdir;
   struct stat fileinfo, dir;
-  char *mode = 0, *ip = 0, *gateway = 0, *udev = 0;
+  char *mode = 0, *ip = 0, *gateway = 0, *udev = 0, *hide = 0;
   gchar *filename_full;
   const gchar *filename;
   GString *keyfile_string = NULL;
@@ -575,8 +642,11 @@ int conf_file_merge(void)
 		mode = get_mode_setting();
 		/* store udev path (especially important for the upgrade path */
 		udev = find_udev_path();
+		/* store network info */
 		ip = get_conf_string(NETWORK_ENTRY, NETWORK_IP_KEY);
 		gateway = get_conf_string(NETWORK_ENTRY, NETWORK_GATEWAY_KEY);
+		/* store hidden modes */
+		hide = get_hidden_modes();
 		continue;
 	}
 	/* load contents of file, if it fails skip to next one */
@@ -617,6 +687,9 @@ next:
 		set_network_setting(NETWORK_IP_KEY, ip);
 	if(gateway)
 		set_network_setting(NETWORK_GATEWAY_KEY, gateway);
+	/* re-add hidden modes info */
+	if(hide)
+		set_hide_mode_setting(hide);
   }
   else
 	ret = 1;
@@ -653,6 +726,11 @@ char * get_android_product(void)
 char * get_android_product_id(void)
 {
   return(get_conf_string(ANDROID_ENTRY, ANDROID_PRODUCT_ID_KEY));
+}
+
+char * get_hidden_modes(void)
+{
+  return(get_conf_string(MODE_SETTING_ENTRY, MODE_HIDE_KEY));
 }
 
 int check_android_section(void)

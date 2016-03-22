@@ -14,9 +14,11 @@ Thus if you need this functionality, usb_moded needs to be started
 with the session. 
 (functionality not verified yet on multi-user setups. See TODO)
 
-Usb cable detection is supported by several different methods.
-Old deprecated hal, through Nokia's own battery monitoring bme, 
-or the preferred udev option. (This has to be chosen at compile time)
+Usb cable detection is handled with udev, it even tries to guess
+which is the correct power_supply entry to use. 
+
+A Qt lib to interact with usb-moded is available here: 
+https://git.merproject.org/mer-core/libusb-moded-qt
 
 Starting usb_moded
 -------------------
@@ -398,3 +400,19 @@ For this are the
 
 Network options. nat_interface documents which interfaces the internet facing modem. noroaming when set to 1
 will prohibit enabling the modem interface in case you are roaming (this requires ofono). 
+
+
+hidden modes
+------------
+
+Sometimes it is useful to hide modes from the ui (the mode can be queried through dbus).
+To hide modes this can be done by adding a hide= key to the
+[usbmode] section. If you want to hide more modes this needs
+to be a comma separated list.
+
+For example
+[usbmode]
+hide=developer_mode,bastard_mode
+
+Modes can also be set and removed through dbus (one mode at a time)
+See usb_moded_util (-i and -u)

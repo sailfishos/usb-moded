@@ -26,4 +26,6 @@
 
 char * get_mode_setting(void);
 set_config_result_t set_mode_setting(const char *mode);
+set_config_result_t set_hide_mode_setting(const char *mode);
+set_config_result_t set_unhide_mode_setting(const char *mode);
 set_config_result_t set_network_setting(const char *config, const char *setting);

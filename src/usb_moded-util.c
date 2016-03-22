@@ -181,7 +181,61 @@ static int set_mode_config (char *mode)
     printf("mode set in the configuration file = %s\n", ret);
     return 0;
   }
-  
+
+  /* not everything went as planned, return error */
+  return 1;
+}
+
+static int set_hide_mode_config (char *mode)
+{
+  DBusMessage *req = NULL, *reply = NULL;
+  char *ret = 0;
+
+  printf("Trying to hide the following mode %s in the config file\n", mode);
+  if ((req = dbus_message_new_method_call(USB_MODE_SERVICE, USB_MODE_OBJECT, USB_MODE_INTERFACE, USB_MODE_HIDE)) != NULL)
+  {
+	dbus_message_append_args (req, DBUS_TYPE_STRING, &mode, DBUS_TYPE_INVALID);
+        if ((reply = dbus_connection_send_with_reply_and_block(conn, req, -1, NULL)) != NULL)
+        {
+            dbus_message_get_args(reply, NULL, DBUS_TYPE_STRING, &ret, DBUS_TYPE_INVALID);
+            dbus_message_unref(reply);
+        }
+        dbus_message_unref(req);
+  }
+
+  if(ret)
+  {
+    printf("mode hidden = %s\n", ret);
+    return 0;
+  }
+
+  /* not everything went as planned, return error */
+  return 1;
+}
+
+static int set_unhide_mode_config (char *mode)
+{
+  DBusMessage *req = NULL, *reply = NULL;
+  char *ret = 0;
+
+  printf("Trying to unhide the following mode %s in the config file\n", mode);
+  if ((req = dbus_message_new_method_call(USB_MODE_SERVICE, USB_MODE_OBJECT, USB_MODE_INTERFACE, USB_MODE_UNHIDE)) != NULL)
+  {
+	dbus_message_append_args (req, DBUS_TYPE_STRING, &mode, DBUS_TYPE_INVALID);
+        if ((reply = dbus_connection_send_with_reply_and_block(conn, req, -1, NULL)) != NULL)
+        {
+            dbus_message_get_args(reply, NULL, DBUS_TYPE_STRING, &ret, DBUS_TYPE_INVALID);
+            dbus_message_unref(reply);
+        }
+        dbus_message_unref(req);
+  }
+
+  if(ret)
+  {
+    printf("mode unhidden = %s\n", ret);
+    return 0;
+  }
+
   /* not everything went as planned, return error */
   return 1;
 }
@@ -260,7 +314,7 @@ static int handle_network(char *network)
 int main (int argc, char *argv[])
 {
   int query = 0, network = 0, setmode = 0, config = 0;
-  int modelist = 0, mode_configured = 0;
+  int modelist = 0, mode_configured = 0, hide = 0, unhide = 0;
   int res = 1, opt, rescue = 0;
   char *option = 0;
 
@@ -270,7 +324,7 @@ int main (int argc, char *argv[])
     exit(1);
   }
 
-  while ((opt = getopt(argc, argv, "c:dhmn:qrs:")) != -1)
+  while ((opt = getopt(argc, argv, "c:dhi:mn:qrs:u:")) != -1)
   {
 	switch (opt) {
 		case 'c':
@@ -279,6 +333,10 @@ int main (int argc, char *argv[])
                         break;
 		case 'd': 
 			mode_configured = 1;
+			break;
+		case 'i':
+			hide = 1;
+			option = optarg;
 			break;
 		case 'm':
 			modelist = 1;
@@ -297,6 +355,10 @@ int main (int argc, char *argv[])
 			setmode = 1;
 			option = optarg;
 			break;
+		case 'u':
+			unhide = 1;
+			option = optarg;
+			break;
 		case 'h':
                 default:
                    fprintf(stderr, "\nUsage: %s -<option> <args>\n\n \
@@ -304,11 +366,13 @@ int main (int argc, char *argv[])
                    \t-c to set a mode in the config file,\n \
                    \t-d to get the default mode set in the configuration, \n \
                    \t-h to get this help, \n \
+		   \t-i hide a mode,\n \
                    \t-n to get/set network configuration. Use get:${config}/set:${config},${value}\n \
                    \t-m to get the list of supported modes, \n \
                    \t-q to query the current mode,\n \
 		   \t-r turn rescue mode off,\n \
-                   \t-s to set/activate a mode\n",
+                   \t-s to set/activate a mode\n \
+		   \t-u unhide a mode\n",
                    argv[0]); 
                    exit(1);
                }
@@ -339,6 +403,10 @@ int main (int argc, char *argv[])
 	res = handle_network(option);
   else if (rescue)
 	res = unset_rescue();
+  else if (hide)
+	res = set_hide_mode_config(option);
+  else if (unhide)
+	res = set_unhide_mode_config(option);
 
   /* subfunctions will return 1 if an error occured, print message */
   if(res)

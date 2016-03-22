@@ -1,5 +1,11 @@
 usb-moded (0.85.2) unstable; urgency=low
 
+  * [hidden modes] Add support for hidden modes. Fixes:  MER#1540
+
+ -- Philippe De Swert <philippedeswert@gmail.com>  Tue 22 Mar 23:24:01 EET 2016
+
+usb-moded (0.85.2) unstable; urgency=low
+
   * [devel] Fix DIAG_MODE definition. Fixes: JB#32805  
 
  -- Philippe De Swert <philippe.deswert@jolla.com>  Tue, 13 Oct 2015 14:34:48 +0300

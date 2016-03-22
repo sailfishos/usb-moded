@@ -57,6 +57,7 @@
 #define ANDROID_VENDOR_ID_KEY		"idVendor"
 #define ANDROID_PRODUCT_KEY		"iProduct"
 #define ANDROID_PRODUCT_ID_KEY		"idProduct"
+#define MODE_HIDE_KEY			"hide"
 
 const char * find_mounts(void);
 int find_sync(void);
@@ -77,6 +78,8 @@ char * get_android_manufacturer(void);
 char * get_android_vendor_id(void);
 char * get_android_product(void);
 char * get_android_product_id(void);
+
+char * get_hidden_modes(void);
 
 int check_android_section(void);
 
