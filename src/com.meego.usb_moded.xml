@@ -30,6 +30,17 @@
     <method name="get_modes">
       <arg name="modes" type="s" direction="out"/>
     </method>
+    <method name="hide_mode">
+      <arg name="mode" type="s" direction="in"/>
+      <arg name="mode" type="s" direction="out"/>
+    </method>
+    <method name="unhide_mode">
+      <arg name="mode" type="s" direction="in"/>
+      <arg name="mode" type="s" direction="out"/>
+    </method>
+    <method name="get_hidden">
+      <arg name="modes" type="s" direction="out"/>
+    </method>
     <method name="rescue_off"/>
     <signal name="sig_usb_state_ind">
       <arg name="mode" type="s"/>
@@ -44,6 +55,9 @@
       <arg name="section" type="s"/>
       <arg name="key" type="s"/>
       <arg name="value" type="s"/>
+    </signal>
+    <signal name="sig_usb_hidden_modes_ind">
+      <arg name="modes" type="s"/>
     </signal>
   </interface>
 </node>
