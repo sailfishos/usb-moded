@@ -434,6 +434,8 @@ static const char * make_hidden_modes_string(const char *hidden, int hide)
 
   for(i = 0; hidden_mode_split[i] != NULL; i++)
   {
+     if(strlen(hidden_mode_split[i]) == 0)
+       continue;
      if(!strcmp(hidden_mode_split[i], hidden))
      {
 	/* if hiding a mode that is already hidden do nothing */
@@ -442,13 +444,14 @@ static const char * make_hidden_modes_string(const char *hidden, int hide)
         if(!hide)
         	continue;
      }
+     if(strlen(modelist_str->str) != 0)
+       modelist_str = g_string_append(modelist_str, ",");
      modelist_str = g_string_append(modelist_str, hidden_mode_split[i]);
-     if(hidden_mode_split[i+1] != NULL) 
-     	modelist_str = g_string_append(modelist_str, ",");
   }
   if(hide)
   {
-     modelist_str = g_string_append(modelist_str, ",");
+     if(strlen(modelist_str->str) != 0)
+       modelist_str = g_string_append(modelist_str, ",");
      modelist_str = g_string_append(modelist_str, hidden);
   }
   
@@ -461,8 +464,10 @@ set_config_result_t set_hide_mode_setting(const char *mode)
   set_config_result_t ret;
 
   ret = set_config_setting(MODE_SETTING_ENTRY, MODE_HIDE_KEY, make_hidden_modes_string(mode, 1));
-  if(ret == SET_CONFIG_UPDATED)
-	send_supported_modes_signal();
+  if(ret == SET_CONFIG_UPDATED) {
+      send_hidden_modes_signal();
+      send_supported_modes_signal();
+  }
   return(ret);
 }
 
@@ -471,8 +476,10 @@ set_config_result_t set_unhide_mode_setting(const char *mode)
   set_config_result_t ret;
 
   ret = set_config_setting(MODE_SETTING_ENTRY, MODE_HIDE_KEY, make_hidden_modes_string(mode, 0));
-  if(ret == SET_CONFIG_UPDATED)
-	send_supported_modes_signal();
+  if(ret == SET_CONFIG_UPDATED) {
+      send_hidden_modes_signal();
+      send_supported_modes_signal();
+  }
   return(ret);
 }
 

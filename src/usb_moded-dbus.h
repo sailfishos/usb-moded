@@ -37,6 +37,7 @@
 #define USB_MODE_CONFIG_SIGNAL_NAME	"sig_usb_config_ind"
 #define USB_MODE_ERROR_SIGNAL_NAME	"sig_usb_state_error_ind"
 #define USB_MODE_SUPPORTED_MODES_SIGNAL_NAME "sig_usb_supported_modes_ind"
+#define USB_MODE_HIDDEN_MODES_SIGNAL_NAME "sig_usb_hidden_modes_ind"
 
 /* supported methods */
 #define USB_MODE_STATE_REQUEST	"mode_request"  /* returns the current mode */
@@ -45,6 +46,7 @@
 #define USB_MODE_LIST		"get_modes"	/* returns a comma-separated list of supported modes for ui's */
 #define USB_MODE_HIDE		"hide_mode"     /* hide a mode */
 #define USB_MODE_UNHIDE		"unhide_mode"   /* unhide a mode */
+#define USB_MODE_HIDDEN_GET     "get_hidden"    /* return the hidden modes */
 #define USB_MODE_STATE_SET	"set_mode"	/* set a mode (only works when connected) */
 #define USB_MODE_CONFIG_SET	"set_config"	/* set the mode that needs to be activated in the config file */
 #define USB_MODE_NETWORK_SET	"net_config"    /* set the network config in the config file */

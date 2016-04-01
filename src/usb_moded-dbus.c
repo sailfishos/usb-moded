@@ -244,6 +244,15 @@ error_reply:
 		}
 		dbus_error_free(&err);
 	}
+        else if(!strcmp(member, USB_MODE_HIDDEN_GET))
+        {
+                char *config = get_hidden_modes();
+                if(!config)
+                    config = strdup("");
+                if((reply = dbus_message_new_method_return(msg)))
+                        dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID);
+                free(config);
+        }
 	else if(!strcmp(member, USB_MODE_NETWORK_SET))
 	{
 		char *config = 0, *setting = 0;
@@ -498,4 +507,16 @@ int usb_moded_send_error_signal(const char *error)
 int usb_moded_send_supported_modes_signal(const char *supported_modes)
 {
   return(usb_moded_dbus_signal(USB_MODE_SUPPORTED_MODES_SIGNAL_NAME, supported_modes));
+}
+
+/**
+ * Send regular usb_moded hidden mode list signal
+ *
+ * @return 0 on success, 1 on failure
+ * @param hidden_modes list of supported modes
+ *
+*/
+int usb_moded_send_hidden_modes_signal(const char *hidden_modes)
+{
+  return(usb_moded_dbus_signal(USB_MODE_HIDDEN_MODES_SIGNAL_NAME, hidden_modes));
 }

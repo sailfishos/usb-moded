@@ -32,3 +32,6 @@ int usb_moded_send_error_signal(const char *error);
 
 /* send supported modes signal system bus */
 int usb_moded_send_supported_modes_signal(const char *supported_modes);
+
+/* send hidden modes signal system bus */
+int usb_moded_send_hidden_modes_signal(const char *hidden_modes);
