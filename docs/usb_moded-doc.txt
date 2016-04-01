@@ -415,4 +415,4 @@ For example
 hide=developer_mode,bastard_mode
 
 Modes can also be set and removed through dbus (one mode at a time)
-See usb_moded_util (-i and -u)
+See usb_moded_util (-v, -i and -u)

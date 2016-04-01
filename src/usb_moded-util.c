@@ -240,6 +240,31 @@ static int set_unhide_mode_config (char *mode)
   return 1;
 }
 
+static int get_hiddenlist (void)
+{
+  DBusMessage *req = NULL, *reply = NULL;
+  char *ret = 0;
+
+  if ((req = dbus_message_new_method_call(USB_MODE_SERVICE, USB_MODE_OBJECT, USB_MODE_INTERFACE, USB_MODE_HIDDEN_GET)) != NULL)
+  {
+        if ((reply = dbus_connection_send_with_reply_and_block(conn, req, -1, NULL)) != NULL)
+        {
+            dbus_message_get_args(reply, NULL, DBUS_TYPE_STRING, &ret, DBUS_TYPE_INVALID);
+            dbus_message_unref(reply);
+        }
+        dbus_message_unref(req);
+  }
+
+  if(ret)
+  {
+    printf("hidden modes are = %s\n", ret);
+    return 0;
+  }
+
+  /* not everything went as planned, return error */
+  return 1;
+}
+
 static int handle_network(char *network)
 {
   char *operation = 0, *setting = 0, *value = 0;
@@ -314,7 +339,7 @@ static int handle_network(char *network)
 int main (int argc, char *argv[])
 {
   int query = 0, network = 0, setmode = 0, config = 0;
-  int modelist = 0, mode_configured = 0, hide = 0, unhide = 0;
+  int modelist = 0, mode_configured = 0, hide = 0, unhide = 0, hiddenlist = 0;
   int res = 1, opt, rescue = 0;
   char *option = 0;
 
@@ -324,7 +349,7 @@ int main (int argc, char *argv[])
     exit(1);
   }
 
-  while ((opt = getopt(argc, argv, "c:dhi:mn:qrs:u:")) != -1)
+  while ((opt = getopt(argc, argv, "c:dhi:mn:qrs:u:v")) != -1)
   {
 	switch (opt) {
 		case 'c':
@@ -359,6 +384,9 @@ int main (int argc, char *argv[])
 			unhide = 1;
 			option = optarg;
 			break;
+                case 'v':
+                        hiddenlist = 1;
+                        break;
 		case 'h':
                 default:
                    fprintf(stderr, "\nUsage: %s -<option> <args>\n\n \
@@ -371,8 +399,9 @@ int main (int argc, char *argv[])
                    \t-m to get the list of supported modes, \n \
                    \t-q to query the current mode,\n \
 		   \t-r turn rescue mode off,\n \
-                   \t-s to set/activate a mode\n \
-		   \t-u unhide a mode\n",
+                   \t-s to set/activate a mode,\n \
+                   \t-u unhide a mode,\n \
+                   \t-v to get the list of hidden modes\n",
                    argv[0]); 
                    exit(1);
                }
@@ -407,6 +436,8 @@ int main (int argc, char *argv[])
 	res = set_hide_mode_config(option);
   else if (unhide)
 	res = set_unhide_mode_config(option);
+  else if (hiddenlist)
+        res = get_hiddenlist();
 
   /* subfunctions will return 1 if an error occured, print message */
   if(res)
