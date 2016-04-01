@@ -364,6 +364,7 @@ static int write_udhcpd_conf(struct ipforward_data *ipforward, struct mode_list_
   fprintf(conffile, "interface\t%s\n", interface);
   fprintf(conffile, "option\tsubnet\t%s\n", netmask);
   fprintf(conffile, "option\tlease\t3600\n");
+  fprintf(conffile, "max_leases\t15\n");
 
   if(ipforward != NULL)
   {
