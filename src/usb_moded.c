@@ -714,6 +714,16 @@ void send_supported_modes_signal(void)
     g_free(mode_list);
 }
 
+void send_hidden_modes_signal(void)
+{
+    /* Send hidden modes signal */
+    gchar *mode_list = get_hidden_modes();
+    if(mode_list) {
+        usb_moded_send_hidden_modes_signal(mode_list);
+        g_free(mode_list);
+    }
+}
+
 /** Pipe fd for transferring signals to mainloop context */
 static int sigpipe_fd = -1;
 
@@ -997,6 +1007,7 @@ int main(int argc, char* argv[])
 #endif /* SYSTEMD */
 
         send_supported_modes_signal();
+        send_hidden_modes_signal();
 
 	if(hw_fallback)
 	{
