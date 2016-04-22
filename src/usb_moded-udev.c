@@ -36,6 +36,7 @@
 #include "usb_moded-config.h"
 #include "usb_moded-hw-ab.h"
 #include "usb_moded.h"
+#include "usb_moded-modes.h"
 
 /* global variables */
 static struct udev *udev;
@@ -44,17 +45,22 @@ static GIOChannel *iochannel;
 static guint watch_id; 
 static const char *dev_name;
 static int cleanup = 0;
+/* track cable and charger connects disconnects */
+static int cable = 0, charger = 0, counter = 0;
+static guint connected_timeout = 0;
 
 typedef struct power_device {
         const char *syspath;
         int score;
 } power_device;
 
-
 /* static function definitions */
 static gboolean monitor_udev(GIOChannel *iochannel G_GNUC_UNUSED, GIOCondition cond,
                              gpointer data G_GNUC_UNUSED);
 static void udev_parse(struct udev_device *dev);
+static gboolean charger_connect_cb(gpointer data);
+
+#define DETECTION_TIMEOUT 10000
 
 static void notify_issue (gpointer data)
 {
@@ -267,62 +273,116 @@ void hwal_cleanup(void)
   udev_unref(udev);
 }
 
+static gboolean charger_connect_cb(gpointer data)
+{
+	connected_timeout = 0;
+	cable = 0;
+	charger = 1;
+	counter = 0;
+	log_debug("charger_connect_cb");
+	set_usb_mode(MODE_CHARGING_FALLBACK);
+	set_usb_connection_state(TRUE);
+	return FALSE;
+}
+
 static void udev_parse(struct udev_device *dev)
 {
-  const char *tmp;
-  static int cable = 0, charger = 0; /* track if cable was connected as we cannot distinguish charger and cable disconnects */
+	const char *tmp;
 
-  /* Check for present first as some drivers use online for when charging is enabled */
-  tmp = udev_device_get_property_value(dev, "POWER_SUPPLY_PRESENT");
-  if(!tmp)
-    {
-    tmp = udev_device_get_property_value(dev, "POWER_SUPPLY_ONLINE");
-    log_warning("Using online property\n");
-    }
-  if(!tmp)
-    {
-      log_err("No usable power supply indicator\n");
-      /* TRY AGAIN? 
-      return; */
-      exit(1);
-    }
-  if(!strcmp(tmp, "1"))
-  {
-    /* log_debug("UDEV:power supply present\n"); */
-    /* power supply type might not exist */
-    tmp = udev_device_get_property_value(dev, "POWER_SUPPLY_TYPE");
-    if(!tmp)
-    {
-      /* power supply type might not exist also :( Send connected event but this will not be able
-      to discriminate between charger/cable */
-      log_warning("Fallback since cable detection might not be accurate. Will connect on any voltage on usb.\n");
-      cable = 1;
-      set_usb_connected(TRUE);
-      return;
-    }
-    if(!strcmp(tmp, "USB")||!strcmp(tmp, "USB_CDP"))
-    {
-      log_debug("UDEV:USB cable connected\n");
-      cable = 1;
-      set_usb_connected(TRUE);
-    }
-    if(!strcmp(tmp, "USB_DCP"))
-    {
-      log_debug("UDEV:USB dedicated charger connected\n");
-      charger = 1;
-      set_charger_connected(TRUE);
-    }
-  }
-  else if(cable)
-  {
-    log_debug("UDEV:USB cable disconnected\n");
-    set_usb_connected(FALSE);
-    cable = 0;
-  }
-  else if(charger)
-  {
-    log_debug("UDEV:USB dedicated charger disconnected\n");
-    set_charger_connected(FALSE);
-    charger = 0;
-  }
+	/*
+	 * Check for present first as some drivers use online for when charging
+	 * is enabled
+	 */
+	tmp = udev_device_get_property_value(dev, "POWER_SUPPLY_PRESENT");
+	if (!tmp) {
+		tmp = udev_device_get_property_value(dev, "POWER_SUPPLY_ONLINE");
+		log_warning("Using online property\n");
+	}
+
+	if (!tmp) {
+		log_err("No usable power supply indicator\n");
+		/* TRY AGAIN?
+		return; */
+		exit(1);
+	}
+
+	/* disconnect */
+	if (strcmp(tmp, "1")) {
+		if (connected_timeout) {
+			g_source_remove(connected_timeout);
+			connected_timeout = 0;
+		}
+
+		if (charger) {
+			log_debug("UDEV:USB dedicated charger disconnected\n");
+			set_usb_connected(FALSE);
+		}
+
+		if (cable) {
+			log_debug("UDEV:USB cable disconnected\n");
+			set_usb_connected(FALSE);
+		}
+
+		counter = 0;
+		cable = 0;
+		charger = 0;
+		return;
+	}
+
+	tmp = udev_device_get_property_value(dev, "POWER_SUPPLY_TYPE");
+	/*
+	 * Power supply type might not exist also :(
+	 * Send connected event but this will not be able
+	 * to discriminate between charger/cable.
+	 */
+	if (!tmp) {
+		log_warning("Fallback since cable detection might not be accurate. "
+				"Will connect on any voltage on charger.\n");
+		cable = 1;
+		charger = 0;
+		counter = 0;
+
+		set_usb_connected(TRUE);
+		/* Maybe we should rather connect to charger like so? */
+/*		if (!connected_timeout && !get_usb_connection_state())
+			connected_timeout =
+					g_timeout_add(DETECTION_TIMEOUT,
+						charger_connect_cb, NULL);
+*/
+		return;
+	}
+
+	if (!strcmp(tmp, "USB") || !strcmp(tmp, "USB_CDP")) {
+		log_debug("UDEV:USB cable connected\n");
+
+		if (connected_timeout && counter) {
+			g_source_remove(connected_timeout);
+			connected_timeout = 0;
+			counter = 0;
+			cable = 1;
+			charger = 0;
+			set_usb_connected(TRUE);
+			return;
+		}
+
+		counter++;
+		if (!connected_timeout && !get_usb_connection_state()) {
+			connected_timeout = g_timeout_add(DETECTION_TIMEOUT,
+							charger_connect_cb,
+							NULL);
+		}
+	}
+
+	if (!strcmp(tmp, "USB_DCP")) {
+		if (connected_timeout) {
+			g_source_remove(connected_timeout);
+			connected_timeout = 0;
+		}
+
+		log_debug("UDEV:USB dedicated charger connected\n");
+		charger = 1;
+		cable = 0;
+		counter = 0;
+		set_charger_connected(TRUE);
+	}
 }
