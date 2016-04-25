@@ -315,7 +315,7 @@ static void udev_parse(struct udev_device *dev)
 
 		if (charger) {
 			log_debug("UDEV:USB dedicated charger disconnected\n");
-			set_usb_connected(FALSE);
+			set_charger_connected(FALSE);
 		}
 
 		if (cable) {
