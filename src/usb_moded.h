@@ -71,4 +71,7 @@ void set_charger_connected(gboolean state);
 gchar *get_mode_list(void);
 int valid_mode(const char *mode);
 
+
+extern int cable_connection_delay;
+
 #endif /* USB_MODED_H */
