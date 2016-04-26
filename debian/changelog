@@ -1,3 +1,21 @@
+usb-moded (0.85.5) unstable; urgency=low
+
+  * [network] Set max_leases in udhcpd configuration. Fixes JB#18566
+
+ -- Simo Piiroinen <simo.piiroinen@jollamobile.com>  Wed Apr 6 14:19:02 2016 +0000
+
+usb-moded (0.85.4) unstable; urgency=low
+
+  * [hidden modes] Add interface to get list of hidden modes. Contributes to MER#1540
+
+ -- Martin Jones <martin.jones@jollamobile.com>  Wed Apr 6 11:13:30 2016 +0000
+
+usb-moded (0.85.3) unstable; urgency=low
+
+  * [hidden modes] Add support for hidden modes. Fixes:  MER#1540
+
+ -- Philippe De Swert <philippedeswert@gmail.com>  Tue 22 Mar 23:24:01 EET 2016
+
 usb-moded (0.85.2) unstable; urgency=low
 
   * [hidden modes] Add support for hidden modes. Fixes:  MER#1540
