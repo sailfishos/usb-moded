@@ -227,32 +227,49 @@ static gboolean monitor_udev(GIOChannel *iochannel G_GNUC_UNUSED, GIOCondition c
 {
   struct udev_device *dev;
 
+  gboolean continue_watching = TRUE;
+
+  /* No code paths are allowed to bypass the release_wakelock() call below */
+  acquire_wakelock(USB_MODED_WAKELOCK_PROCESS_INPUT);
+
   if(cond & G_IO_IN)
   {
     /* This normally blocks but G_IO_IN indicates that we can read */
     dev = udev_monitor_receive_device (mon);
-    if (dev) 
+    if (!dev)
+    {
+      /* if we get something else something bad happened stop watching to avoid busylooping */
+      continue_watching = FALSE;
+    }
+    else
     {
       /* check if it is the actual device we want to check */
-      if(strcmp(dev_name, udev_device_get_sysname(dev)))
+      if(!strcmp(dev_name, udev_device_get_sysname(dev)))
       {
-        udev_device_unref(dev);
-	return TRUE;
+	if(!strcmp(udev_device_get_action(dev), "change"))
+	{
+	  udev_parse(dev, false);
+	}
       }
-       
-      if(!strcmp(udev_device_get_action(dev), "change"))
-      {
-	udev_parse(dev, false);
-      }
+
       udev_device_unref(dev);
     }
-    /* if we get something else something bad happened stop watching to avoid busylooping */  
-    else
-	exit(1);
   }
-  
-  /* keep watching */
-  return TRUE;
+
+  if(cond & (G_IO_ERR | G_IO_HUP | G_IO_NVAL))
+  {
+    /* Unhandled errors turn io watch to virtual busyloop too */
+    continue_watching = FALSE;
+  }
+
+  release_wakelock(USB_MODED_WAKELOCK_PROCESS_INPUT);
+
+  if (!continue_watching)
+  {
+    log_crit("udev io watch disabled");
+  }
+
+  return continue_watching;
 }
 
 void hwal_cleanup(void)
@@ -367,6 +384,10 @@ static void udev_parse(struct udev_device *dev, bool initial)
 	if (strcmp(tmp, "1")) {
 		log_debug("DISCONNECTED");
 
+		/* Block suspend briefly on connection state change */
+		if (get_usb_connection_state())
+			delay_suspend();
+
 		cancel_cable_connection_timeout();
 
 		if (charger) {
@@ -383,6 +404,10 @@ static void udev_parse(struct udev_device *dev, bool initial)
 		charger = 0;
 	}
 	else {
+		/* Block suspend briefly on connection state change */
+		if (!get_usb_connection_state())
+			delay_suspend();
+
 		tmp = udev_device_get_property_value(dev, "POWER_SUPPLY_TYPE");
 		/*
 		 * Power supply type might not exist also :(
