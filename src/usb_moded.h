@@ -71,6 +71,24 @@ void set_charger_connected(gboolean state);
 gchar *get_mode_list(void);
 int valid_mode(const char *mode);
 
+/** Name of the wakelock usb_moded uses for temporary suspend delay */
+#define USB_MODED_WAKELOCK_STATE_CHANGE        "usb_moded_state"
+
+/** Name of the wakelock usb_moded uses for input processing */
+#define USB_MODED_WAKELOCK_PROCESS_INPUT       "usb_moded_input"
+
+/** How long usb_moded will delay suspend by default [ms] */
+#define USB_MODED_SUSPEND_DELAY_DEFAULT_MS      5000
+
+/** How long usb_moded is allowed to block suspend [ms] */
+#define USB_MODED_SUSPEND_DELAY_MAXIMUM_MS \
+	(USB_MODED_SUSPEND_DELAY_DEFAULT_MS * 2)
+
+void acquire_wakelock(const char *wakelock_name);
+void release_wakelock(const char *wakelock_name);
+
+void allow_suspend(void);
+void delay_suspend(void);
 
 extern int cable_connection_delay;
 
