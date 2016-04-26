@@ -922,6 +922,135 @@ EXIT:
         return success;
 }
 
+/** Write string to already existing sysfs file
+ *
+ * Note: Attempts to write to nonexisting files are silently ignored.
+ *
+ * @param path Where to write
+ * @param text What to write
+ */
+static void write_to_sysfs_file(const char *path, const char *text)
+{
+	int fd = -1;
+
+	if (!path || !text)
+		goto EXIT;
+
+	if ((fd = open(path, O_WRONLY)) == -1) {
+		if (errno != ENOENT) {
+			log_warning("%s: open for writing failed: %s",
+				    path, strerror(errno));
+		}
+		goto EXIT;
+	}
+
+	if (write(fd, text, strlen(text)) == -1) {
+		log_warning("%s: write failed : %s", path, strerror(errno));
+		goto EXIT;
+	}
+EXIT:
+	if (fd != -1)
+		close(fd);
+}
+
+/** Acquire wakelock via sysfs
+ *
+ * Wakelock must be released via release_wakelock().
+ *
+ * Automatically terminating wakelock is used, so that we
+ * do not block suspend  indefinately in case usb_moded
+ * gets stuck or crashes.
+ *
+ * Note: The name should be unique within the system.
+ *
+ * @param wakelock_name Wake lock to be acquired
+ */
+void acquire_wakelock(const char *wakelock_name)
+{
+	char buff[256];
+	snprintf(buff, sizeof buff, "%s %lld",
+		 wakelock_name,
+		 USB_MODED_SUSPEND_DELAY_MAXIMUM_MS * 1000000LL);
+	write_to_sysfs_file("/sys/power/wake_lock", buff);
+
+	log_debug("acquire_wakelock %s", wakelock_name);
+}
+
+/** Release wakelock via sysfs
+ *
+ * @param wakelock_name Wake lock to be released
+ */
+void release_wakelock(const char *wakelock_name)
+{
+	log_debug("release_wakelock %s", wakelock_name);
+
+	write_to_sysfs_file("/sys/power/wake_unlock", wakelock_name);
+}
+
+/** Flag for: USB_MODED_WAKELOCK_STATE_CHANGE has been acquired */
+static bool blocking_suspend = false;
+
+/** Timer for releasing USB_MODED_WAKELOCK_STATE_CHANGE */
+static guint allow_suspend_id = 0;
+
+/** Release wakelock acquired via delay_suspend()
+ *
+ * Meant to be called on usb-moded exit so that wakelocks
+ * are not left behind.
+ */
+void allow_suspend(void)
+{
+	if( allow_suspend_id ) {
+		g_source_remove(allow_suspend_id),
+			allow_suspend_id = 0;
+	}
+
+	if( blocking_suspend ) {
+		blocking_suspend = false;
+		release_wakelock(USB_MODED_WAKELOCK_STATE_CHANGE);
+	}
+}
+
+/** Timer callback for releasing wakelock acquired via delay_suspend()
+ *
+ * @param aptr callback argument (not used)
+ */
+static gboolean allow_suspend_cb(gpointer aptr)
+{
+	(void)aptr;
+
+	allow_suspend_id = 0;
+
+	allow_suspend();
+
+	return FALSE;
+}
+
+/** Block suspend briefly
+ *
+ * Meant to be called in situations usb activity might have woken
+ * up the device (cable connect while display is off), or could
+ * allow device to suspend (cable disconnect while display is off).
+ *
+ * Allows usb moded some time to finish asynchronous activity and
+ * other processes to receive and process state changes broadcast
+ * by usb-moded.
+ */
+void delay_suspend(void)
+{
+	/* Use of automatically terminating wakelocks also means we need
+	 * to renew the wakelock when extending the suspend delay. */
+	acquire_wakelock(USB_MODED_WAKELOCK_STATE_CHANGE);
+
+	blocking_suspend = true;
+
+	if( allow_suspend_id )
+		g_source_remove(allow_suspend_id);
+
+	allow_suspend_id = g_timeout_add(USB_MODED_SUSPEND_DELAY_DEFAULT_MS,
+					 allow_suspend_cb, 0);
+}
+
 int main(int argc, char* argv[])
 {
 	int result = EXIT_FAILURE;
@@ -1068,5 +1197,6 @@ int main(int argc, char* argv[])
 EXIT:
 	handle_exit();
 
+	allow_suspend();
 	return result;
 }
