@@ -73,6 +73,46 @@ gboolean android_ignore_next_udev_disconnect_event = FALSE;
 static gboolean systemd_notify = FALSE;
 #endif
 
+/** Default allowed cable detection delay
+ *
+ * To comply with USB standards, the delay should be
+ * less than 2 seconds to ensure timely enumeration.
+ *
+ * Any value <= zero means no delay.
+ */
+#define CABLE_CONNECTION_DELAY_DEFAULT 0
+
+/** Maximum allowed cable detection delay
+ *
+ * Must be shorter than initial probing delay expected by
+ * dsme (currently 5 seconds) to avoid reboot loops in
+ * act dead mode.
+ *
+ * And shorter than USB_MODED_SUSPEND_DELAY_DEFAULT_MS to
+ * allow the timer to trigger also in display off scenarios.
+ */
+
+#define CABLE_CONNECTION_DELAY_MAXIMUM 4000
+
+/** Currently allowed cable detection delay
+ */
+int cable_connection_delay = CABLE_CONNECTION_DELAY_DEFAULT;
+
+/** Helper for setting allowed cable detection delay
+ *
+ * Used for implementing --max-cable-delay=<ms> option.
+ */
+static void set_cable_connection_delay(int delay_ms)
+{
+	if( delay_ms < CABLE_CONNECTION_DELAY_MAXIMUM )
+		cable_connection_delay = delay_ms;
+	else {
+		cable_connection_delay = CABLE_CONNECTION_DELAY_MAXIMUM;
+		log_warning("using maximum connection delay: %d ms",
+			    cable_connection_delay);
+	}
+}
+
 struct usb_mode current_mode;
 guint charging_timeout = 0;
 static GList *modelist;
@@ -703,6 +743,7 @@ static void usage(void)
 		  "  -n,  --systemd       \t\tnotify systemd when started up\n"
 #endif
                   "  -v,  --version       \t\toutput version information and exit\n"
+                  "  -m,  --max-cable-delay=<ms>\tmaximum delay before accepting cable connection\n"
                   "\n");
 }
 
@@ -898,13 +939,14 @@ int main(int argc, char* argv[])
 		{ "rescue", no_argument, 0, 'r' },
 		{ "systemd", no_argument, 0, 'n' },
                 { "version", no_argument, 0, 'v' },
+                { "max-cable-delay", required_argument, 0, 'm' },
                 { 0, 0, 0, 0 }
         };
 
 	log_name = basename(*argv);
 
 	 /* Parse the command-line options */
-        while ((opt = getopt_long(argc, argv, "aifsTDdhrnv", options, &opt_idx)) != -1)
+        while ((opt = getopt_long(argc, argv, "aifsTDdhrnvm:", options, &opt_idx)) != -1)
 	{
                 switch (opt) 
 		{
@@ -948,6 +990,10 @@ int main(int argc, char* argv[])
 	                case 'v':
 				printf("USB mode daemon version: %s\n", VERSION);
 				exit(0);
+
+			case 'm':
+				set_cable_connection_delay(strtol(optarg, 0, 0));
+				break;
 
 	                default:
         	                usage();
