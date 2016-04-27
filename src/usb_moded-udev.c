@@ -23,6 +23,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <locale.h>
 #include <unistd.h>
 
@@ -46,8 +47,8 @@ static guint watch_id;
 static const char *dev_name;
 static int cleanup = 0;
 /* track cable and charger connects disconnects */
-static int cable = 0, charger = 0, counter = 0;
-static guint connected_timeout = 0;
+static int cable = 0, charger = 0;
+static guint cable_connection_timeout_id = 0;
 
 typedef struct power_device {
         const char *syspath;
@@ -57,10 +58,12 @@ typedef struct power_device {
 /* static function definitions */
 static gboolean monitor_udev(GIOChannel *iochannel G_GNUC_UNUSED, GIOCondition cond,
                              gpointer data G_GNUC_UNUSED);
-static void udev_parse(struct udev_device *dev);
-static gboolean charger_connect_cb(gpointer data);
-
-#define DETECTION_TIMEOUT 10000
+static void udev_parse(struct udev_device *dev, bool initial);
+static void setup_cable_connection(void);
+static void setup_charger_connection(void);
+static void cancel_cable_connection_timeout(void);
+static void schedule_cable_connection_timeout(void);
+static gboolean cable_connection_timeout_cb(gpointer data);
 
 static void notify_issue (gpointer data)
 {
@@ -209,7 +212,7 @@ gboolean hwal_init(void)
   }
 
   /* check if we are already connected */
-  udev_parse(dev);
+  udev_parse(dev, true);
   
   iochannel = g_io_channel_unix_new(udev_monitor_get_fd(mon));
   watch_id = g_io_add_watch_full(iochannel, 0, G_IO_IN, monitor_udev, NULL,notify_issue);
@@ -224,32 +227,49 @@ static gboolean monitor_udev(GIOChannel *iochannel G_GNUC_UNUSED, GIOCondition c
 {
   struct udev_device *dev;
 
+  gboolean continue_watching = TRUE;
+
+  /* No code paths are allowed to bypass the release_wakelock() call below */
+  acquire_wakelock(USB_MODED_WAKELOCK_PROCESS_INPUT);
+
   if(cond & G_IO_IN)
   {
     /* This normally blocks but G_IO_IN indicates that we can read */
     dev = udev_monitor_receive_device (mon);
-    if (dev) 
+    if (!dev)
+    {
+      /* if we get something else something bad happened stop watching to avoid busylooping */
+      continue_watching = FALSE;
+    }
+    else
     {
       /* check if it is the actual device we want to check */
-      if(strcmp(dev_name, udev_device_get_sysname(dev)))
+      if(!strcmp(dev_name, udev_device_get_sysname(dev)))
       {
-        udev_device_unref(dev);
-	return TRUE;
+	if(!strcmp(udev_device_get_action(dev), "change"))
+	{
+	  udev_parse(dev, false);
+	}
       }
-       
-      if(!strcmp(udev_device_get_action(dev), "change"))
-      {
-	udev_parse(dev);
-      }
+
       udev_device_unref(dev);
     }
-    /* if we get something else something bad happened stop watching to avoid busylooping */  
-    else
-	exit(1);
   }
-  
-  /* keep watching */
-  return TRUE;
+
+  if(cond & (G_IO_ERR | G_IO_HUP | G_IO_NVAL))
+  {
+    /* Unhandled errors turn io watch to virtual busyloop too */
+    continue_watching = FALSE;
+  }
+
+  release_wakelock(USB_MODED_WAKELOCK_PROCESS_INPUT);
+
+  if (!continue_watching)
+  {
+    log_crit("udev io watch disabled");
+  }
+
+  return continue_watching;
 }
 
 void hwal_cleanup(void)
@@ -268,26 +288,80 @@ void hwal_cleanup(void)
     g_io_channel_unref(iochannel);
     iochannel = NULL;
   }
+  cancel_cable_connection_timeout();
   free((void *) dev_name);
   udev_monitor_unref(mon);
   udev_unref(udev);
 }
 
-static gboolean charger_connect_cb(gpointer data)
+static void setup_cable_connection(void)
 {
-	connected_timeout = 0;
-	cable = 0;
+	cancel_cable_connection_timeout();
+
+	log_debug("UDEV:USB pc cable connected\n");
+
+	cable = 1;
+	charger = 0;
+	set_usb_connected(TRUE);
+}
+
+static void setup_charger_connection(void)
+{
+	cancel_cable_connection_timeout();
+
+	log_debug("UDEV:USB dedicated charger connected\n");
 	charger = 1;
-	counter = 0;
-	log_debug("charger_connect_cb");
-	set_usb_mode(MODE_CHARGING_FALLBACK);
-	set_usb_connection_state(TRUE);
+	cable = 0;
+	set_charger_connected(TRUE);
+}
+
+static gboolean cable_connection_timeout_cb(gpointer data)
+{
+	log_debug("connect delay: timeout");
+	cable_connection_timeout_id = 0;
+
+	setup_cable_connection();
+
 	return FALSE;
 }
 
-static void udev_parse(struct udev_device *dev)
+static void cancel_cable_connection_timeout(void)
 {
-	const char *tmp;
+	if (cable_connection_timeout_id) {
+		log_debug("connect delay: cancel");
+		g_source_remove(cable_connection_timeout_id);
+		cable_connection_timeout_id = 0;
+	}
+}
+
+
+static void schedule_cable_connection_timeout(void)
+{
+	/* Ignore If already connected */
+	if (get_usb_connection_state())
+		return;
+
+	if (!cable_connection_timeout_id && cable_connection_delay > 0) {
+		/* Dedicated charger might be initially misdetected as
+		 * pc cable. Delay a bit befor accepting the state. */
+
+		log_debug("connect delay: started (%d ms)",
+			  cable_connection_delay);
+		cable_connection_timeout_id =
+			g_timeout_add(cable_connection_delay,
+				      cable_connection_timeout_cb,
+				      NULL);
+	}
+	else {
+		/* If more udev events indicating cable connection
+		 * are received while waiting, accept immediately. */
+		setup_cable_connection();
+	}
+}
+
+static void udev_parse(struct udev_device *dev, bool initial)
+{
+	const char *tmp = 0;
 
 	/*
 	 * Check for present first as some drivers use online for when charging
@@ -308,10 +382,13 @@ static void udev_parse(struct udev_device *dev)
 
 	/* disconnect */
 	if (strcmp(tmp, "1")) {
-		if (connected_timeout) {
-			g_source_remove(connected_timeout);
-			connected_timeout = 0;
-		}
+		log_debug("DISCONNECTED");
+
+		/* Block suspend briefly on connection state change */
+		if (get_usb_connection_state())
+			delay_suspend();
+
+		cancel_cable_connection_timeout();
 
 		if (charger) {
 			log_debug("UDEV:USB dedicated charger disconnected\n");
@@ -323,66 +400,46 @@ static void udev_parse(struct udev_device *dev)
 			set_usb_connected(FALSE);
 		}
 
-		counter = 0;
 		cable = 0;
 		charger = 0;
-		return;
 	}
+	else {
+		/* Block suspend briefly on connection state change */
+		if (!get_usb_connection_state())
+			delay_suspend();
 
-	tmp = udev_device_get_property_value(dev, "POWER_SUPPLY_TYPE");
-	/*
-	 * Power supply type might not exist also :(
-	 * Send connected event but this will not be able
-	 * to discriminate between charger/cable.
-	 */
-	if (!tmp) {
-		log_warning("Fallback since cable detection might not be accurate. "
-				"Will connect on any voltage on charger.\n");
-		cable = 1;
-		charger = 0;
-		counter = 0;
-
-		set_usb_connected(TRUE);
-		/* Maybe we should rather connect to charger like so? */
-/*		if (!connected_timeout && !get_usb_connection_state())
-			connected_timeout =
-					g_timeout_add(DETECTION_TIMEOUT,
-						charger_connect_cb, NULL);
-*/
-		return;
-	}
-
-	if (!strcmp(tmp, "USB") || !strcmp(tmp, "USB_CDP")) {
-		log_debug("UDEV:USB cable connected\n");
-
-		if (connected_timeout && counter) {
-			g_source_remove(connected_timeout);
-			connected_timeout = 0;
-			counter = 0;
-			cable = 1;
-			charger = 0;
-			set_usb_connected(TRUE);
-			return;
+		tmp = udev_device_get_property_value(dev, "POWER_SUPPLY_TYPE");
+		/*
+		 * Power supply type might not exist also :(
+		 * Send connected event but this will not be able
+		 * to discriminate between charger/cable.
+		 */
+		if (!tmp) {
+			log_warning("Fallback since cable detection might not be accurate. "
+				    "Will connect on any voltage on charger.\n");
+			schedule_cable_connection_timeout();
+			goto cleanup;
 		}
 
-		counter++;
-		if (!connected_timeout && !get_usb_connection_state()) {
-			connected_timeout = g_timeout_add(DETECTION_TIMEOUT,
-							charger_connect_cb,
-							NULL);
+		log_debug("CONNECTED - POWER_SUPPLY_TYPE = %s", tmp);
+
+		if (!strcmp(tmp, "USB") || !strcmp(tmp, "USB_CDP")) {
+			if( initial )
+				setup_cable_connection();
+			else
+				schedule_cable_connection_timeout();
+		}
+		else if (!strcmp(tmp, "USB_DCP")) {
+			setup_charger_connection();
+		}
+		else if( !strcmp(tmp, "Unknown")) {
+			// nop
+		}
+		else {
+			log_warning("unhandled power supply type: %s", tmp);
 		}
 	}
 
-	if (!strcmp(tmp, "USB_DCP")) {
-		if (connected_timeout) {
-			g_source_remove(connected_timeout);
-			connected_timeout = 0;
-		}
-
-		log_debug("UDEV:USB dedicated charger connected\n");
-		charger = 1;
-		cable = 0;
-		counter = 0;
-		set_charger_connected(TRUE);
-	}
+cleanup:
+	return;
 }
