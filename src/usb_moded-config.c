@@ -310,7 +310,7 @@ static char * get_kcmdline_string(const char *entry)
       {
 	if(!strcmp(entry, NETWORK_IP_KEY))
 	{
-		ret = g_strdup(network_tokens[0]);
+		g_free(ret), ret = g_strdup(network_tokens[0]);
 		log_debug("Command line ip = %s\n", ret);
 	}
 	if(!strcmp(entry, NETWORK_GATEWAY_KEY))
@@ -318,13 +318,13 @@ static char * get_kcmdline_string(const char *entry)
 		/* gateway might be empty, so we do not want to return an empty string */
 		if(strlen(network_tokens[2]) > 2)
 		{
-		  ret = g_strdup(network_tokens[2]);
+		  g_free(ret), ret = g_strdup(network_tokens[2]);
 		  log_debug("Command line gateway = %s\n", ret);
 		}
 	}
 	if(!strcmp(entry, NETWORK_NETMASK_KEY))
 	{
-		ret = g_strdup(network_tokens[3]);
+		g_free(ret), ret = g_strdup(network_tokens[3]);
 		log_debug("Command line netmask = %s\n", ret);
 	}
       } 
