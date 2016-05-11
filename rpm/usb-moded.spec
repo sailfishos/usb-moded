@@ -308,7 +308,7 @@ when the UI fails.
 
 %build
 %autogen
-%configure --enable-app-sync --enable-meegodevlock --enable-debug --enable-connman --enable-systemd
+%configure --enable-app-sync --enable-meegodevlock --enable-debug --enable-connman --enable-systemd --enable-mer-ssu
 make all doc %{?_smp_mflags}
 
 %install

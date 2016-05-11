@@ -38,6 +38,12 @@ usb_moded_SOURCES = \
 	usb_moded-android.h \
 	usb_moded-android.c
 
+if USE_MER_SSU
+usb_moded_SOURCES += \
+	usb_moded-ssu.h \
+	usb_moded-ssu.c
+endif
+
 if MEEGOLOCK
 usb_moded_SOURCES += \
 	usb_moded-devicelock.h \
