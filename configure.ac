@@ -40,6 +40,14 @@ AC_ARG_ENABLE([meegodevlock], AS_HELP_STRING([--enable-meegodevlock], [Enable Me
    esac],[meegodevlock=false])
 AM_CONDITIONAL([MEEGOLOCK], [test x$meegodevlock = xtrue])
 
+AC_ARG_ENABLE([mer_ssu], AS_HELP_STRING([--enable-mer-ssu], [Enable MER SSU @<:@default=false@:>@]),
+  [case "${enableval}" in
+   yes) mer_ssu=true ; CFLAGS="-DUSE_MER_SSU $CFLAGS" ;;
+   no)  mer_ssu=false ;;
+   *) AC_MSG_ERROR([bad value ${enableval} for --enable-mer-ssu]) ;;
+   esac],[mer_ssu=false])
+AM_CONDITIONAL([USE_MER_SSU], [test x$mer_ssu = xtrue])
+
 AC_ARG_ENABLE([app_sync], AS_HELP_STRING([--enable-app-sync], [Enable application syncing @<:@default=true@:>@]),
   [case "${enableval}" in
    yes) app_sync=true ; CFLAGS="-DAPP_SYNC $CFLAGS" ;;

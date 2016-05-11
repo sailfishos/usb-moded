@@ -41,6 +41,10 @@
 #include "usb_moded-log.h"
 #include "usb_moded-modes.h"
 
+#ifdef USE_MER_SSU
+# include "usb_moded-ssu.h"
+#endif
+
 static int get_conf_int(const gchar *entry, const gchar *key);
 static char * get_conf_string(const gchar *entry, const gchar *key);
 static char * get_kcmdline_string(const char *entry);
@@ -717,7 +721,17 @@ end:
 
 char * get_android_manufacturer(void)
 {
-  return(get_conf_string(ANDROID_ENTRY, ANDROID_MANUFACTURER_KEY));
+#ifdef USE_MER_SSU
+  /* If SSU can provide manufacturer name, use it. Otherwise fall
+   * back to using the name specified in configuration files. */
+  char *ssu_name = ssu_get_manufacturer_name();
+  if( ssu_name )
+  {
+    return ssu_name;
+  }
+#endif
+
+  return get_conf_string(ANDROID_ENTRY, ANDROID_MANUFACTURER_KEY);
 }
 
 char * get_android_vendor_id(void)
@@ -727,7 +741,17 @@ char * get_android_vendor_id(void)
 
 char * get_android_product(void)
 {
-  return(get_conf_string(ANDROID_ENTRY, ANDROID_PRODUCT_KEY));
+#ifdef USE_MER_SSU
+  /* If SSU can provide device model name, use it. Otherwise fall
+   * back to using the name specified in configuration files. */
+  char *ssu_name = ssu_get_product_name();
+  if( ssu_name )
+  {
+    return ssu_name;
+  }
+#endif
+
+  return get_conf_string(ANDROID_ENTRY, ANDROID_PRODUCT_KEY);
 }
 
 char * get_android_product_id(void)
