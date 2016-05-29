@@ -1,3 +1,12 @@
+usb-moded (0.86.0) unstable; urgency=low
+
+  * [ssu] Get device manufacturer and product name from ssu. Fixes JB#35156
+  * [dbus] Handle missing mode setting gracefully. Fixes MER#1576
+  * Bump version to enable to sync up with mer changes and get mer to use 
+    upstream derived version numbering.
+ 
+ -- Philippe De Swert <philippedeswert@gmail.com>  Sun, 29 May 2016 15:19:26 +0300
+
 usb-moded (0.85.5) unstable; urgency=low
 
   * [network] Set max_leases in udhcpd configuration. Fixes JB#18566
