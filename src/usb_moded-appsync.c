@@ -55,13 +55,18 @@ static  int no_dbus = 0;
 #endif /* APP_SYNC_DBUS */
 
 
-static void free_elem(gpointer aptr)
+static void free_elem(struct list_elem *elem)
 {
-  struct list_elem *elem = aptr;
-  free(elem->name);
-  free(elem->launch);
-  free(elem->mode);
+  g_free(elem->name);
+  g_free(elem->launch);
+  g_free(elem->mode);
   free(elem);
+}
+
+static void free_elem_cb(gpointer elem, gpointer user_data)
+{
+  (void)user_data;
+  free_elem(elem);
 }
 
 void free_appsync_list(void)
@@ -69,7 +74,7 @@ void free_appsync_list(void)
   if( sync_list != 0 )
   {
     /*g_list_free_full(sync_list, free_elem); */
-    g_list_foreach (sync_list, (GFunc) free_elem, NULL);
+    g_list_foreach (sync_list, free_elem_cb, NULL);
     g_list_free (sync_list);
     sync_list = 0;
     log_debug("Appsync list freed\n");
