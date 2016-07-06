@@ -43,7 +43,7 @@
 #include "usb_moded-android.h"
 
 static void report_mass_storage_blocker(const char *mountpoint, int try);
-guint delayed_network = 0;
+static guint delayed_network = 0;
 
 int write_to_file(const char *path, const char *text)
 {
@@ -88,6 +88,7 @@ cleanup:
 
 static gboolean network_retry(gpointer data)
 {
+	delayed_network = 0;
 	usb_network_up(data);
 	return(FALSE);
 }
@@ -399,6 +400,8 @@ int set_dynamic_mode(void)
   if(network != 0 && data->network)
   {
 	log_debug("Retry setting up the network later\n");
+	if(delayed_network)
+		  g_source_remove(delayed_network);
 	delayed_network = g_timeout_add_seconds(3, network_retry, data);
   }
 
