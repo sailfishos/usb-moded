@@ -264,8 +264,9 @@ static gboolean monitor_udev(GIOChannel *iochannel G_GNUC_UNUSED, GIOCondition c
 
   release_wakelock(USB_MODED_WAKELOCK_PROCESS_INPUT);
 
-  if (!continue_watching)
+  if (!continue_watching && watch_id )
   {
+    watch_id = 0;
     log_crit("udev io watch disabled");
   }
 
