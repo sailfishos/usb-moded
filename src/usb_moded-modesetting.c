@@ -541,6 +541,12 @@ void unset_dynamic_mode(void)
 	set_android_vendorid(id);
 	g_free(id);
   }
+
+  /* enable after the changes have been made */
+  if(data->softconnect)
+  {
+	write_to_file(data->softconnect_path, data->softconnect);
+  }
 }
 
 /** clean up mode changes or extra actions to perform after a mode change 
