@@ -294,6 +294,8 @@ void set_usb_connected_state(void)
 	 	*/
 		usb_moded_send_signal(USB_CONNECTED_DIALOG_SHOW);
 		/* fallback to charging mode after 3 seconds */
+		if( charging_timeout )
+			g_source_remove(charging_timeout);
 		charging_timeout = g_timeout_add_seconds(3, charging_fallback, NULL);
 		/* in case there was nobody listening for the UI, they will know 
 		   that the UI is needed by requesting the current mode */
