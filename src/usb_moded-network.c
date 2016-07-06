@@ -400,7 +400,7 @@ static int write_udhcpd_conf(struct ipforward_data *ipforward, struct mode_list_
 link:
   if (symlink(UDHCP_CONFIG_PATH, UDHCP_CONFIG_LINK) == -1)
   {
-	log_debug("Error creating link "UDHCP_CONFIG_LINK" -> "UDHCP_CONFIG_PATH": %s\n", strerror(errno));
+	log_debug("Error creating link "UDHCP_CONFIG_LINK" -> "UDHCP_CONFIG_PATH": %m\n");
 	unlink(UDHCP_CONFIG_PATH);
 	return(1);
   }

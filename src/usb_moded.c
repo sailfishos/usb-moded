@@ -938,14 +938,13 @@ static void write_to_sysfs_file(const char *path, const char *text)
 
 	if ((fd = open(path, O_WRONLY)) == -1) {
 		if (errno != ENOENT) {
-			log_warning("%s: open for writing failed: %s",
-				    path, strerror(errno));
+			log_warning("%s: open for writing failed: %m", path);
 		}
 		goto EXIT;
 	}
 
 	if (write(fd, text, strlen(text)) == -1) {
-		log_warning("%s: write failed : %s", path, strerror(errno));
+		log_warning("%s: write failed : %m", path);
 		goto EXIT;
 	}
 EXIT:

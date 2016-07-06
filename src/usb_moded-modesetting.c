@@ -61,9 +61,7 @@ int write_to_file(const char *path, const char *text)
   /* no O_CREAT -> writes only to already existing files */
   if( (fd = TEMP_FAILURE_RETRY(open(path, O_WRONLY))) == -1 )
   {
-    /* gcc -pedantic does not like "%m"
-       log_warning("open(%s): %m", path); */
-    log_warning("open(%s): %s", path, strerror(errno));
+    log_warning("open(%s): %m", path);
     goto cleanup;
   }
 
@@ -72,7 +70,7 @@ int write_to_file(const char *path, const char *text)
     ssize_t n = TEMP_FAILURE_RETRY(write(fd, text, todo));
     if( n < 0 )
     {
-      log_warning("write(%s): %s", path, strerror(errno));
+      log_warning("write(%s): %m", path);
       goto cleanup;
     }
     todo -= n;
