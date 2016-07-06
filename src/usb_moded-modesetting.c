@@ -98,7 +98,7 @@ static int set_mass_storage_mode(struct mode_list_elem *data)
 {
         gchar *command;
         char command2[256], *real_path = NULL, *mountpath;
-        const char *mount;
+        char *mount;
         gchar **mounts;
         int ret = 0, i = 0, mountpoints = 0, fua = 0, try = 0;
 
@@ -199,7 +199,7 @@ umount:                 command = g_strconcat("mount | grep ", mountpath, NULL);
 			}
                 }
                 g_strfreev(mounts);
-		g_free((gpointer *)mount);
+		g_free(mount);
 		if(real_path)
 			free(real_path);
 	}
@@ -216,7 +216,7 @@ static int unset_mass_storage_mode(struct mode_list_elem *data)
 {
         gchar *command;
         char command2[256], *real_path = NULL, *mountpath;
-        const char *mount;
+        char *mount;
         gchar **mounts;
         int ret = 1, i = 0;
 
@@ -277,7 +277,7 @@ static int unset_mass_storage_mode(struct mode_list_elem *data)
 			}
                  }
                  g_strfreev(mounts);
-		 g_free((gpointer *)mount);
+		 g_free(mount);
 		 if(real_path)
 			free(real_path);
         }
