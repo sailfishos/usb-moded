@@ -362,7 +362,7 @@ int config_value_changed(GKeyFile *settingsfile, const char *entry, const char *
   char *old = g_key_file_get_string(settingsfile, entry, key, NULL);
   if (old)
   {
-	gboolean unchanged = (g_strcmp0(old, entry) == 0);
+	gboolean unchanged = (g_strcmp0(old, new_value) == 0);
         g_free(old);
         if (unchanged)
         {
