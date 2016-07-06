@@ -45,6 +45,61 @@
 static void report_mass_storage_blocker(const char *mountpoint, int try);
 static guint delayed_network = 0;
 
+#if LOG_ENABLE_DEBUG
+static char *strip(char *str)
+{
+  unsigned char *src = (unsigned char *)str;
+  unsigned char *dst = (unsigned char *)str;
+
+  while( *src > 0 && *src <= 32 ) ++src;
+
+  for( ;; )
+  {
+    while( *src > 32 ) *dst++ = *src++;
+    while( *src > 0 && *src <= 32 ) ++src;
+    if( *src == 0 ) break;
+    *dst++ = ' ';
+  }
+  *dst = 0;
+  return str;
+}
+
+static char *read_from_file(const char *path, size_t maxsize)
+{
+  int      fd   = -1;
+  ssize_t  done = 0;
+  char    *data = 0;
+  char    *text = 0;
+
+  if((fd = open(path, O_RDONLY)) == -1)
+  {
+    /* Silently ignore things that could result
+     * from missing / read-only files */
+    if( errno != ENOENT && errno != EACCES )
+      log_warning("%s: open: %m", path);
+    goto cleanup;
+  }
+
+  if( !(data = malloc(maxsize + 1)) )
+    goto cleanup;
+
+  if((done = read(fd, data, maxsize)) == -1)
+  {
+    log_warning("%s: read: %m", path);
+    goto cleanup;
+  }
+
+  text = realloc(data, done + 1), data = 0;
+  text[done] = 0;
+  strip(text);
+
+cleanup:
+  free(data);
+  if(fd != -1) close(fd);
+  return text;
+}
+#endif /* LOG_ENABLE_DEBUG */
+
 int write_to_file(const char *path, const char *text)
 {
   int err = -1;
@@ -55,6 +110,15 @@ int write_to_file(const char *path, const char *text)
      we return an error */
   if(!text || !path)
 	return err;
+
+#if LOG_ENABLE_DEBUG
+  if(log_level >= LOG_DEBUG)
+  {
+    char *prev = read_from_file(path, 0x1000);
+    log_debug("WRITE '%s' : '%s' --> '%s'", path, prev ?: "???", text);
+    free(prev);
+  }
+#endif
 
   todo  = strlen(text);
 
@@ -362,7 +426,6 @@ int set_dynamic_mode(void)
   if(data->sysfs_path)
   {
 	write_to_file(data->sysfs_path, data->sysfs_value);
-	log_debug("writing to file %s, value %s\n", data->sysfs_path, data->sysfs_value);
   }
   if(data->idProduct)
   {
@@ -469,7 +532,6 @@ void unset_dynamic_mode(void)
   if(data->sysfs_path)
   {
 	write_to_file(data->sysfs_path, data->sysfs_reset_value);
-	log_debug("writing to file %s, value %s\n", data->sysfs_path, data->sysfs_reset_value);
   }
   /* restore vendorid if the mode had an override */
   if(data->idVendorOverride)
