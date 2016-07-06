@@ -66,10 +66,10 @@ static int validate_ip(const char *ipadd)
   return 0;
 }
 
-const char *find_mounts(void)
+char *find_mounts(void)
 {
   
-  const char *ret = NULL;
+  char *ret = NULL;
 
   ret = get_conf_string(FS_MOUNT_ENTRY, FS_MOUNT_KEY);
   if(ret == NULL)
@@ -86,7 +86,7 @@ int find_sync(void)
   return(get_conf_int(FS_SYNC_ENTRY, FS_SYNC_KEY));
 }
 
-const char * find_alt_mount(void)
+char * find_alt_mount(void)
 {
   return(get_conf_string(ALT_MOUNT_ENTRY, ALT_MOUNT_KEY));
 }
