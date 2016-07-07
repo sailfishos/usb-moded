@@ -247,6 +247,7 @@ static int unset_mass_storage_mode(struct mode_list_elem *data)
                                 	log_err("Mounting %s failed\n", mount);
 					if(ret)
 					{
+						g_free(mount);
 						mount = find_alt_mount();
 						if(mount)
 						{
