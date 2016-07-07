@@ -294,6 +294,8 @@ void set_usb_connected_state(void)
 	 	*/
 		usb_moded_send_signal(USB_CONNECTED_DIALOG_SHOW);
 		/* fallback to charging mode after 3 seconds */
+		if( charging_timeout )
+			g_source_remove(charging_timeout);
 		charging_timeout = g_timeout_add_seconds(3, charging_fallback, NULL);
 		/* in case there was nobody listening for the UI, they will know 
 		   that the UI is needed by requesting the current mode */
@@ -621,7 +623,7 @@ static void usb_moded_init(void)
 #ifdef APP_SYNC
   readlist(diag_mode);
   /* make sure all services are down when starting */
-  appsync_stop();
+  appsync_stop(1);
   modelist = read_mode_list(diag_mode);
 #endif /* APP_SYNC */
 
@@ -668,7 +670,7 @@ static gboolean charging_fallback(gpointer data)
 static void handle_exit(void)
 {
   /* exiting and clean-up when mainloop ended */
-  appsync_stop();
+  appsync_stop(1);
   hwal_cleanup();
   usb_moded_dbus_cleanup();
 #ifdef MEEGOLOCK
@@ -938,14 +940,13 @@ static void write_to_sysfs_file(const char *path, const char *text)
 
 	if ((fd = open(path, O_WRONLY)) == -1) {
 		if (errno != ENOENT) {
-			log_warning("%s: open for writing failed: %s",
-				    path, strerror(errno));
+			log_warning("%s: open for writing failed: %m", path);
 		}
 		goto EXIT;
 	}
 
 	if (write(fd, text, strlen(text)) == -1) {
-		log_warning("%s: write failed : %s", path, strerror(errno));
+		log_warning("%s: write failed : %m", path);
 		goto EXIT;
 	}
 EXIT:

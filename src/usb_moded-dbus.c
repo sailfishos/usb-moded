@@ -248,10 +248,10 @@ error_reply:
         {
                 char *config = get_hidden_modes();
                 if(!config)
-                    config = strdup("");
+                    config = g_strdup("");
                 if((reply = dbus_message_new_method_return(msg)))
                         dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID);
-                free(config);
+                g_free(config);
         }
 	else if(!strcmp(member, USB_MODE_NETWORK_SET))
 	{
@@ -294,7 +294,7 @@ error_reply:
 			{
 				if((reply = dbus_message_new_method_return(msg)))
 				dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_STRING, &setting, DBUS_TYPE_INVALID);
-				free((void *)setting);
+				free(setting);
 			}
 			else
 				reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, config);

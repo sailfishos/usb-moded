@@ -41,12 +41,14 @@
 #include "usb_moded-systemd.h"
 
 static struct list_elem *read_file(const gchar *filename, int diag);
-static gboolean enumerate_usb(gpointer data);
+static void enumerate_usb(void);
+static gboolean enumerate_usb_cb(gpointer data);
+static void start_enumerate_usb_timer(void);
+static void cancel_enumerate_usb_timer(void);
 
 static GList *sync_list = NULL;
 
-static unsigned sync_tag = 0;
-static unsigned enum_tag = 0;
+static guint enumerate_usb_id = 0;
 static struct timeval sync_tv;
 #ifdef APP_SYNC_DBUS
 static  int no_dbus = 0;
@@ -55,13 +57,18 @@ static  int no_dbus = 0;
 #endif /* APP_SYNC_DBUS */
 
 
-static void free_elem(gpointer aptr)
+static void free_elem(struct list_elem *elem)
 {
-  struct list_elem *elem = aptr;
-  free(elem->name);
-  free(elem->launch);
-  free(elem->mode);
+  g_free(elem->name);
+  g_free(elem->launch);
+  g_free(elem->mode);
   free(elem);
+}
+
+static void free_elem_cb(gpointer elem, gpointer user_data)
+{
+  (void)user_data;
+  free_elem(elem);
 }
 
 void free_appsync_list(void)
@@ -69,7 +76,7 @@ void free_appsync_list(void)
   if( sync_list != 0 )
   {
     /*g_list_free_full(sync_list, free_elem); */
-    g_list_foreach (sync_list, (GFunc) free_elem, NULL);
+    g_list_foreach (sync_list, free_elem_cb, NULL);
     g_list_free (sync_list);
     sync_list = 0;
     log_debug("Appsync list freed\n");
@@ -163,6 +170,7 @@ static struct list_elem *read_file(const gchar *filename, int diag)
   list_item->systemd = g_key_file_get_integer(settingsfile, APP_INFO_ENTRY, APP_INFO_SYSTEMD_KEY, NULL);
   log_debug("Systemd control = %d\n", list_item->systemd);
   list_item->post = g_key_file_get_integer(settingsfile, APP_INFO_ENTRY, APP_INFO_POST, NULL);
+  list_item->state = APP_STATE_DONTCARE;
 
 cleanup:
 
@@ -185,41 +193,42 @@ cleanup:
 int activate_sync(const char *mode)
 {
   GList *iter;
-  int count = 0, count2 = 0;
+  int count = 0;
 
   log_debug("activate sync");
 
-  /* Bump tag, see enumerate_usb() */
-  ++sync_tag; gettimeofday(&sync_tv, 0);
+  /* Get start of activation timestamp */
+  gettimeofday(&sync_tv, 0);
 
   if( sync_list == 0 )
   {
     log_debug("No sync list! Enumerating\n");
-    enumerate_usb(NULL);
+    enumerate_usb();
     return 0;
   }
 
-  /* set list to inactive, mark other modes as active already */
+  /* Count apps that need to be activated for this mode and
+   * mark them as currently inactive */
   for( iter = sync_list; iter; iter = g_list_next(iter) )
   {
     struct list_elem *data = iter->data;
 
-    count++;
     if(!strcmp(data->mode, mode))
-    	data->active = 0;
+    {
+      ++count;
+      data->state = APP_STATE_INACTIVE;
+    }
     else
     {
-	count2++;
-	data->active = 1;
+      data->state = APP_STATE_DONTCARE;
     }
   }
 
-  /* if the number of active modes is equal to the number of existing modes
-     we enumerate immediately */
-  if(count == count2)
+  /* If there is nothing to activate, enumerate immediately */
+  if(count <= 0)
   {
       log_debug("Nothing to launch.\n");
-      enumerate_usb(NULL);
+      enumerate_usb();
       return(0);
    }
 
@@ -233,8 +242,7 @@ int activate_sync(const char *mode)
 #endif /* APP_SYNC_DBUS */
 
   /* start timer */
-  log_debug("Starting appsync timer\n");
-  g_timeout_add_seconds(2, enumerate_usb, NULL);
+  start_enumerate_usb_timer();
 
   /* go through list and launch apps */
   for( iter = sync_list; iter; iter = g_list_next(iter) )
@@ -245,10 +253,9 @@ int activate_sync(const char *mode)
       /* do not launch items marked as post, will be launched after usb is up */
       if(data->post)
       {
-	mark_active(data->name, data->post);
 	continue;
       }
-      log_debug("launching app %s\n", data->name);
+      log_debug("launching pre-enum-app %s\n", data->name);
       if(data->systemd)
       {
         if(!systemd_control_service(data->name, SYSTEMD_START))
@@ -310,11 +317,12 @@ int activate_sync_post(const char *mode)
       /* launch only items marked as post, others are already running */
       if(!data->post)
 	continue;
-      log_debug("launching app %s\n", data->name);
+      log_debug("launching post-enum-app %s\n", data->name);
       if(data->systemd)
       {
         if(systemd_control_service(data->name, SYSTEMD_START))
 		goto error;
+	mark_active(data->name, 1);
       }
       else if(data->launch)
       {
@@ -345,22 +353,22 @@ int mark_active(const gchar *name, int post)
 
   GList *iter;
 
-  if(post)
-    log_debug("App %s notified it is ready\n", name);
+  log_debug("%s-enum-app %s is started\n", post ? "post" : "pre", name);
 
   for( iter = sync_list; iter; iter = g_list_next(iter) )
   {
     struct list_elem *data = iter->data;
+
     if(!strcmp(data->name, name))
     {
       /* TODO: do we need to worry about duplicate names in the list? */
-      ret = !data->active;
-      data->active = 1;
+      ret = (data->state != APP_STATE_ACTIVE);
+      data->state = APP_STATE_ACTIVE;
 
       /* updated + missing -> not going to enumerate */
       if( missing ) break;
     }
-    else if( data->active == 0 )
+    else if( data->state == APP_STATE_INACTIVE && data->post == post )
     {
       missing = 1;
 
@@ -368,49 +376,62 @@ int mark_active(const gchar *name, int post)
       if( ret != -1 ) break;
     }
   }
-  if( !missing )
+  if( !post && !missing )
   {
-    log_debug("All apps active. Let's enumerate\n");
-    enumerate_usb(NULL);
+    log_debug("All pre-enum-apps active. Let's enumerate\n");
+    enumerate_usb();
   }
   
   /* -1=not found, 0=already active, 1=activated now */
   return ret; 
 }
 
-static gboolean enumerate_usb(gpointer data)
+static gboolean enumerate_usb_cb(gpointer data)
 {
-  struct timeval tv;
-
-  /* We arrive here twice: when app sync is done
-   * and when the app sync timeout gets triggered.
-   * The tags are used to filter out these repeats.
-   */
-
-  if( enum_tag == sync_tag )
-  {
-    log_debug("ignoring enumeration trigger");
-  }
-  else
-  {
-
-    enum_tag = sync_tag;
-
-    /* Debug: how long it took from sync start to get here */
-    gettimeofday(&tv, 0);
-    timersub(&tv, &sync_tv, &tv);
-    log_debug("sync to enum: %.3f seconds", tv.tv_sec + tv.tv_usec * 1e-6);
-
-#ifdef APP_SYNC_DBUS
-    /* remove dbus service */
-    usb_moded_appsync_cleanup();
-#endif /* APP_SYNC_DBUS */
-  }
+  (void)data;
+  enumerate_usb_id = 0;
+  log_debug("handling enumeration timeout");
+  enumerate_usb();
   /* return false to stop the timer from repeating */
   return FALSE;
 }
 
-int appsync_stop(void)
+static void start_enumerate_usb_timer(void)
+{
+  log_debug("scheduling enumeration timeout");
+  if( enumerate_usb_id )
+    g_source_remove(enumerate_usb_id), enumerate_usb_id = 0;
+  enumerate_usb_id = g_timeout_add_seconds(2, enumerate_usb_cb, NULL);
+}
+
+static void cancel_enumerate_usb_timer(void)
+{
+  if( enumerate_usb_id )
+  {
+    log_debug("canceling enumeration timeout");
+    g_source_remove(enumerate_usb_id), enumerate_usb_id = 0;
+  }
+}
+
+static void enumerate_usb(void)
+{
+  struct timeval tv;
+
+  /* Stop the timer in case of explicit enumeration call */
+  cancel_enumerate_usb_timer();
+
+  /* Debug: how long it took from sync start to get here */
+  gettimeofday(&tv, 0);
+  timersub(&tv, &sync_tv, &tv);
+  log_debug("sync to enum: %.3f seconds", tv.tv_sec + tv.tv_usec * 1e-6);
+
+#ifdef APP_SYNC_DBUS
+  /* remove dbus service */
+  usb_moded_appsync_cleanup();
+#endif /* APP_SYNC_DBUS */
+}
+
+static void appsync_stop_apps(int post)
 {
   GList *iter = 0;
 
@@ -418,12 +439,39 @@ int appsync_stop(void)
   {
     struct list_elem *data = iter->data;
 
-    if(data->systemd)
+    if(data->systemd && data->state == APP_STATE_ACTIVE && data->post == post)
     {
-        if(!systemd_control_service(data->name, SYSTEMD_STOP))
+      log_debug("stopping %s-enum-app %s", post ? "post" : "pre", data->name);
+        if(systemd_control_service(data->name, SYSTEMD_STOP))
 		log_debug("Failed to stop %s\n", data->name);
+      data->state = APP_STATE_DONTCARE;
+    }
+  }
+}
+
+int appsync_stop(int force)
+{
+  /* If force arg is used, stop all applications that
+   * could have been started by usb-moded */
+  if(force)
+  {
+    GList *iter;
+    log_debug("assuming all applications are active");
+
+    for( iter = sync_list; iter; iter = g_list_next(iter) )
+    {
+      struct list_elem *data = iter->data;
+      data->state = APP_STATE_ACTIVE;
     }
   }
 
+  /* Stop post-apps 1st */
+  appsync_stop_apps(1);
+
+  /* Then pre-apps */
+  appsync_stop_apps(0);
+
+  /* Do not leave active timers behind */
+  cancel_enumerate_usb_timer();
   return(0);
 }

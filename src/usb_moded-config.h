@@ -59,9 +59,9 @@
 #define ANDROID_PRODUCT_ID_KEY		"idProduct"
 #define MODE_HIDE_KEY			"hide"
 
-const char * find_mounts(void);
+char * find_mounts(void);
 int find_sync(void);
-const char * find_alt_mount(void);
+char * find_alt_mount(void);
 
 char * find_udev_path(void);
 char * find_udev_subsystem(void);

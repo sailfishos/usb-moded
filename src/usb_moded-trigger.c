@@ -43,10 +43,10 @@
 #endif /* MEEGOLOCK */
 
 /* global variables */
-static struct udev *udev;
-static struct udev_monitor *mon;
-static GIOChannel *iochannel;
-static guint watch_id; 
+static struct udev *udev = 0;
+static struct udev_monitor *mon = 0;
+static GIOChannel *iochannel = 0;
+static guint watch_id = 0;
 static const char *dev_name;
 
 /* static function definitions */
@@ -138,8 +138,11 @@ static gboolean monitor_udev(GIOChannel *iochannel G_GNUC_UNUSED, GIOCondition c
     if (dev) 
     {
       /* check if it is the actual device we want to check */
-      if(strcmp(dev_name, udev_device_get_sysname(dev)))
-	return 0;
+      if(strcmp(dev_name, udev_device_get_sysname(dev))) {
+        log_crit("name does not match, disabling udev trigger io-watch");
+        watch_id = 0;
+        return FALSE;
+      }
        
       if(!strcmp(udev_device_get_action(dev), "change"))
       {
@@ -152,7 +155,9 @@ static gboolean monitor_udev(GIOChannel *iochannel G_GNUC_UNUSED, GIOCondition c
     else
     {
    	log_debug("Bad trigger data. Stopping\n");
+        watch_id = 0;
         trigger_stop();
+        return FALSE;
     }
   }
   
@@ -162,12 +167,26 @@ static gboolean monitor_udev(GIOChannel *iochannel G_GNUC_UNUSED, GIOCondition c
 
 void trigger_stop(void)
 {
-  g_source_remove(watch_id);
-  watch_id = 0;
-  g_io_channel_unref(iochannel);
-  iochannel = NULL;
-  udev_monitor_unref(mon);
-  udev_unref(udev);
+  if(watch_id)
+  {
+    g_source_remove(watch_id);
+    watch_id = 0;
+  }
+  if(iochannel) {
+    g_io_channel_unref(iochannel);
+    iochannel = NULL;
+  }
+  if(mon)
+  {
+    udev_monitor_unref(mon);
+    mon = 0;
+  }
+  if(udev)
+  {
+    udev_unref(udev);
+    udev = 0;
+  }
+  dev_name = 0;
 }
 
 static void udev_parse(struct udev_device *dev)

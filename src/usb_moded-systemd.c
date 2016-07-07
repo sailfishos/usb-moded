@@ -96,6 +96,7 @@ int systemd_control_service(const char *name, const char *method)
 quit:
   dbus_connection_close(bus);
   dbus_connection_unref(bus);
+  dbus_error_free(&error);
 
   return(ret); 
 }

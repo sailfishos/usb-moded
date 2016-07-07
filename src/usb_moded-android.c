@@ -81,6 +81,10 @@ void android_init_values(void)
   }
   /* For rndis to be discovered correctly in M$ Windows (vista and later) */
   write_to_file("/sys/class/android_usb/f_rndis/wceis", "1");
+
+  /* Make sure android_usb does not stay disabled in case usb moded
+   * has crashed / been killed in inconvenient time. */
+  write_to_file("/sys/class/android_usb/android0/enable", "1");
 }
 
 /* Set a charging mode for the android gadget

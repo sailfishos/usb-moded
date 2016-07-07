@@ -43,7 +43,62 @@
 #include "usb_moded-android.h"
 
 static void report_mass_storage_blocker(const char *mountpoint, int try);
-guint delayed_network = 0;
+static guint delayed_network = 0;
+
+#if LOG_ENABLE_DEBUG
+static char *strip(char *str)
+{
+  unsigned char *src = (unsigned char *)str;
+  unsigned char *dst = (unsigned char *)str;
+
+  while( *src > 0 && *src <= 32 ) ++src;
+
+  for( ;; )
+  {
+    while( *src > 32 ) *dst++ = *src++;
+    while( *src > 0 && *src <= 32 ) ++src;
+    if( *src == 0 ) break;
+    *dst++ = ' ';
+  }
+  *dst = 0;
+  return str;
+}
+
+static char *read_from_file(const char *path, size_t maxsize)
+{
+  int      fd   = -1;
+  ssize_t  done = 0;
+  char    *data = 0;
+  char    *text = 0;
+
+  if((fd = open(path, O_RDONLY)) == -1)
+  {
+    /* Silently ignore things that could result
+     * from missing / read-only files */
+    if( errno != ENOENT && errno != EACCES )
+      log_warning("%s: open: %m", path);
+    goto cleanup;
+  }
+
+  if( !(data = malloc(maxsize + 1)) )
+    goto cleanup;
+
+  if((done = read(fd, data, maxsize)) == -1)
+  {
+    log_warning("%s: read: %m", path);
+    goto cleanup;
+  }
+
+  text = realloc(data, done + 1), data = 0;
+  text[done] = 0;
+  strip(text);
+
+cleanup:
+  free(data);
+  if(fd != -1) close(fd);
+  return text;
+}
+#endif /* LOG_ENABLE_DEBUG */
 
 int write_to_file(const char *path, const char *text)
 {
@@ -56,14 +111,21 @@ int write_to_file(const char *path, const char *text)
   if(!text || !path)
 	return err;
 
+#if LOG_ENABLE_DEBUG
+  if(log_level >= LOG_DEBUG)
+  {
+    char *prev = read_from_file(path, 0x1000);
+    log_debug("WRITE '%s' : '%s' --> '%s'", path, prev ?: "???", text);
+    free(prev);
+  }
+#endif
+
   todo  = strlen(text);
 
   /* no O_CREAT -> writes only to already existing files */
   if( (fd = TEMP_FAILURE_RETRY(open(path, O_WRONLY))) == -1 )
   {
-    /* gcc -pedantic does not like "%m"
-       log_warning("open(%s): %m", path); */
-    log_warning("open(%s): %s", path, strerror(errno));
+    log_warning("open(%s): %m", path);
     goto cleanup;
   }
 
@@ -72,7 +134,7 @@ int write_to_file(const char *path, const char *text)
     ssize_t n = TEMP_FAILURE_RETRY(write(fd, text, todo));
     if( n < 0 )
     {
-      log_warning("write(%s): %s", path, strerror(errno));
+      log_warning("write(%s): %m", path);
       goto cleanup;
     }
     todo -= n;
@@ -90,6 +152,7 @@ cleanup:
 
 static gboolean network_retry(gpointer data)
 {
+	delayed_network = 0;
 	usb_network_up(data);
 	return(FALSE);
 }
@@ -98,7 +161,7 @@ static int set_mass_storage_mode(struct mode_list_elem *data)
 {
         gchar *command;
         char command2[256], *real_path = NULL, *mountpath;
-        const char *mount;
+        char *mount;
         gchar **mounts;
         int ret = 0, i = 0, mountpoints = 0, fua = 0, try = 0;
 
@@ -199,7 +262,7 @@ umount:                 command = g_strconcat("mount | grep ", mountpath, NULL);
 			}
                 }
                 g_strfreev(mounts);
-		g_free((gpointer *)mount);
+		g_free(mount);
 		if(real_path)
 			free(real_path);
 	}
@@ -216,7 +279,7 @@ static int unset_mass_storage_mode(struct mode_list_elem *data)
 {
         gchar *command;
         char command2[256], *real_path = NULL, *mountpath;
-        const char *mount;
+        char *mount;
         gchar **mounts;
         int ret = 1, i = 0;
 
@@ -247,6 +310,7 @@ static int unset_mass_storage_mode(struct mode_list_elem *data)
                                 	log_err("Mounting %s failed\n", mount);
 					if(ret)
 					{
+						g_free(mount);
 						mount = find_alt_mount();
 						if(mount)
 						{
@@ -277,7 +341,7 @@ static int unset_mass_storage_mode(struct mode_list_elem *data)
 			}
                  }
                  g_strfreev(mounts);
-		 g_free((gpointer *)mount);
+		 g_free(mount);
 		 if(real_path)
 			free(real_path);
         }
@@ -362,7 +426,6 @@ int set_dynamic_mode(void)
   if(data->sysfs_path)
   {
 	write_to_file(data->sysfs_path, data->sysfs_value);
-	log_debug("writing to file %s, value %s\n", data->sysfs_path, data->sysfs_value);
   }
   if(data->idProduct)
   {
@@ -400,6 +463,8 @@ int set_dynamic_mode(void)
   if(network != 0 && data->network)
   {
 	log_debug("Retry setting up the network later\n");
+	if(delayed_network)
+		  g_source_remove(delayed_network);
 	delayed_network = g_timeout_add_seconds(3, network_retry, data);
   }
 
@@ -467,7 +532,6 @@ void unset_dynamic_mode(void)
   if(data->sysfs_path)
   {
 	write_to_file(data->sysfs_path, data->sysfs_reset_value);
-	log_debug("writing to file %s, value %s\n", data->sysfs_path, data->sysfs_reset_value);
   }
   /* restore vendorid if the mode had an override */
   if(data->idVendorOverride)
@@ -476,6 +540,12 @@ void unset_dynamic_mode(void)
 	id = get_android_vendor_id();
 	set_android_vendorid(id);
 	g_free(id);
+  }
+
+  /* enable after the changes have been made */
+  if(data->softconnect)
+  {
+	write_to_file(data->softconnect_path, data->softconnect);
   }
 }
 
@@ -496,7 +566,8 @@ int usb_moded_mode_cleanup(const char *module)
 	}
 
 #ifdef APP_SYNC
-	appsync_stop();
+	/* Stop applications started due to entering this mode */
+	appsync_stop(0);
 #endif /* APP_SYNC */
 
         if(!strcmp(module, MODULE_MASS_STORAGE)|| !strcmp(module, MODULE_FILE_STORAGE))
