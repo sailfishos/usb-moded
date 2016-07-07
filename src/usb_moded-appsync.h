@@ -29,6 +29,15 @@
 #define APP_INFO_SYSTEMD_KEY	"systemd"
 #define APP_INFO_POST		"post"
 
+typedef enum {
+  /** Application is not relevant for the current mode */
+  APP_STATE_DONTCARE = 0,
+  /** Application should be started */
+  APP_STATE_INACTIVE = 1,
+  /** Application should be stopped when exiting the mode  */
+  APP_STATE_ACTIVE   = 2,
+} app_state_t;
+
 /** 
  * keep all the needed info together for launching an app 
  */
@@ -38,7 +47,7 @@ typedef struct list_elem
   char *name;		/* name of the app to launch */
   char *mode; 		/* mode in which to launch the app */
   char *launch;		/* dbus launch command/address */ 
-  int active;		/* marker to check if the app has started sucessfully */
+  app_state_t state;	/* marker to check if the app has started sucessfully */
   int systemd;		/* marker to know if we start it with systemd or not */
   int post;		/* marker to indicate when to start the app */
   /*@}*/

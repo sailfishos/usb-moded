@@ -172,6 +172,7 @@ static struct list_elem *read_file(const gchar *filename, int diag)
   list_item->systemd = g_key_file_get_integer(settingsfile, APP_INFO_ENTRY, APP_INFO_SYSTEMD_KEY, NULL);
   log_debug("Systemd control = %d\n", list_item->systemd);
   list_item->post = g_key_file_get_integer(settingsfile, APP_INFO_ENTRY, APP_INFO_POST, NULL);
+  list_item->state = APP_STATE_DONTCARE;
 
 cleanup:
 
@@ -194,7 +195,7 @@ cleanup:
 int activate_sync(const char *mode)
 {
   GList *iter;
-  int count = 0, count2 = 0;
+  int count = 0;
 
   log_debug("activate sync");
 
@@ -208,24 +209,25 @@ int activate_sync(const char *mode)
     return 0;
   }
 
-  /* set list to inactive, mark other modes as active already */
+  /* Count apps that need to be activated for this mode and
+   * mark them as currently inactive */
   for( iter = sync_list; iter; iter = g_list_next(iter) )
   {
     struct list_elem *data = iter->data;
 
-    count++;
     if(!strcmp(data->mode, mode))
-    	data->active = 0;
+    {
+      ++count;
+      data->state = APP_STATE_INACTIVE;
+    }
     else
     {
-	count2++;
-	data->active = 1;
+      data->state = APP_STATE_DONTCARE;
     }
   }
 
-  /* if the number of active modes is equal to the number of existing modes
-     we enumerate immediately */
-  if(count == count2)
+  /* If there is nothing to activate, enumerate immediately */
+  if(count <= 0)
   {
       log_debug("Nothing to launch.\n");
       enumerate_usb();
@@ -362,13 +364,13 @@ int mark_active(const gchar *name, int post)
     if(!strcmp(data->name, name))
     {
       /* TODO: do we need to worry about duplicate names in the list? */
-      ret = !data->active;
-      data->active = 1;
+      ret = (data->state != APP_STATE_ACTIVE);
+      data->state = APP_STATE_ACTIVE;
 
       /* updated + missing -> not going to enumerate */
       if( missing ) break;
     }
-    else if( data->active == 0 && data->post == post )
+    else if( data->state == APP_STATE_INACTIVE && data->post == post )
     {
       missing = 1;
 
@@ -454,12 +456,12 @@ static void appsync_stop_apps(int post)
   {
     struct list_elem *data = iter->data;
 
-    if(data->systemd && data->active && data->post == post)
+    if(data->systemd && data->state == APP_STATE_ACTIVE && data->post == post)
     {
       log_debug("stopping %s-enum-app %s", post ? "post" : "pre", data->name);
         if(systemd_control_service(data->name, SYSTEMD_STOP))
 		log_debug("Failed to stop %s\n", data->name);
-      data->active = 0;
+      data->state = APP_STATE_DONTCARE;
     }
   }
 }
@@ -476,7 +478,7 @@ int appsync_stop(int force)
     for( iter = sync_list; iter; iter = g_list_next(iter) )
     {
       struct list_elem *data = iter->data;
-      data->active = 1;
+      data->state = APP_STATE_ACTIVE;
     }
   }
 
