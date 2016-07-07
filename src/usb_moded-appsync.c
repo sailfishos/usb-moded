@@ -41,10 +41,14 @@
 #include "usb_moded-systemd.h"
 
 static struct list_elem *read_file(const gchar *filename, int diag);
-static gboolean enumerate_usb(gpointer data);
+static void enumerate_usb(void);
+static gboolean enumerate_usb_cb(gpointer data);
+static void start_enumerate_usb_timer(void);
+static void cancel_enumerate_usb_timer(void);
 
 static GList *sync_list = NULL;
 
+static guint enumerate_usb_id = 0;
 static unsigned sync_tag = 0;
 static unsigned enum_tag = 0;
 static struct timeval sync_tv;
@@ -200,7 +204,7 @@ int activate_sync(const char *mode)
   if( sync_list == 0 )
   {
     log_debug("No sync list! Enumerating\n");
-    enumerate_usb(NULL);
+    enumerate_usb();
     return 0;
   }
 
@@ -224,7 +228,7 @@ int activate_sync(const char *mode)
   if(count == count2)
   {
       log_debug("Nothing to launch.\n");
-      enumerate_usb(NULL);
+      enumerate_usb();
       return(0);
    }
 
@@ -238,8 +242,7 @@ int activate_sync(const char *mode)
 #endif /* APP_SYNC_DBUS */
 
   /* start timer */
-  log_debug("Starting appsync timer\n");
-  g_timeout_add_seconds(2, enumerate_usb, NULL);
+  start_enumerate_usb_timer();
 
   /* go through list and launch apps */
   for( iter = sync_list; iter; iter = g_list_next(iter) )
@@ -376,16 +379,46 @@ int mark_active(const gchar *name, int post)
   if( !missing )
   {
     log_debug("All apps active. Let's enumerate\n");
-    enumerate_usb(NULL);
+    enumerate_usb();
   }
   
   /* -1=not found, 0=already active, 1=activated now */
   return ret; 
 }
 
-static gboolean enumerate_usb(gpointer data)
+static gboolean enumerate_usb_cb(gpointer data)
+{
+  (void)data;
+  enumerate_usb_id = 0;
+  log_debug("handling enumeration timeout");
+  enumerate_usb();
+  /* return false to stop the timer from repeating */
+  return FALSE;
+}
+
+static void start_enumerate_usb_timer(void)
+{
+  log_debug("scheduling enumeration timeout");
+  if( enumerate_usb_id )
+    g_source_remove(enumerate_usb_id), enumerate_usb_id = 0;
+  enumerate_usb_id = g_timeout_add_seconds(2, enumerate_usb_cb, NULL);
+}
+
+static void cancel_enumerate_usb_timer(void)
+{
+  if( enumerate_usb_id )
+  {
+    log_debug("canceling enumeration timeout");
+    g_source_remove(enumerate_usb_id), enumerate_usb_id = 0;
+  }
+}
+
+static void enumerate_usb(void)
 {
   struct timeval tv;
+
+  /* Stop the timer in case of explicit enumeration call */
+  cancel_enumerate_usb_timer();
 
   /* We arrive here twice: when app sync is done
    * and when the app sync timeout gets triggered.
@@ -411,8 +444,6 @@ static gboolean enumerate_usb(gpointer data)
     usb_moded_appsync_cleanup();
 #endif /* APP_SYNC_DBUS */
   }
-  /* return false to stop the timer from repeating */
-  return FALSE;
 }
 
 int appsync_stop(void)
@@ -430,5 +461,7 @@ int appsync_stop(void)
     }
   }
 
+  /* Do not leave active timers behind */
+  cancel_enumerate_usb_timer();
   return(0);
 }
