@@ -49,8 +49,6 @@ static void cancel_enumerate_usb_timer(void);
 static GList *sync_list = NULL;
 
 static guint enumerate_usb_id = 0;
-static unsigned sync_tag = 0;
-static unsigned enum_tag = 0;
 static struct timeval sync_tv;
 #ifdef APP_SYNC_DBUS
 static  int no_dbus = 0;
@@ -199,8 +197,8 @@ int activate_sync(const char *mode)
 
   log_debug("activate sync");
 
-  /* Bump tag, see enumerate_usb() */
-  ++sync_tag; gettimeofday(&sync_tv, 0);
+  /* Get start of activation timestamp */
+  gettimeofday(&sync_tv, 0);
 
   if( sync_list == 0 )
   {
@@ -422,30 +420,15 @@ static void enumerate_usb(void)
   /* Stop the timer in case of explicit enumeration call */
   cancel_enumerate_usb_timer();
 
-  /* We arrive here twice: when app sync is done
-   * and when the app sync timeout gets triggered.
-   * The tags are used to filter out these repeats.
-   */
-
-  if( enum_tag == sync_tag )
-  {
-    log_debug("ignoring enumeration trigger");
-  }
-  else
-  {
-
-    enum_tag = sync_tag;
-
-    /* Debug: how long it took from sync start to get here */
-    gettimeofday(&tv, 0);
-    timersub(&tv, &sync_tv, &tv);
-    log_debug("sync to enum: %.3f seconds", tv.tv_sec + tv.tv_usec * 1e-6);
+  /* Debug: how long it took from sync start to get here */
+  gettimeofday(&tv, 0);
+  timersub(&tv, &sync_tv, &tv);
+  log_debug("sync to enum: %.3f seconds", tv.tv_sec + tv.tv_usec * 1e-6);
 
 #ifdef APP_SYNC_DBUS
-    /* remove dbus service */
-    usb_moded_appsync_cleanup();
+  /* remove dbus service */
+  usb_moded_appsync_cleanup();
 #endif /* APP_SYNC_DBUS */
-  }
 }
 
 static void appsync_stop_apps(int post)
