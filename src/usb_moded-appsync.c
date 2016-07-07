@@ -456,7 +456,7 @@ int appsync_stop(void)
 
     if(data->systemd)
     {
-        if(!systemd_control_service(data->name, SYSTEMD_STOP))
+        if(systemd_control_service(data->name, SYSTEMD_STOP))
 		log_debug("Failed to stop %s\n", data->name);
     }
   }
