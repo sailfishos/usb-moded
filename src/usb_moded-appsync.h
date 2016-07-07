@@ -48,6 +48,6 @@ void readlist(int diag);
 int activate_sync(const char *mode);
 int activate_sync_post(const char *mode);
 int mark_active(const gchar *name, int post);
-int appsync_stop(void);
+int appsync_stop(int force);
 void free_appsync_list(void);
 void usb_moded_appsync_cleanup(void);

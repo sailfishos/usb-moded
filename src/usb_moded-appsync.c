@@ -253,10 +253,9 @@ int activate_sync(const char *mode)
       /* do not launch items marked as post, will be launched after usb is up */
       if(data->post)
       {
-	mark_active(data->name, data->post);
 	continue;
       }
-      log_debug("launching app %s\n", data->name);
+      log_debug("launching pre-enum-app %s\n", data->name);
       if(data->systemd)
       {
         if(!systemd_control_service(data->name, SYSTEMD_START))
@@ -318,11 +317,12 @@ int activate_sync_post(const char *mode)
       /* launch only items marked as post, others are already running */
       if(!data->post)
 	continue;
-      log_debug("launching app %s\n", data->name);
+      log_debug("launching post-enum-app %s\n", data->name);
       if(data->systemd)
       {
         if(systemd_control_service(data->name, SYSTEMD_START))
 		goto error;
+	mark_active(data->name, 1);
       }
       else if(data->launch)
       {
@@ -353,12 +353,12 @@ int mark_active(const gchar *name, int post)
 
   GList *iter;
 
-  if(post)
-    log_debug("App %s notified it is ready\n", name);
+  log_debug("%s-enum-app %s is started\n", post ? "post" : "pre", name);
 
   for( iter = sync_list; iter; iter = g_list_next(iter) )
   {
     struct list_elem *data = iter->data;
+
     if(!strcmp(data->name, name))
     {
       /* TODO: do we need to worry about duplicate names in the list? */
@@ -368,7 +368,7 @@ int mark_active(const gchar *name, int post)
       /* updated + missing -> not going to enumerate */
       if( missing ) break;
     }
-    else if( data->active == 0 )
+    else if( data->active == 0 && data->post == post )
     {
       missing = 1;
 
@@ -376,9 +376,9 @@ int mark_active(const gchar *name, int post)
       if( ret != -1 ) break;
     }
   }
-  if( !missing )
+  if( !post && !missing )
   {
-    log_debug("All apps active. Let's enumerate\n");
+    log_debug("All pre-enum-apps active. Let's enumerate\n");
     enumerate_usb();
   }
   
@@ -446,7 +446,7 @@ static void enumerate_usb(void)
   }
 }
 
-int appsync_stop(void)
+static void appsync_stop_apps(int post)
 {
   GList *iter = 0;
 
@@ -454,12 +454,37 @@ int appsync_stop(void)
   {
     struct list_elem *data = iter->data;
 
-    if(data->systemd)
+    if(data->systemd && data->active && data->post == post)
     {
+      log_debug("stopping %s-enum-app %s", post ? "post" : "pre", data->name);
         if(systemd_control_service(data->name, SYSTEMD_STOP))
 		log_debug("Failed to stop %s\n", data->name);
+      data->active = 0;
     }
   }
+}
+
+int appsync_stop(int force)
+{
+  /* If force arg is used, stop all applications that
+   * could have been started by usb-moded */
+  if(force)
+  {
+    GList *iter;
+    log_debug("assuming all applications are active");
+
+    for( iter = sync_list; iter; iter = g_list_next(iter) )
+    {
+      struct list_elem *data = iter->data;
+      data->active = 1;
+    }
+  }
+
+  /* Stop post-apps 1st */
+  appsync_stop_apps(1);
+
+  /* Then pre-apps */
+  appsync_stop_apps(0);
 
   /* Do not leave active timers behind */
   cancel_enumerate_usb_timer();

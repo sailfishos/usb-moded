@@ -623,7 +623,7 @@ static void usb_moded_init(void)
 #ifdef APP_SYNC
   readlist(diag_mode);
   /* make sure all services are down when starting */
-  appsync_stop();
+  appsync_stop(1);
   modelist = read_mode_list(diag_mode);
 #endif /* APP_SYNC */
 
@@ -670,7 +670,7 @@ static gboolean charging_fallback(gpointer data)
 static void handle_exit(void)
 {
   /* exiting and clean-up when mainloop ended */
-  appsync_stop();
+  appsync_stop(1);
   hwal_cleanup();
   usb_moded_dbus_cleanup();
 #ifdef MEEGOLOCK
