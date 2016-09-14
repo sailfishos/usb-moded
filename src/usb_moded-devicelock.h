@@ -26,7 +26,7 @@
 
 /*============================================================================= */
 
-#define DEVICELOCK_SERVICE              "org.nemomobile.lipstick"
+#define DEVICELOCK_SERVICE              "org.nemomobile.devicelock"
 #define DEVICELOCK_OBJECT         	"/devicelock"
 #define DEVICELOCK_INTERFACE            "org.nemomobile.lipstick.devicelock"
 #define DEVICELOCK_GET_STATE_REQ        "state"
