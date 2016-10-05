@@ -169,6 +169,20 @@ system bus.
 
 This package contains the mtp mode config.
 
+%package mtp-mode-android-ffs
+Summary:  USB mode controller - droid mtp mode config
+Group:  Config
+
+%description mtp-mode-android-ffs
+Usb_moded is a daemon to control the USB states. For this
+it loads unloads the relevant usb gadget modules, keeps track
+of the filesystem(s) and notifies about changes on the DBUS
+system bus.
+
+This package contains the mtp mode config for devices that
+have android kernel but still implement mtp functionality
+via ffs.
+
 %package pc-suite-mode-android
 Summary:  USB mode controller - android pc suite  mode config
 Group:  Config
@@ -426,6 +440,10 @@ systemctl daemon-reload || :
 %files mtp-mode-android
 %defattr(-,root,root,-)
 %{_sysconfdir}/usb-moded/dyn-modes/mtp_mode-android.ini
+
+%files mtp-mode-android-ffs
+%defattr(-,root,root,-)
+%{_sysconfdir}/usb-moded/dyn-modes/mtp_mode-android-ffs.ini
 
 %files pc-suite-mode-android
 %defattr(-,root,root,-)
