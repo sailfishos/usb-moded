@@ -18,7 +18,6 @@ BuildRequires: pkgconfig(libsystemd-daemon)
 
 Requires: lsof
 Requires: usb-moded-configs
-Requires: usb-moded-diagnostics-config
 Requires: busybox-symlinks-dhcp
 Requires(post): systemd
 Requires(postun): systemd
