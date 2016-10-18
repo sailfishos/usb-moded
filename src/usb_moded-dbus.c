@@ -39,6 +39,10 @@
 #include "usb_moded-network.h"
 #include "usb_moded-log.h"
 
+#define INIT_DONE_INTERFACE "com.nokia.startup.signal"
+#define INIT_DONE_SIGNAL    "init_done"
+#define INIT_DONE_MATCH     "type='signal',interface='"INIT_DONE_INTERFACE"',member='"INIT_DONE_SIGNAL"'"
+
 static DBusConnection *dbus_connection_sys = NULL;
 extern gboolean rescue_mode;
 
@@ -128,6 +132,18 @@ static DBusHandlerResult msg_handler(DBusConnection *const connection, DBusMessa
   (void)user_data;
 
   if(!interface || !member || !object) goto EXIT;
+
+  if( type == DBUS_MESSAGE_TYPE_SIGNAL )
+  {
+	if( !strcmp(interface, INIT_DONE_INTERFACE) && !strcmp(member, INIT_DONE_SIGNAL) ) {
+		/* Auto-disable rescue mode when bootup is finished */
+		if( rescue_mode ) {
+			rescue_mode = FALSE;
+			log_debug("init done reached - rescue mode disabled");
+		}
+	}
+	goto EXIT;
+  }
 
   if( type == DBUS_MESSAGE_TYPE_METHOD_CALL && !strcmp(interface, USB_MODE_INTERFACE) && !strcmp(object, USB_MODE_OBJECT))
   {
@@ -402,6 +418,9 @@ gboolean usb_moded_dbus_init(void)
   /* only match on signals/methods we support (if needed)
   dbus_bus_add_match(dbus_connection_sys, USB_MODE_INTERFACE, &error);
   */
+
+  /* Listen to init-done signals */
+  dbus_bus_add_match(dbus_connection_sys, INIT_DONE_MATCH, 0);
 
   dbus_threads_init_default();
 
