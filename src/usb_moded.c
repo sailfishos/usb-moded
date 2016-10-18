@@ -1052,6 +1052,16 @@ void delay_suspend(void)
 					 allow_suspend_cb, 0);
 }
 
+/** Check if system has already been successfully booted up
+ *
+ * @return true if init-done has been reached, or false otherwise
+ */
+static bool init_done_p(void)
+{
+	return access("/run/systemd/boot-status/init-done", F_OK) == 0;
+}
+
+
 int main(int argc, char* argv[])
 {
 	int result = EXIT_FAILURE;
@@ -1145,6 +1155,12 @@ int main(int argc, char* argv[])
 	g_thread_init(NULL);
 #endif
 	mainloop = g_main_loop_new(NULL, FALSE);
+
+	if (rescue_mode && init_done_p())
+	{
+		rescue_mode = FALSE;
+		log_warning("init done passed; rescue mode ignored");
+	}
 
 	/* init daemon into a clean state first, then dbus and hw_abstraction last */
 	usb_moded_init();
