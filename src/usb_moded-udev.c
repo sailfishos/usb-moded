@@ -311,6 +311,20 @@ static void setup_charger_connection(void)
 	cancel_cable_connection_timeout();
 
 	log_debug("UDEV:USB dedicated charger connected\n");
+
+	if (cable) {
+		/* The connection was initially reported incorrectly
+		 * as pc cable, then later on declared as charger.
+		 *
+		 * Clear "connected" boolean flag so that the
+		 * set_charger_connected() call below acts as if charger
+		 * were detected already on connect: mode gets declared
+		 * as dedicated charger (and the mode selection dialog
+		 * shown by ui gets closed).
+		 */
+		set_usb_connection_state(FALSE);
+	}
+
 	charger = 1;
 	cable = 0;
 	set_charger_connected(TRUE);
