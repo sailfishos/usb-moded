@@ -66,6 +66,87 @@ static void usb_moded_send_config_signal(const char *section, const char *key, c
   }
 }
 
+/** Introspect xml format string for parents of USB_MODE_OBJECT */
+static const char intospect_template[] =
+"<!DOCTYPE node PUBLIC \"-//freedesktop//DTD D-BUS Object Introspection 1.0//EN\" \"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd\">\n"
+"<node name=\"%s\">\n"
+"  <interface name=\"org.freedesktop.DBus.Introspectable\">\n"
+"    <method name=\"Introspect\">\n"
+"      <arg direction=\"out\" name=\"data\" type=\"s\"/>\n"
+"    </method>\n"
+"  </interface>\n"
+"  <interface name=\"org.freedesktop.DBus.Peer\">\n"
+"    <method name=\"Ping\"/>\n"
+"    <method name=\"GetMachineId\">\n"
+"      <arg direction=\"out\" name=\"machine_uuid\" type=\"s\" />\n"
+"    </method>\n"
+"  </interface>\n"
+"  <node name=\"%s\"/>\n"
+"</node>\n";
+
+/** Introspect xml data for object path USB_MODE_OBJECT */
+static const char introspect_usb_moded[] =
+"<!DOCTYPE node PUBLIC \"-//freedesktop//DTD D-BUS Object Introspection 1.0//EN\" "
+"\"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd\">\n"
+"<node name=\"" USB_MODE_OBJECT "\">\n"
+"  <interface name=\"org.freedesktop.DBus.Introspectable\">\n"
+"    <method name=\"Introspect\">\n"
+"      <arg name=\"xml\" type=\"s\" direction=\"out\"/>\n"
+"    </method>\n"
+"  </interface>\n"
+"  <interface name=\"org.freedesktop.DBus.Peer\">\n"
+"    <method name=\"Ping\"/>\n"
+"    <method name=\"GetMachineId\">\n"
+"      <arg direction=\"out\" name=\"machine_uuid\" type=\"s\" />\n"
+"    </method>\n"
+"  </interface>\n"
+"  <interface name=\"" USB_MODE_INTERFACE "\">\n"
+"    <method name=\"" USB_MODE_STATE_REQUEST "\">\n"
+"      <arg name=\"mode\" type=\"s\" direction=\"out\"/>\n"
+"    </method>\n"
+"    <method name=\"" USB_MODE_STATE_SET "\">\n"
+"      <arg name=\"mode\" type=\"s\" direction=\"in\"/>\n"
+"      <arg name=\"mode\" type=\"s\" direction=\"out\"/>\n"
+"    </method>\n"
+"    <method name=\"" USB_MODE_CONFIG_SET "\">\n"
+"      <arg name=\"config\" type=\"s\" direction=\"in\"/>\n"
+"      <arg name=\"config\" type=\"s\" direction=\"out\"/>\n"
+"    </method>\n"
+"    <method name=\"" USB_MODE_NETWORK_SET "\">\n"
+"      <arg name=\"key\" type=\"s\" direction=\"in\"/>\n"
+"      <arg name=\"value\" type=\"s\" direction=\"in\"/>\n"
+"      <arg name=\"key\" type=\"s\" direction=\"out\"/>\n"
+"      <arg name=\"value\" type=\"s\" direction=\"out\"/>\n"
+"    </method>\n"
+"    <method name=\"" USB_MODE_NETWORK_GET "\">\n"
+"      <arg name=\"key\" type=\"s\" direction=\"in\"/>\n"
+"      <arg name=\"key\" type=\"s\" direction=\"out\"/>\n"
+"      <arg name=\"value\" type=\"s\" direction=\"out\"/>\n"
+"    </method>\n"
+"    <method name=\"" USB_MODE_CONFIG_GET "\">\n"
+"      <arg name=\"mode\" type=\"s\" direction=\"out\"/>\n"
+"    </method>\n"
+"    <method name=\"" USB_MODE_LIST "\">\n"
+"      <arg name=\"modes\" type=\"s\" direction=\"out\"/>\n"
+"    </method>\n"
+"    <method name=\"" USB_MODE_RESCUE_OFF "\"/>\n"
+"    <signal name=\"" USB_MODE_SIGNAL_NAME "\">\n"
+"      <arg name=\"mode\" type=\"s\"/>\n"
+"    </signal>\n"
+"    <signal name=\"" USB_MODE_ERROR_SIGNAL_NAME "\">\n"
+"      <arg name=\"error\" type=\"s\"/>\n"
+"    </signal>\n"
+"    <signal name=\"" USB_MODE_SUPPORTED_MODES_SIGNAL_NAME "\">\n"
+"      <arg name=\"modes\" type=\"s\"/>\n"
+"    </signal>\n"
+"    <signal name=\"" USB_MODE_CONFIG_SIGNAL_NAME "\">\n"
+"      <arg name=\"section\" type=\"s\"/>\n"
+"      <arg name=\"key\" type=\"s\"/>\n"
+"      <arg name=\"value\" type=\"s\"/>\n"
+"    </signal>\n"
+"  </interface>\n"
+"</node>\n";
+
 static DBusHandlerResult msg_handler(DBusConnection *const connection, DBusMessage *const msg, gpointer const user_data)
 {
   DBusHandlerResult   status    = DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
@@ -74,60 +155,6 @@ static DBusHandlerResult msg_handler(DBusConnection *const connection, DBusMessa
   const char         *member    = dbus_message_get_member(msg);
   const char         *object    = dbus_message_get_path(msg);
   int                 type      = dbus_message_get_type(msg);
-  const char *xml =	"<!DOCTYPE node PUBLIC \"-//freedesktop//DTD D-BUS Object Introspection 1.0//EN\" "
-			"\"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd\">\n"
-			"<node name=\"" USB_MODE_OBJECT "\">\n"
-			"  <interface name=\"org.freedesktop.DBus.Introspectable\">\n"
-			"    <method name=\"Introspect\">\n"
-			"      <arg name=\"xml\" type=\"s\" direction=\"out\"/>\n"
-			"    </method>\n"
-			"  </interface>\n"
-			"  <interface name=\"" USB_MODE_INTERFACE "\">\n"
-			"    <method name=\"" USB_MODE_STATE_REQUEST "\">\n"
-			"      <arg name=\"mode\" type=\"s\" direction=\"out\"/>\n"
-			"    </method>\n"
-			"    <method name=\"" USB_MODE_STATE_SET "\">\n"
-			"      <arg name=\"mode\" type=\"s\" direction=\"in\"/>\n"
-			"      <arg name=\"mode\" type=\"s\" direction=\"out\"/>\n"
-			"    </method>\n"
-			"    <method name=\"" USB_MODE_CONFIG_SET "\">\n"
-			"      <arg name=\"config\" type=\"s\" direction=\"in\"/>\n"
-			"      <arg name=\"config\" type=\"s\" direction=\"out\"/>\n"
-			"    </method>\n"
-			"    <method name=\"" USB_MODE_NETWORK_SET "\">\n"
-			"      <arg name=\"key\" type=\"s\" direction=\"in\"/>\n"
-			"      <arg name=\"value\" type=\"s\" direction=\"in\"/>\n"
-			"      <arg name=\"key\" type=\"s\" direction=\"out\"/>\n"
-			"      <arg name=\"value\" type=\"s\" direction=\"out\"/>\n"
-			"    </method>\n"
-			"    <method name=\"" USB_MODE_NETWORK_GET "\">\n"
-			"      <arg name=\"key\" type=\"s\" direction=\"in\"/>\n"
-			"      <arg name=\"key\" type=\"s\" direction=\"out\"/>\n"
-			"      <arg name=\"value\" type=\"s\" direction=\"out\"/>\n"
-			"    </method>\n"
-			"    <method name=\"" USB_MODE_CONFIG_GET "\">\n"
-			"      <arg name=\"mode\" type=\"s\" direction=\"out\"/>\n"
-			"    </method>\n"
-			"    <method name=\"" USB_MODE_LIST "\">\n"
-			"      <arg name=\"modes\" type=\"s\" direction=\"out\"/>\n"
-			"    </method>\n"
-			"    <method name=\"" USB_MODE_RESCUE_OFF "\"/>\n"
-			"    <signal name=\"" USB_MODE_SIGNAL_NAME "\">\n"
-			"      <arg name=\"mode\" type=\"s\"/>\n"
-			"    </signal>\n"
-			"    <signal name=\"" USB_MODE_ERROR_SIGNAL_NAME "\">\n"
-			"      <arg name=\"error\" type=\"s\"/>\n"
-			"    </signal>\n"
-			"    <signal name=\"" USB_MODE_SUPPORTED_MODES_SIGNAL_NAME "\">\n"
-			"      <arg name=\"modes\" type=\"s\"/>\n"
-			"    </signal>\n"
-			"    <signal name=\"" USB_MODE_CONFIG_SIGNAL_NAME "\">\n"
-			"      <arg name=\"section\" type=\"s\"/>\n"
-			"      <arg name=\"key\" type=\"s\"/>\n"
-			"      <arg name=\"value\" type=\"s\"/>\n"
-			"    </signal>\n"
-			"  </interface>\n"
-			"</node>\n";
 
   (void)user_data;
 
@@ -356,13 +383,72 @@ error_reply:
 		reply = dbus_message_new_error(msg, DBUS_ERROR_FAILED, member);
 	}
   }
-  else if( type == DBUS_MESSAGE_TYPE_METHOD_CALL && !strcmp(interface, "org.freedesktop.DBus.Introspectable") &&
-           !strcmp(object, USB_MODE_OBJECT) && !strcmp(member, "Introspect"))
+  else if( type == DBUS_MESSAGE_TYPE_METHOD_CALL &&
+	   !strcmp(interface, "org.freedesktop.DBus.Introspectable") &&
+	   !strcmp(member, "Introspect"))
   {
-	status = DBUS_HANDLER_RESULT_HANDLED;
+	const gchar *xml = 0;
+	gchar       *tmp = 0;
+	gchar       *err = 0;
+	size_t       len = strlen(object);
+	const char  *pos = USB_MODE_OBJECT;
 
-	if((reply = dbus_message_new_method_return(msg)))
-               dbus_message_append_args (reply, DBUS_TYPE_STRING, &xml, DBUS_TYPE_INVALID);
+	if( !strncmp(object, pos, len) )
+	{
+		if( pos[len] == 0 )
+		{
+			/* Full length USB_MODE_OBJECT requested */
+			xml = introspect_usb_moded;
+		}
+		else if( pos[len] == '/' )
+		{
+			/* Leading part of USB_MODE_OBJECT requested */
+			gchar *parent = 0;
+			gchar *child = 0;
+			parent = g_strndup(pos, len);
+			pos += len + 1;
+			len = strcspn(pos, "/");
+			child = g_strndup(pos, len);
+			xml = tmp = g_strdup_printf(intospect_template,
+						    parent, child);
+			g_free(child);
+			g_free(parent);
+		}
+		else if( !strcmp(object, "/") )
+		{
+			/* Root object needs to be handled separately */
+			const char *parent = "/";
+			gchar *child = 0;
+			pos += 1;
+			len = strcspn(pos, "/");
+			child = g_strndup(pos, len);
+			xml = tmp = g_strdup_printf(intospect_template,
+						    parent, child);
+			g_free(child);
+		}
+	}
+
+	if( xml )
+	{
+		if((reply = dbus_message_new_method_return(msg)))
+			dbus_message_append_args (reply,
+						  DBUS_TYPE_STRING, &xml,
+						  DBUS_TYPE_INVALID);
+	}
+	else
+	{
+		err = g_strdup_printf("Object '%s' does not exist", object);
+		reply = dbus_message_new_error(msg, DBUS_ERROR_UNKNOWN_OBJECT,
+					       err);
+	}
+
+	g_free(err);
+	g_free(tmp);
+
+	if( reply )
+	{
+		status = DBUS_HANDLER_RESULT_HANDLED;
+	}
   }
 
 
