@@ -1,7 +1,9 @@
 /*
   Copyright (C) 2010 Nokia Corporation. All rights reserved.
+  Copyright (C) 2016 Jolla Ltd.
 
   Author: Philippe De Swert <philippe.de-swert@nokia.com>
+  Author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the Lesser GNU General Public License 
@@ -44,6 +46,7 @@ enum
 void log_set_level(int lev); 
 int log_get_level(void);
 
+void log_init(void);
 void log_emit_va(int lev, const char *fmt, va_list va);
 void log_emit(int lev, const char *fmt, ...) __attribute__((format(printf,2,3)));
 void log_debugf(const char *fmt, ...) __attribute__((format(printf,1,2)));

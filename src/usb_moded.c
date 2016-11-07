@@ -1103,6 +1103,7 @@ int main(int argc, char* argv[])
                 { 0, 0, 0, 0 }
         };
 
+	log_init();
 	log_name = basename(*argv);
 
 	 /* Parse the command-line options */
