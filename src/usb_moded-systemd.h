@@ -24,3 +24,5 @@
 #define SYSTEMD_START   "StartUnit"
 
 gboolean systemd_control_service(const char *name, const char *method);
+gboolean systemd_control_start(void);
+void     systemd_control_stop(void);

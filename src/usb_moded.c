@@ -54,6 +54,7 @@
 #include "usb_moded-network.h"
 #include "usb_moded-mac.h"
 #include "usb_moded-android.h"
+#include "usb_moded-systemd.h"
 #ifdef MEEGOLOCK
 #include "usb_moded-dsme.h"
 #endif
@@ -1197,6 +1198,11 @@ int main(int argc, char* argv[])
 		goto EXIT;
 	}
 
+	if( !systemd_control_start() ) {
+		log_crit("systemd control could not be started");
+		goto EXIT;
+	}
+
 	/* init daemon into a clean state first, then dbus and hw_abstraction last */
 	usb_moded_init();
 
@@ -1252,6 +1258,7 @@ int main(int argc, char* argv[])
 EXIT:
 	dsme_listener_stop();
 	handle_exit();
+	systemd_control_stop();
 
 	allow_suspend();
 	return result;
