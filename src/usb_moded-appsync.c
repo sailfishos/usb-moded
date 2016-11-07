@@ -262,9 +262,8 @@ int activate_sync(const char *mode)
       if(data->systemd)
       {
         if(!systemd_control_service(data->name, SYSTEMD_START))
-		mark_active(data->name, 0);
-	else
 		goto error;
+	mark_active(data->name, 0);
       }
       else if(data->launch)
       {
@@ -323,7 +322,7 @@ int activate_sync_post(const char *mode)
       log_debug("launching post-enum-app %s\n", data->name);
       if(data->systemd)
       {
-        if(systemd_control_service(data->name, SYSTEMD_START))
+        if(!systemd_control_service(data->name, SYSTEMD_START))
 		goto error;
 	mark_active(data->name, 1);
       }
@@ -445,7 +444,7 @@ static void appsync_stop_apps(int post)
     if(data->systemd && data->state == APP_STATE_ACTIVE && data->post == post)
     {
       log_debug("stopping %s-enum-app %s", post ? "post" : "pre", data->name);
-        if(systemd_control_service(data->name, SYSTEMD_STOP))
+        if(!systemd_control_service(data->name, SYSTEMD_STOP))
 		log_debug("Failed to stop %s\n", data->name);
       data->state = APP_STATE_DONTCARE;
     }
