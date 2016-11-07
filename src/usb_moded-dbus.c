@@ -452,7 +452,6 @@ error_reply:
 	}
   }
 
-
 EXIT:
 
   if(reply)
@@ -658,4 +657,105 @@ int usb_moded_send_supported_modes_signal(const char *supported_modes)
 int usb_moded_send_hidden_modes_signal(const char *hidden_modes)
 {
   return(usb_moded_dbus_signal(USB_MODE_HIDDEN_MODES_SIGNAL_NAME, hidden_modes));
+}
+
+/** Async reply handler for usb_moded_get_name_owner_async()
+ *
+ * @param pc    Pending call object pointer
+ * @param aptr  Notify function to call (as a void pointer)
+ */
+static void usb_moded_get_name_owner_cb(DBusPendingCall *pc, void *aptr)
+{
+    usb_moded_get_name_owner_fn cb = aptr;
+
+    DBusMessage *rsp = 0;
+    const char  *dta = 0;
+    DBusError    err = DBUS_ERROR_INIT;
+
+    if( !(rsp = dbus_pending_call_steal_reply(pc)) ) {
+        log_err("did not get reply");
+        goto EXIT;
+    }
+
+    if( dbus_set_error_from_message(&err, rsp) )
+    {
+        if( strcmp(err.name, DBUS_ERROR_NAME_HAS_NO_OWNER) )
+            log_err("error reply: %s: %s", err.name, err.message);
+        goto EXIT;
+    }
+
+    if( !dbus_message_get_args(rsp, &err,
+                               DBUS_TYPE_STRING, &dta,
+                               DBUS_TYPE_INVALID) )
+    {
+        if( strcmp(err.name, DBUS_ERROR_NAME_HAS_NO_OWNER) )
+            log_warning("parse error: %s: %s", err.name, err.message);
+        goto EXIT;
+    }
+
+EXIT:
+    /* Allways call the notification function. Equate any error
+     * situations with "service does not have an owner". */
+    cb(dta ?: "");
+
+    if( rsp ) dbus_message_unref(rsp);
+
+    dbus_error_free(&err);
+}
+
+/** Helper function for making async dbus name owner queries
+ *
+ * @param name  D-Bus name to query
+ * @param cb    Function to call when async reply is received
+ * @param ppc   Where to store pending call object, or NULL
+ *
+ * @return TRUE if method call was sent, FALSE otherwise
+ */
+gboolean usb_moded_get_name_owner_async(const char *name,
+                                        usb_moded_get_name_owner_fn cb,
+                                        DBusPendingCall **ppc)
+{
+    gboolean         ack = FALSE;
+    DBusMessage     *req = 0;
+    DBusPendingCall *pc  = 0;
+
+    if(!dbus_connection_sys)
+        goto EXIT;
+
+    req = dbus_message_new_method_call(DBUS_INTERFACE_DBUS,
+                                       DBUS_PATH_DBUS,
+                                       DBUS_INTERFACE_DBUS,
+                                       DBUS_GET_NAME_OWNER_REQ);
+    if( !req ) {
+        log_err("could not create method call message");
+        goto EXIT;
+    }
+
+    if( !dbus_message_append_args(req,
+                                  DBUS_TYPE_STRING, &name,
+                                  DBUS_TYPE_INVALID) ) {
+        log_err("could not add method call parameters");
+        goto EXIT;
+    }
+
+    if( !dbus_connection_send_with_reply(dbus_connection_sys, req, &pc, -1) )
+        goto EXIT;
+
+    if( !pc )
+        goto EXIT;
+
+    if( !dbus_pending_call_set_notify(pc, usb_moded_get_name_owner_cb, cb, 0) )
+        goto EXIT;
+
+    ack = TRUE;
+
+    if( ppc )
+        *ppc = pc, pc = 0;
+
+EXIT:
+
+    if( pc  ) dbus_pending_call_unref(pc);
+    if( req ) dbus_message_unref(req);
+
+    return ack;
 }
