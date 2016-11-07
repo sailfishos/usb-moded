@@ -2,10 +2,11 @@
   @file	usb_moded-dbus.c
 
   Copyright (C) 2010 Nokia Corporation. All rights reserved.
-  Copyright (C) 2012-2015 Jolla. All rights reserved.
+  Copyright (C) 2012-2016 Jolla. All rights reserved.
 
   @author: Philippe De Swert <philippe.de-swert@nokia.com>
   @author: Philippe De Swert <philippe.deswert@jollamobile.com>
+  @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the Lesser GNU General Public License
@@ -467,18 +468,25 @@ EXIT:
   return status;
 }
 
+DBusConnection *usb_moded_dbus_get_connection(void)
+{
+    DBusConnection *connection = 0;
+    if( dbus_connection_sys )
+	connection = dbus_connection_ref(dbus_connection_sys);
+    else
+	log_err("something asked for connection ref while unconnected");
+    return connection;
+}
+
 /**
- * Init dbus for usb_moded
+ * Establish D-Bus SystemBus connection
  *
  * @return TRUE when everything went ok
  */
-gboolean usb_moded_dbus_init(void)
+gboolean usb_moded_dbus_init_connection(void)
 {
   gboolean status = FALSE;
-  DBusError error;
-  int ret;
-
-  dbus_error_init(&error);
+  DBusError error = DBUS_ERROR_INIT;
 
   /* connect to system bus */
   if ((dbus_connection_sys = dbus_bus_get(DBUS_BUS_SYSTEM, &error)) == NULL)
@@ -491,6 +499,35 @@ gboolean usb_moded_dbus_init(void)
   if (!dbus_connection_add_filter(dbus_connection_sys, msg_handler, NULL, NULL))
 	goto EXIT;
 
+  /* Listen to init-done signals */
+  dbus_bus_add_match(dbus_connection_sys, INIT_DONE_MATCH, 0);
+
+  /* Connect D-Bus to the mainloop */
+  dbus_connection_setup_with_g_main(dbus_connection_sys, NULL);
+
+  /* everything went fine */
+  status = TRUE;
+
+EXIT:
+  dbus_error_free(&error);
+  return status;
+}
+
+/**
+ * Reserve "com.meego.usb_moded" D-Bus Service Name
+ *
+ * @return TRUE when everything went ok
+ */
+gboolean usb_moded_dbus_init_service(void)
+{
+  gboolean status = FALSE;
+  DBusError error = DBUS_ERROR_INIT;
+  int ret;
+
+  if( !dbus_connection_sys ) {
+	  goto EXIT;
+  }
+
   /* Acquire D-Bus service */
   ret = dbus_bus_request_name(dbus_connection_sys, USB_MODE_SERVICE, DBUS_NAME_FLAG_DO_NOT_QUEUE, &error);
   if (ret != DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER)
@@ -500,19 +537,6 @@ gboolean usb_moded_dbus_init(void)
 		log_debug("DBUS ERROR: %s, %s \n", error.name, error.message);
         goto EXIT;
   }
-
-  /* only match on signals/methods we support (if needed)
-  dbus_bus_add_match(dbus_connection_sys, USB_MODE_INTERFACE, &error);
-  */
-
-  /* Listen to init-done signals */
-  dbus_bus_add_match(dbus_connection_sys, INIT_DONE_MATCH, 0);
-
-  dbus_threads_init_default();
-
-  /* Connect D-Bus to the mainloop */
-  dbus_connection_setup_with_g_main(dbus_connection_sys, NULL);
-
   /* everything went fine */
   status = TRUE;
 
@@ -530,7 +554,10 @@ void usb_moded_dbus_cleanup(void)
   /* clean up system bus connection */
   if (dbus_connection_sys != NULL)
   {
-	  dbus_bus_release_name(dbus_connection_sys, USB_MODE_SERVICE, NULL);
+	  if( dbus_connection_get_is_connected(dbus_connection_sys) ) {
+		  // FIXME: do we want to do this? It is pretty useless on exit path.
+		  dbus_bus_release_name(dbus_connection_sys, USB_MODE_SERVICE, NULL);
+	  }
 	  dbus_connection_remove_filter(dbus_connection_sys, msg_handler, NULL);
 	  dbus_connection_unref(dbus_connection_sys);
           dbus_connection_sys = NULL;

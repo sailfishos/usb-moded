@@ -2,10 +2,11 @@
   @file usb_moded.c
 
   Copyright (C) 2010 Nokia Corporation. All rights reserved.
-  Copyright (C) 2012 Jolla. All rights reserved.
+  Copyright (C) 2012-2016 Jolla. All rights reserved.
 
   @author: Philippe De Swert <philippe.de-swert@nokia.com>
   @author: Philippe De Swert <philippe.deswert@jollamobile.com>
+  @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the Lesser GNU General Public License 
@@ -1156,6 +1157,10 @@ int main(int argc, char* argv[])
 #if !GLIB_CHECK_VERSION(2, 31, 0)
 	g_thread_init(NULL);
 #endif
+
+	/* Must be the 1st libdbus call that is made */
+	dbus_threads_init_default();
+
 	mainloop = g_main_loop_new(NULL, FALSE);
 
 	if (rescue_mode && init_done_p())
@@ -1164,13 +1169,23 @@ int main(int argc, char* argv[])
 		log_warning("init done passed; rescue mode ignored");
 	}
 
-	/* init daemon into a clean state first, then dbus and hw_abstraction last */
-	usb_moded_init();
-	if( !usb_moded_dbus_init() )
+	/* Connect to SystemBus */
+	if( !usb_moded_dbus_init_connection() )
 	{
-		log_crit("dbus ipc init failed\n");
+		log_crit("dbus systembus connection failed\n");
 		goto EXIT;
 	}
+
+	/* init daemon into a clean state first, then dbus and hw_abstraction last */
+	usb_moded_init();
+
+	/* Set up D-Bus Service */
+	if( !usb_moded_dbus_init_service() )
+	{
+		log_crit("usb-moded dbus service init failed\n");
+		goto EXIT;
+	}
+
 	if( !hwal_init() )
 	{
 		/* if hw_fallback is active we can live with a failed hwal_init */
