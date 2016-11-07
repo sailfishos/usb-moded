@@ -1162,13 +1162,16 @@ int main(int argc, char* argv[])
                 }
         }
 
-	printf("usb_moded %s starting\n", VERSION);
+	fprintf(stderr, "usb_moded %s starting\n", VERSION);
+	fflush(stderr);
+
 	/* silence system() calls */
 	if(log_type != LOG_TO_STDERR || log_level != LOG_DEBUG )	
 	{
 		freopen("/dev/null", "a", stdout);
 		freopen("/dev/null", "a", stderr);
 	}
+
 #if !GLIB_CHECK_VERSION(2, 36, 0)
         g_type_init();
 #endif
