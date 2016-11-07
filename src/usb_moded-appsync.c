@@ -2,8 +2,11 @@
   @file usb_moded-appsync.c
 
   Copyright (C) 2010 Nokia Corporation. All rights reserved.
+  Copyright (C) 2013-2016 Jolla Ltd.
 
   @author: Philippe De Swert <philippe.de-swert@nokia.com>
+  @author: Philippe De Swert <philippe.deswert@jollamobile.com>
+  @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the Lesser GNU General Public License
@@ -449,7 +452,7 @@ static void appsync_stop_apps(int post)
   }
 }
 
-int appsync_stop(int force)
+int appsync_stop(gboolean force)
 {
   /* If force arg is used, stop all applications that
    * could have been started by usb-moded */
