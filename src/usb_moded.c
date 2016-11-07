@@ -124,6 +124,7 @@ static gboolean set_disconnected_silent(gpointer data);
 static void usb_moded_init(void);
 static gboolean charging_fallback(gpointer data);
 static void usage(void);
+static bool init_done_p(void);
 
 /* ============= Implementation starts here =========================================== */
 /** set the usb connection status 
@@ -623,8 +624,19 @@ static void usb_moded_init(void)
 
 #ifdef APP_SYNC
   readlist(diag_mode);
-  /* make sure all services are down when starting */
-  appsync_stop(TRUE);
+  /* If usb-moded happens to crash, it could leave appsync processes
+   * running. To make sure things are in the order expected by usb-moded
+   * force stopping of appsync processes during usb-moded startup.
+   *
+   * The exception is: When usb-moded starts as a part of bootup. Then
+   * we can be relatively sure that usb-moded has not been running yet
+   * and therefore no appsync processes have been started and we can
+   * skip the blocking ipc required to stop the appsync systemd units. */
+  if( init_done_p() )
+  {
+    log_warning("usb-moded started after init-done; forcing appsync stop");
+    appsync_stop(TRUE);
+  }
 #endif /* APP_SYNC */
 
   /* always read dyn modes even if appsync is not used */
@@ -673,7 +685,10 @@ static gboolean charging_fallback(gpointer data)
 static void handle_exit(void)
 {
   /* exiting and clean-up when mainloop ended */
-  appsync_stop(TRUE);
+
+  /* Stop appsync processes that have been started by usb-moded */
+  appsync_stop(FALSE);
+
   hwal_cleanup();
   usb_moded_dbus_cleanup();
 #ifdef MEEGOLOCK
