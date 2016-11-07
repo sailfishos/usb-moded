@@ -2,8 +2,11 @@
   @file usb_moded-appsync.c
 
   Copyright (C) 2010 Nokia Corporation. All rights reserved.
+  Copyright (C) 2013-2016 Jolla Ltd.
 
   @author: Philippe De Swert <philippe.de-swert@nokia.com>
+  @author: Philippe De Swert <philippe.deswert@jollamobile.com>
+  @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the Lesser GNU General Public License
@@ -259,9 +262,8 @@ int activate_sync(const char *mode)
       if(data->systemd)
       {
         if(!systemd_control_service(data->name, SYSTEMD_START))
-		mark_active(data->name, 0);
-	else
 		goto error;
+	mark_active(data->name, 0);
       }
       else if(data->launch)
       {
@@ -320,7 +322,7 @@ int activate_sync_post(const char *mode)
       log_debug("launching post-enum-app %s\n", data->name);
       if(data->systemd)
       {
-        if(systemd_control_service(data->name, SYSTEMD_START))
+        if(!systemd_control_service(data->name, SYSTEMD_START))
 		goto error;
 	mark_active(data->name, 1);
       }
@@ -442,14 +444,14 @@ static void appsync_stop_apps(int post)
     if(data->systemd && data->state == APP_STATE_ACTIVE && data->post == post)
     {
       log_debug("stopping %s-enum-app %s", post ? "post" : "pre", data->name);
-        if(systemd_control_service(data->name, SYSTEMD_STOP))
+        if(!systemd_control_service(data->name, SYSTEMD_STOP))
 		log_debug("Failed to stop %s\n", data->name);
       data->state = APP_STATE_DONTCARE;
     }
   }
 }
 
-int appsync_stop(int force)
+int appsync_stop(gboolean force)
 {
   /* If force arg is used, stop all applications that
    * could have been started by usb-moded */

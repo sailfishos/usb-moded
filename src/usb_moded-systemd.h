@@ -1,8 +1,9 @@
 /*
  
-  Copyright (C) 2013 Jolla Oy. All rights reserved.
+  Copyright (C) 2013-2016 Jolla Oy. All rights reserved.
 
   author: Philippe De Swert <philippe.deswert@njollamobile.com>
+  author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the Lesser GNU General Public License 
@@ -22,4 +23,6 @@
 #define SYSTEMD_STOP	"StopUnit"
 #define SYSTEMD_START   "StartUnit"
 
-int systemd_control_service(const char *name, const char *method);
+gboolean systemd_control_service(const char *name, const char *method);
+gboolean systemd_control_start(void);
+void     systemd_control_stop(void);

@@ -1,9 +1,10 @@
 /*
   Copyright (C) 2010 Nokia Corporation. All rights reserved.
-  Copyright (C) 2012 Jolla. All rights reserved.
+  Copyright (C) 2012-2016 Jolla. All rights reserved.
 
   @author: Philippe De Swert <philippe.de-swert@nokia.com>
   @author: Philippe De Swert <philippe.deswert@jollamobile.com>
+  @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the Lesser GNU General Public License 
@@ -91,5 +92,7 @@ void allow_suspend(void);
 void delay_suspend(void);
 
 extern int cable_connection_delay;
+
+void usb_moded_stop(int exitcode);
 
 #endif /* USB_MODED_H */

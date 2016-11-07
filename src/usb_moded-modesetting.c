@@ -2,8 +2,13 @@
   @file usb_moded-modesetting.c
  
   Copyright (C) 2010 Nokia Corporation. All rights reserved.
+  Copyright (C) 2013-2016 Jolla Ltd.
 
   @author: Philippe De Swert <philippe.de-swert@nokia.com>
+  @author: Philippe De Swert <philippe.deswert@jollamobile.com>
+  @author: Bernd Wachter <bernd.wachter@jollamobile.com>
+  @author: Slava Monich <slava.monich@jolla.com>
+  @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the Lesser GNU General Public License 
@@ -567,7 +572,7 @@ int usb_moded_mode_cleanup(const char *module)
 
 #ifdef APP_SYNC
 	/* Stop applications started due to entering this mode */
-	appsync_stop(0);
+	appsync_stop(FALSE);
 #endif /* APP_SYNC */
 
         if(!strcmp(module, MODULE_MASS_STORAGE)|| !strcmp(module, MODULE_FILE_STORAGE))

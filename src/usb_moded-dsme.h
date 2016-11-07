@@ -1,9 +1,10 @@
 /**
   @file usb_moded-dsme.h
 
-  Copyright (C) 2013 Jolla. All rights reserved.
+  Copyright (C) 2013-2016 Jolla. All rights reserved.
 
   @author: Philippe De Swert <philippe.deswert@jollamobile.com>
+  @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the Lesser GNU General Public License 
@@ -20,4 +21,6 @@
   02110-1301 USA
 */
 
-int is_in_user_state(void);
+gboolean is_in_user_state(void);
+gboolean dsme_listener_start(void);
+void dsme_listener_stop(void);

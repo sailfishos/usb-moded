@@ -1,7 +1,10 @@
 /*
   Copyright (C) 2012 Nokia Corporation. All rights reserved.
+  Copyright (C) 2013-2016 Jolla Ltd.
 
   Author: Philippe De Swert <philippe.de-swert@nokia.com>
+  Author: Philippe De Swert <philippe.deswert@jollamobile.com>
+  Author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the Lesser GNU General Public License 
@@ -23,6 +26,6 @@
  */
 
 /*============================================================================= */
-int usb_moded_get_export_permission(void);
-int start_devicelock_listener(void);
-int stop_devicelock_listener(void);
+int      usb_moded_get_export_permission(void);
+gboolean start_devicelock_listener(void);
+void     stop_devicelock_listener(void);

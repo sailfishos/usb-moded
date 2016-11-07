@@ -2,10 +2,11 @@
   @file	usb_moded-dbus.c
 
   Copyright (C) 2010 Nokia Corporation. All rights reserved.
-  Copyright (C) 2012-2015 Jolla. All rights reserved.
+  Copyright (C) 2012-2016 Jolla. All rights reserved.
 
   @author: Philippe De Swert <philippe.de-swert@nokia.com>
   @author: Philippe De Swert <philippe.deswert@jollamobile.com>
+  @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the Lesser GNU General Public License
@@ -44,6 +45,8 @@
 #define INIT_DONE_MATCH     "type='signal',interface='"INIT_DONE_INTERFACE"',member='"INIT_DONE_SIGNAL"'"
 
 static DBusConnection *dbus_connection_sys = NULL;
+static gboolean        have_service_name   = FALSE;
+
 extern gboolean rescue_mode;
 
 /**
@@ -52,7 +55,12 @@ extern gboolean rescue_mode;
 static void usb_moded_send_config_signal(const char *section, const char *key, const char *value)
 {
   log_debug(USB_MODE_CONFIG_SIGNAL_NAME ": %s %s %s\n", section, key, value);
-  if (dbus_connection_sys)
+  if( !have_service_name )
+  {
+	log_err("config notification without service: [%s] %s=%s",
+		section, key, value);
+  }
+  else if (dbus_connection_sys)
   {
 	DBusMessage* msg = dbus_message_new_signal(USB_MODE_OBJECT, USB_MODE_INTERFACE, USB_MODE_CONFIG_SIGNAL_NAME);
 	if (msg) {
@@ -451,7 +459,6 @@ error_reply:
 	}
   }
 
-
 EXIT:
 
   if(reply)
@@ -467,18 +474,25 @@ EXIT:
   return status;
 }
 
+DBusConnection *usb_moded_dbus_get_connection(void)
+{
+    DBusConnection *connection = 0;
+    if( dbus_connection_sys )
+	connection = dbus_connection_ref(dbus_connection_sys);
+    else
+	log_err("something asked for connection ref while unconnected");
+    return connection;
+}
+
 /**
- * Init dbus for usb_moded
+ * Establish D-Bus SystemBus connection
  *
  * @return TRUE when everything went ok
  */
-gboolean usb_moded_dbus_init(void)
+gboolean usb_moded_dbus_init_connection(void)
 {
   gboolean status = FALSE;
-  DBusError error;
-  int ret;
-
-  dbus_error_init(&error);
+  DBusError error = DBUS_ERROR_INIT;
 
   /* connect to system bus */
   if ((dbus_connection_sys = dbus_bus_get(DBUS_BUS_SYSTEM, &error)) == NULL)
@@ -491,24 +505,8 @@ gboolean usb_moded_dbus_init(void)
   if (!dbus_connection_add_filter(dbus_connection_sys, msg_handler, NULL, NULL))
 	goto EXIT;
 
-  /* Acquire D-Bus service */
-  ret = dbus_bus_request_name(dbus_connection_sys, USB_MODE_SERVICE, DBUS_NAME_FLAG_DO_NOT_QUEUE, &error);
-  if (ret != DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER)
-  {
-	log_debug("failed claiming dbus name\n");
-	if( dbus_error_is_set(&error) )
-		log_debug("DBUS ERROR: %s, %s \n", error.name, error.message);
-        goto EXIT;
-  }
-
-  /* only match on signals/methods we support (if needed)
-  dbus_bus_add_match(dbus_connection_sys, USB_MODE_INTERFACE, &error);
-  */
-
   /* Listen to init-done signals */
   dbus_bus_add_match(dbus_connection_sys, INIT_DONE_MATCH, 0);
-
-  dbus_threads_init_default();
 
   /* Connect D-Bus to the mainloop */
   dbus_connection_setup_with_g_main(dbus_connection_sys, NULL);
@@ -522,19 +520,75 @@ EXIT:
 }
 
 /**
+ * Reserve "com.meego.usb_moded" D-Bus Service Name
+ *
+ * @return TRUE when everything went ok
+ */
+gboolean usb_moded_dbus_init_service(void)
+{
+  gboolean status = FALSE;
+  DBusError error = DBUS_ERROR_INIT;
+  int ret;
+
+  if( !dbus_connection_sys ) {
+	  goto EXIT;
+  }
+
+  /* Acquire D-Bus service */
+  ret = dbus_bus_request_name(dbus_connection_sys, USB_MODE_SERVICE, DBUS_NAME_FLAG_DO_NOT_QUEUE, &error);
+  if (ret != DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER)
+  {
+	log_debug("failed claiming dbus name\n");
+	if( dbus_error_is_set(&error) )
+		log_debug("DBUS ERROR: %s, %s \n", error.name, error.message);
+        goto EXIT;
+  }
+  log_debug("claimed name %s", USB_MODE_SERVICE);
+  have_service_name = TRUE;
+  /* everything went fine */
+  status = TRUE;
+
+EXIT:
+  dbus_error_free(&error);
+  return status;
+}
+
+/** Release "com.meego.usb_moded" D-Bus Service Name
+ */
+static void usb_moded_dbus_cleanup_service(void)
+{
+    if( !have_service_name )
+        goto EXIT;
+
+    have_service_name = FALSE;
+    log_debug("release name %s", USB_MODE_SERVICE);
+
+    if( dbus_connection_sys &&
+        dbus_connection_get_is_connected(dbus_connection_sys) )
+    {
+        dbus_bus_release_name(dbus_connection_sys, USB_MODE_SERVICE, NULL);
+    }
+
+EXIT:
+    return;
+}
+
+/**
  * Clean up the dbus connections on exit
  *
  */
 void usb_moded_dbus_cleanup(void)
 {
-  /* clean up system bus connection */
-  if (dbus_connection_sys != NULL)
-  {
-	  dbus_bus_release_name(dbus_connection_sys, USB_MODE_SERVICE, NULL);
-	  dbus_connection_remove_filter(dbus_connection_sys, msg_handler, NULL);
-	  dbus_connection_unref(dbus_connection_sys);
-          dbus_connection_sys = NULL;
-  }
+    /* clean up system bus connection */
+    if (dbus_connection_sys != NULL)
+    {
+	usb_moded_dbus_cleanup_service();
+
+	dbus_connection_remove_filter(dbus_connection_sys, msg_handler, NULL);
+
+	dbus_connection_unref(dbus_connection_sys),
+	    dbus_connection_sys = NULL;
+    }
 }
 
 /**
@@ -549,6 +603,12 @@ static int usb_moded_dbus_signal(const char *signal_type, const char *content)
   int result = 1;
   DBusMessage* msg = 0;
 
+  if( !have_service_name )
+  {
+	log_err("sending signal without service: %s(%s)",
+		signal_type, content);
+	goto EXIT;
+  }
   if(!dbus_connection_sys)
   {
 	log_err("Dbus system connection broken!\n");
@@ -631,4 +691,105 @@ int usb_moded_send_supported_modes_signal(const char *supported_modes)
 int usb_moded_send_hidden_modes_signal(const char *hidden_modes)
 {
   return(usb_moded_dbus_signal(USB_MODE_HIDDEN_MODES_SIGNAL_NAME, hidden_modes));
+}
+
+/** Async reply handler for usb_moded_get_name_owner_async()
+ *
+ * @param pc    Pending call object pointer
+ * @param aptr  Notify function to call (as a void pointer)
+ */
+static void usb_moded_get_name_owner_cb(DBusPendingCall *pc, void *aptr)
+{
+    usb_moded_get_name_owner_fn cb = aptr;
+
+    DBusMessage *rsp = 0;
+    const char  *dta = 0;
+    DBusError    err = DBUS_ERROR_INIT;
+
+    if( !(rsp = dbus_pending_call_steal_reply(pc)) ) {
+        log_err("did not get reply");
+        goto EXIT;
+    }
+
+    if( dbus_set_error_from_message(&err, rsp) )
+    {
+        if( strcmp(err.name, DBUS_ERROR_NAME_HAS_NO_OWNER) )
+            log_err("error reply: %s: %s", err.name, err.message);
+        goto EXIT;
+    }
+
+    if( !dbus_message_get_args(rsp, &err,
+                               DBUS_TYPE_STRING, &dta,
+                               DBUS_TYPE_INVALID) )
+    {
+        if( strcmp(err.name, DBUS_ERROR_NAME_HAS_NO_OWNER) )
+            log_err("parse error: %s: %s", err.name, err.message);
+        goto EXIT;
+    }
+
+EXIT:
+    /* Allways call the notification function. Equate any error
+     * situations with "service does not have an owner". */
+    cb(dta ?: "");
+
+    if( rsp ) dbus_message_unref(rsp);
+
+    dbus_error_free(&err);
+}
+
+/** Helper function for making async dbus name owner queries
+ *
+ * @param name  D-Bus name to query
+ * @param cb    Function to call when async reply is received
+ * @param ppc   Where to store pending call object, or NULL
+ *
+ * @return TRUE if method call was sent, FALSE otherwise
+ */
+gboolean usb_moded_get_name_owner_async(const char *name,
+                                        usb_moded_get_name_owner_fn cb,
+                                        DBusPendingCall **ppc)
+{
+    gboolean         ack = FALSE;
+    DBusMessage     *req = 0;
+    DBusPendingCall *pc  = 0;
+
+    if(!dbus_connection_sys)
+        goto EXIT;
+
+    req = dbus_message_new_method_call(DBUS_INTERFACE_DBUS,
+                                       DBUS_PATH_DBUS,
+                                       DBUS_INTERFACE_DBUS,
+                                       DBUS_GET_NAME_OWNER_REQ);
+    if( !req ) {
+        log_err("could not create method call message");
+        goto EXIT;
+    }
+
+    if( !dbus_message_append_args(req,
+                                  DBUS_TYPE_STRING, &name,
+                                  DBUS_TYPE_INVALID) ) {
+        log_err("could not add method call parameters");
+        goto EXIT;
+    }
+
+    if( !dbus_connection_send_with_reply(dbus_connection_sys, req, &pc, -1) )
+        goto EXIT;
+
+    if( !pc )
+        goto EXIT;
+
+    if( !dbus_pending_call_set_notify(pc, usb_moded_get_name_owner_cb, cb, 0) )
+        goto EXIT;
+
+    ack = TRUE;
+
+    if( ppc )
+        *ppc = pc, pc = 0;
+
+EXIT:
+
+    if( pc  ) dbus_pending_call_unref(pc);
+    if( req ) dbus_message_unref(req);
+
+    return ack;
 }

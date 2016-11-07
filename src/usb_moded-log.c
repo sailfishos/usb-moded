@@ -2,9 +2,12 @@
   @file usb_moded-log.c
 
   Copyright (C) 2010 Nokia Corporation. All rights reserved.
+  Copyright (C) 2016 Jolla Ltd.
 
   @author: Philippe De Swert <philippe.de-swert@nokia.com>
   @author: Simo Piiroinen <simo.piiroinen@nokia.com>
+  @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
+
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the Lesser GNU General Public License 
@@ -53,6 +56,14 @@ static char *strip(char *str)
   return str;
 }
 
+static struct timeval log_begtime = { 0, 0 };
+
+static void log_gettime(struct timeval *tv)
+{
+	gettimeofday(tv, 0);
+	timersub(tv, &log_begtime, tv);
+}
+
 /**
  * Print the logged messages to the selected output
  *
@@ -79,10 +90,10 @@ void log_emit_va(int lev, const char *fmt, va_list va)
 #if LOG_ENABLE_TIMESTAMPS
                         {
                                 struct timeval tv;
-                                gettimeofday(&tv, 0);
-                                fprintf(stderr, "%ld.%06ld ",
+				log_gettime(&tv);
+                                fprintf(stderr, "%3ld.%03ld ",
                                         (long)tv.tv_sec,
-                                        (long)tv.tv_usec);
+                                        (long)tv.tv_usec/1000);
                         }
 #endif
 
@@ -156,3 +167,10 @@ inline void log_set_level(int lev)
         log_level = lev;
 }
 
+/** Initialize logging */
+void log_init(void)
+{
+	/* Get reference time used for verbose logging */
+	if( !timerisset(&log_begtime) )
+		gettimeofday(&log_begtime, 0);
+}

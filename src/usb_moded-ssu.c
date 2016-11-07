@@ -26,6 +26,7 @@
 
 #include "usb_moded-ssu.h"
 #include "usb_moded-log.h"
+#include "usb_moded-dbus-private.h"
 
 /** SSU D-Bus service name */
 #define SSU_DBUS_SERVICE          "org.nemo.ssu"
@@ -74,9 +75,8 @@ usb_moded_get_ssu_display_name(SsuDisplayType type_id)
 	const char     *val = 0;
 	DBusError       err = DBUS_ERROR_INIT;
 
-	if( !(con = dbus_bus_get(DBUS_BUS_SYSTEM, &err)) ) {
-		log_err("could not connect to system bus: %s: %s",
-			err.name, err.message);
+	if( !(con = usb_moded_dbus_get_connection()) ) {
+		log_err("not connected to system bus");
 		goto EXIT;
 	}
 
