@@ -689,7 +689,7 @@ static void usb_moded_get_name_owner_cb(DBusPendingCall *pc, void *aptr)
                                DBUS_TYPE_INVALID) )
     {
         if( strcmp(err.name, DBUS_ERROR_NAME_HAS_NO_OWNER) )
-            log_warning("parse error: %s: %s", err.name, err.message);
+            log_err("parse error: %s: %s", err.name, err.message);
         goto EXIT;
     }
 

@@ -38,6 +38,7 @@
 
 #include "usb_moded.h"
 #include "usb_moded-modes.h"
+#include "usb_moded-dsme.h"
 #include "usb_moded-dbus.h"
 #include "usb_moded-dbus-private.h"
 #include "usb_moded-hw-ab.h"
@@ -1191,6 +1192,11 @@ int main(int argc, char* argv[])
 		goto EXIT;
 	}
 
+	if( !dsme_listener_start() ) {
+		log_crit("dsme tracking could not be started");
+		goto EXIT;
+	}
+
 	/* init daemon into a clean state first, then dbus and hw_abstraction last */
 	usb_moded_init();
 
@@ -1244,6 +1250,7 @@ int main(int argc, char* argv[])
 	result = EXIT_SUCCESS;  
 	g_main_loop_run(mainloop);
 EXIT:
+	dsme_listener_stop();
 	handle_exit();
 
 	allow_suspend();
