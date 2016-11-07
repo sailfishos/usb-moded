@@ -61,7 +61,9 @@
 
 /* global definitions */
 
-GMainLoop *mainloop = NULL;
+static int usb_moded_exitcode = EXIT_FAILURE;
+static GMainLoop *usb_moded_mainloop = NULL;
+
 extern const char *log_name;
 extern int log_level;
 extern int log_type;
@@ -626,20 +628,7 @@ static void usb_moded_init(void)
 
 #ifdef APP_SYNC
   readlist(diag_mode);
-  /* If usb-moded happens to crash, it could leave appsync processes
-   * running. To make sure things are in the order expected by usb-moded
-   * force stopping of appsync processes during usb-moded startup.
-   *
-   * The exception is: When usb-moded starts as a part of bootup. Then
-   * we can be relatively sure that usb-moded has not been running yet
-   * and therefore no appsync processes have been started and we can
-   * skip the blocking ipc required to stop the appsync systemd units. */
-  if( init_done_p() )
-  {
-    log_warning("usb-moded started after init-done; forcing appsync stop");
-    appsync_stop(TRUE);
-  }
-#endif /* APP_SYNC */
+#endif
 
   /* always read dyn modes even if appsync is not used */
   modelist = read_mode_list(diag_mode);
@@ -661,6 +650,32 @@ static void usb_moded_init(void)
   	android_init_values();
   /* TODO: add more start-up clean-up and init here if needed */
 }	
+
+/** Release resources allocated by usb_moded_init()
+ */
+static void usb_moded_cleanup(void)
+{
+    /* Undo usb_moded_module_ctx_init() */
+    usb_moded_module_ctx_cleanup();
+
+    /* Undo trigger_init() */
+    trigger_stop();
+
+    /* Undo read_mode_list() */
+    free_mode_list(modelist);
+
+#ifdef APP_SYNC
+    /* Undo readlist() */
+    free_appsync_list();
+#endif
+
+    /* Release dynamic memory */
+    free(current_mode.module),
+        current_mode.module = 0;
+
+    free(current_mode.mode),
+        current_mode.mode = 0;
+}
 
 /* charging fallback handler */
 static gboolean charging_fallback(gpointer data)
@@ -684,65 +699,35 @@ static gboolean charging_fallback(gpointer data)
   return(FALSE);
 }
 
-static void handle_exit(void)
-{
-  /* exiting and clean-up when mainloop ended */
-
-  /* Stop appsync processes that have been started by usb-moded */
-  appsync_stop(FALSE);
-
-  hwal_cleanup();
-  usb_moded_dbus_cleanup();
-#ifdef MEEGOLOCK
-  stop_devicelock_listener();
-#endif /* MEEGOLOCK */
-
-  free_mode_list(modelist);
-  usb_moded_module_ctx_cleanup();
-
-#ifdef APP_SYNC
-  free_appsync_list();
-#ifdef APP_SYNC_DBUS
-  usb_moded_appsync_cleanup();
-#endif /* APP_SYNC_DBUS */
-#endif /* APP_SYNC */
-  /* dbus_shutdown(); This causes exit(1) and don't seem
-     to behave as documented */
-
-  /* If the mainloop is initialised, unreference it */
-  if (mainloop != NULL)
-  {
-	g_main_loop_quit(mainloop);
-	g_main_loop_unref(mainloop);
-  }
-  free(current_mode.mode);
-  free(current_mode.module);
-
-  log_debug("All resources freed. Exiting!\n");
-
-  exit(0);
-}
-
 static void sigint_handler(int signum)
 {
-  struct mode_list_elem *data;
+    log_debug("handle signal: %s\n", strsignal(signum));
 
-  if(signum == SIGINT || signum == SIGTERM)
-	handle_exit();
-  if(signum == SIGHUP)
-  {
-	/* clean up current mode */
-	data = get_usb_mode_data();
-	set_disconnected_silent(data);
-	/* clear existing data to be sure */
-	set_usb_mode_data(NULL);
-	/* free and read in modelist again */
-	free_mode_list(modelist);
+    if( signum == SIGTERM )
+    {
+        /* Assume: Stopped by init process */
+        usb_moded_stop(EXIT_SUCCESS);
+    }
+    else if( signum == SIGHUP )
+    {
+        struct mode_list_elem *data;
 
-	modelist = read_mode_list(diag_mode);
+        /* clean up current mode */
+        data = get_usb_mode_data();
+        set_disconnected_silent(data);
+        /* clear existing data to be sure */
+        set_usb_mode_data(NULL);
+        /* free and read in modelist again */
+        free_mode_list(modelist);
+
+        modelist = read_mode_list(diag_mode);
 
         send_supported_modes_signal();
-  }
+    }
+    else
+    {
+        usb_moded_stop(EXIT_FAILURE);
+    }
 }
 
 /* Display usage information */
@@ -822,7 +807,6 @@ static gboolean sigpipe_read_signal_cb(GIOChannel *channel,
                 abort();
 
         /* handle the signal */
-        log_warning("handle signal: %s\n", strsignal(sig));
         sigint_handler(sig);
 
         keep_watch = TRUE;
@@ -1081,10 +1065,29 @@ static bool init_done_p(void)
 	return access("/run/systemd/boot-status/init-done", F_OK) == 0;
 }
 
+/** Request orderly exit from mainloop
+ */
+void usb_moded_stop(int exitcode)
+{
+	/* In case multiple exit request get done, retain the
+	 * highest exit code used. */
+	if( usb_moded_exitcode < exitcode )
+		usb_moded_exitcode = exitcode;
+
+	/* If there is no mainloop to exit, terminate immediately */
+	if( !usb_moded_mainloop )
+	{
+		log_warning("exit requested outside mainloop; exit(%d) now",
+			    usb_moded_exitcode);
+		exit(usb_moded_exitcode);
+	}
+
+	log_debug("stopping usb-moded mainloop");
+	g_main_loop_quit(usb_moded_mainloop);
+}
 
 int main(int argc, char* argv[])
 {
-	int result = EXIT_FAILURE;
         int opt = 0, opt_idx = 0;
 
 	struct option const options[] = {
@@ -1105,6 +1108,10 @@ int main(int argc, char* argv[])
 
 	log_init();
 	log_name = basename(*argv);
+
+	/* - - - - - - - - - - - - - - - - - - - *
+	 * OPTIONS
+	 * - - - - - - - - - - - - - - - - - - - */
 
 	 /* Parse the command-line options */
         while ((opt = getopt_long(argc, argv, "aifsTDdhrnvm:", options, &opt_idx)) != -1)
@@ -1165,6 +1172,10 @@ int main(int argc, char* argv[])
 	fprintf(stderr, "usb_moded %s starting\n", VERSION);
 	fflush(stderr);
 
+	/* - - - - - - - - - - - - - - - - - - - *
+	 * INITIALIZE
+	 * - - - - - - - - - - - - - - - - - - - */
+
 	/* silence system() calls */
 	if(log_type != LOG_TO_STDERR || log_level != LOG_DEBUG )	
 	{
@@ -1182,7 +1193,12 @@ int main(int argc, char* argv[])
 	/* Must be the 1st libdbus call that is made */
 	dbus_threads_init_default();
 
-	mainloop = g_main_loop_new(NULL, FALSE);
+	/* signal handling */
+	if( !sigpipe_init() )
+	{
+		log_crit("signal handler init failed\n");
+		goto EXIT;
+	}
 
 	if (rescue_mode && init_done_p())
 	{
@@ -1197,58 +1213,77 @@ int main(int argc, char* argv[])
 		goto EXIT;
 	}
 
+	/* Start DBus trackers that do async initialization
+	 * so that initial method calls are on the way while
+	 * we do initialization actions that might block. */
+
+	/* DSME listener maintains in-user-mode state and is relevant
+	 * only when MEEGOLOCK configure option has been chosen. */
+#ifdef MEEGOLOCK
 	if( !dsme_listener_start() ) {
 		log_crit("dsme tracking could not be started");
 		goto EXIT;
 	}
+#endif
+	/* Devicelock listener maintains devicelock state and is relevant
+	 * only when MEEGOLOCK configure option has been chosen. */
+#ifdef MEEGOLOCK
+	if( !start_devicelock_listener() ) {
+		log_crit("devicelock tracking could not be started");
+		goto EXIT;
+	}
+#endif
 
+	/* Set daemon config/state data to sane state */
+	usb_moded_init();
+
+	/* Allos making systemd control ipc */
 	if( !systemd_control_start() ) {
 		log_crit("systemd control could not be started");
 		goto EXIT;
 	}
 
-	/* init daemon into a clean state first, then dbus and hw_abstraction last */
-	usb_moded_init();
+	/* If usb-moded happens to crash, it could leave appsync processes
+	 * running. To make sure things are in the order expected by usb-moded
+	 * force stopping of appsync processes during usb-moded startup.
+	 *
+	 * The exception is: When usb-moded starts as a part of bootup. Then
+	 * we can be relatively sure that usb-moded has not been running yet
+	 * and therefore no appsync processes have been started and we can
+	 * skip the blocking ipc required to stop the appsync systemd units. */
+#ifdef APP_SYNC
+	if( init_done_p() )
+	{
+		log_warning("usb-moded started after init-done; "
+			    "forcing appsync stop");
+		appsync_stop(TRUE);
+	}
+#endif
 
-	/* Set up D-Bus Service */
+	/* Claim D-Bus service name before proceeding with things that
+	 * could result in dbus signals from usb-moded interfaces to
+	 * be broadcast */
 	if( !usb_moded_dbus_init_service() )
 	{
 		log_crit("usb-moded dbus service init failed\n");
 		goto EXIT;
 	}
 
-	if( !hwal_init() )
+	/* Initialize udev listener. Can cause mode changes.
+	 *
+	 * Failing here is allowed if '--fallback' commandline option is used. */
+	if( !hwal_init() && !hw_fallback )
 	{
-		/* if hw_fallback is active we can live with a failed hwal_init */
-		if(!hw_fallback)
-		{
-			log_crit("hwal init failed\n");
-			goto EXIT;
-		}
-	}
-#ifdef MEEGOLOCK
-	start_devicelock_listener();
-#endif /* MEEGOLOCK */
-
-	/* signal handling */
-	if( !sigpipe_init() )
-	{
-		log_crit("signal handler init failed\n");
+		log_crit("hwal init failed\n");
 		goto EXIT;
 	}
 
-#ifdef SYSTEMD
-	/* Tell systemd that we have started up */
-	if( systemd_notify ) 
-	{
-		log_debug("notifying systemd\n");
-		sd_notify(0, "READY=1");
-	}
-#endif /* SYSTEMD */
-
+	/* Broadcast supported / hidden modes */
+	// TODO: should this happen before hwal_init()?
         send_supported_modes_signal();
         send_hidden_modes_signal();
 
+	/* Act on '--fallback' commandline option */
 	if(hw_fallback)
 	{
 		log_warning("Forcing USB state to connected always. ASK mode non functional!\n");
@@ -1256,14 +1291,77 @@ int main(int argc, char* argv[])
 		set_usb_connected(TRUE);
 	}
 
+	/* - - - - - - - - - - - - - - - - - - - *
+	 * EXECUTE
+	 * - - - - - - - - - - - - - - - - - - - */
+
+	/* Tell systemd that we have started up */
+#ifdef SYSTEMD
+	if( systemd_notify )
+	{
+		log_debug("notifying systemd\n");
+		sd_notify(0, "READY=1");
+	}
+#endif
+
 	/* init succesful, run main loop */
-	result = EXIT_SUCCESS;  
-	g_main_loop_run(mainloop);
+	usb_moded_exitcode = EXIT_SUCCESS;
+	usb_moded_mainloop = g_main_loop_new(NULL, FALSE);
+
+	log_debug("enter usb-moded mainloop");
+	g_main_loop_run(usb_moded_mainloop);
+	log_debug("leave usb-moded mainloop");
+
+	g_main_loop_unref(usb_moded_mainloop),
+		usb_moded_mainloop = 0;
+
+	/* - - - - - - - - - - - - - - - - - - - *
+	 * CLEANUP
+	 * - - - - - - - - - - - - - - - - - - - */
 EXIT:
-	dsme_listener_stop();
-	handle_exit();
+	/* Detach from SystemBus. Components that hold reference to the
+	 * shared bus connection can still perform cleanup tasks, but new
+	 * references can't be obtained anymore and usb-moded method call
+	 * processing no longer occurs. */
+	usb_moded_dbus_cleanup();
+
+	/* Stop appsync processes that have been started by usb-moded */
+#ifdef APP_SYNC
+	appsync_stop(FALSE);
+#endif
+
+	/* Deny making systemd control ipc */
 	systemd_control_stop();
 
+	/* Stop tracking devicelock status */
+#ifdef MEEGOLOCK
+	stop_devicelock_listener();
+#endif
+	/* Stop tracking device state */
+#ifdef MEEGOLOCK
+	dsme_listener_stop();
+#endif
+
+	/* Stop udev listener */
+	hwal_cleanup();
+
+	/* Release dynamically allocated config/state data */
+	usb_moded_cleanup();
+
+	/* Detach from SessionBus connection used for APP_SYNC_DBUS.
+	 *
+	 * Can be handled separately from SystemBus side wind down. */
+#ifdef APP_SYNC
+# ifdef APP_SYNC_DBUS
+	usb_moded_appsync_cleanup();
+# endif
+#endif
+
+	/* Must be done just before exit to make sure no more wakelocks
+	 * are taken and left behind on exit path */
 	allow_suspend();
-	return result;
+
+	log_debug("usb-moded return from main, with exit code %d",
+		  usb_moded_exitcode);
+	return usb_moded_exitcode;
 }

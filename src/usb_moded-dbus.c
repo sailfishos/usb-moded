@@ -45,6 +45,8 @@
 #define INIT_DONE_MATCH     "type='signal',interface='"INIT_DONE_INTERFACE"',member='"INIT_DONE_SIGNAL"'"
 
 static DBusConnection *dbus_connection_sys = NULL;
+static gboolean        have_service_name   = FALSE;
+
 extern gboolean rescue_mode;
 
 /**
@@ -53,7 +55,12 @@ extern gboolean rescue_mode;
 static void usb_moded_send_config_signal(const char *section, const char *key, const char *value)
 {
   log_debug(USB_MODE_CONFIG_SIGNAL_NAME ": %s %s %s\n", section, key, value);
-  if (dbus_connection_sys)
+  if( !have_service_name )
+  {
+	log_err("config notification without service: [%s] %s=%s",
+		section, key, value);
+  }
+  else if (dbus_connection_sys)
   {
 	DBusMessage* msg = dbus_message_new_signal(USB_MODE_OBJECT, USB_MODE_INTERFACE, USB_MODE_CONFIG_SIGNAL_NAME);
 	if (msg) {
@@ -536,6 +543,8 @@ gboolean usb_moded_dbus_init_service(void)
 		log_debug("DBUS ERROR: %s, %s \n", error.name, error.message);
         goto EXIT;
   }
+  log_debug("claimed name %s", USB_MODE_SERVICE);
+  have_service_name = TRUE;
   /* everything went fine */
   status = TRUE;
 
@@ -544,23 +553,42 @@ EXIT:
   return status;
 }
 
+/** Release "com.meego.usb_moded" D-Bus Service Name
+ */
+static void usb_moded_dbus_cleanup_service(void)
+{
+    if( !have_service_name )
+        goto EXIT;
+
+    have_service_name = FALSE;
+    log_debug("release name %s", USB_MODE_SERVICE);
+
+    if( dbus_connection_sys &&
+        dbus_connection_get_is_connected(dbus_connection_sys) )
+    {
+        dbus_bus_release_name(dbus_connection_sys, USB_MODE_SERVICE, NULL);
+    }
+
+EXIT:
+    return;
+}
+
 /**
  * Clean up the dbus connections on exit
  *
  */
 void usb_moded_dbus_cleanup(void)
 {
-  /* clean up system bus connection */
-  if (dbus_connection_sys != NULL)
-  {
-	  if( dbus_connection_get_is_connected(dbus_connection_sys) ) {
-		  // FIXME: do we want to do this? It is pretty useless on exit path.
-		  dbus_bus_release_name(dbus_connection_sys, USB_MODE_SERVICE, NULL);
-	  }
-	  dbus_connection_remove_filter(dbus_connection_sys, msg_handler, NULL);
-	  dbus_connection_unref(dbus_connection_sys);
-          dbus_connection_sys = NULL;
-  }
+    /* clean up system bus connection */
+    if (dbus_connection_sys != NULL)
+    {
+	usb_moded_dbus_cleanup_service();
+
+	dbus_connection_remove_filter(dbus_connection_sys, msg_handler, NULL);
+
+	dbus_connection_unref(dbus_connection_sys),
+	    dbus_connection_sys = NULL;
+    }
 }
 
 /**
@@ -575,6 +603,12 @@ static int usb_moded_dbus_signal(const char *signal_type, const char *content)
   int result = 1;
   DBusMessage* msg = 0;
 
+  if( !have_service_name )
+  {
+	log_err("sending signal without service: %s(%s)",
+		signal_type, content);
+	goto EXIT;
+  }
   if(!dbus_connection_sys)
   {
 	log_err("Dbus system connection broken!\n");
