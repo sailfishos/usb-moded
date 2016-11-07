@@ -1,7 +1,10 @@
 /*
   Copyright (C) 2010 Nokia Corporation. All rights reserved.
+  Copyright (C) 2013-2016 Jolla Ltd.
 
   Author: Philippe De Swert <philippe.de-swert@nokia.com>
+  Author: Vesa Halttunen <vesa.halttunen@jollamobile.com>
+  Author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the Lesser GNU General Public License 
@@ -23,15 +26,20 @@
 
 /*============================================================================= */
 
-#define DEVICELOCK_SERVICE		"org.nemomobile.lipstick"
-#define DEVICELOCK_REQUEST_PATH		"/devicelock"
-#define DEVICELOCK_REQUEST_IF		"org.nemomobile.lipstick.devicelock"
-#define DEVICELOCK_STATE_REQ		"state"
+#define DEVICELOCK_SERVICE              "org.nemomobile.lipstick"
+#define DEVICELOCK_OBJECT         	"/devicelock"
+#define DEVICELOCK_INTERFACE            "org.nemomobile.lipstick.devicelock"
+#define DEVICELOCK_GET_STATE_REQ        "state"
+#define DEVICELOCK_STATE_CHANGED_SIG    "stateChanged"
 
-#define DEVICELOCK_LOCKED		"Locked"
+#define DEVICELOCK_STATE_CHANGED_MATCH\
+     "type='signal'"\
+     ",interface='"DEVICELOCK_INTERFACE"'"\
+     ",path='"DEVICELOCK_OBJECT"'"\
+     ",member='"DEVICELOCK_STATE_CHANGED_SIG"'"
 
-#define MATCH_DEVICELOCK_SIGNALS\
-  "type='signal'"\
-  ",interface='"DEVICELOCK_REQUEST_IF"'"\
-  ",path='"DEVICELOCK_REQUEST_PATH"'"
-
+#define DEVICELOCK_NAME_OWNER_CHANGED_MATCH\
+     "type='signal'"\
+     ",interface='"DBUS_INTERFACE_DBUS"'"\
+     ",member='"DBUS_NAME_OWNER_CHANGED_SIG"'"\
+     ",arg0='"DEVICELOCK_SERVICE"'"
