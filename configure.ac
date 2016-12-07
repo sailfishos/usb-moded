@@ -97,6 +97,7 @@ PKG_CHECK_MODULES([USB_MODED], [
  gio-2.0
  libudev
  libkmod
+ ssu-sysinfo
 ])
 
 AC_SUBST(USB_MODED_LIBS)
