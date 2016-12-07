@@ -4,7 +4,7 @@ Release:  2
 Summary:  USB mode controller
 Group:    System/System Control
 License:  LGPLv2
-URL:      https://github.com/nemomobile/usb-moded
+URL:      https://git.merproject.org/mer-core/usb-moded
 Source0:  %{name}-%{version}.tar.bz2
 Source1:  usb_moded.conf
 
