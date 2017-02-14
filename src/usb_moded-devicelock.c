@@ -98,16 +98,14 @@ static gboolean devicelock_is_available = FALSE;
 
 /** Checks if the device is locked.
  *
- * @return 0 for unlocked, 1 for locked
+ * @return TRUE for unlocked, FALSE for locked
  *
  */
-int usb_moded_get_export_permission(void)
+gboolean usb_moded_get_export_permission(void)
 {
     gboolean unlocked = (device_lock_state == DEVICE_LOCK_UNLOCKED);
 
-    // FIXME: this is reverse from what function name makes to expect
-
-    return unlocked ? 0 : 1;
+    return unlocked;
 }
 
 /* ========================================================================= *

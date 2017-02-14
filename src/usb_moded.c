@@ -258,9 +258,6 @@ void set_charger_connected(gboolean state)
 void set_usb_connected_state(void)
 {	
   char *mode_to_set;
-#ifdef MEEGOLOCK
-  int export = 1; /* assume locked */
-#endif /* MEEGOLOCK */
 
   if(rescue_mode)
   {
@@ -284,10 +281,10 @@ void set_usb_connected_state(void)
 
 #ifdef MEEGOLOCK
   /* check if we are allowed to export system contents 0 is unlocked */
-  export = usb_moded_get_export_permission();
+  gboolean can_export = usb_moded_get_export_permission();
   /* We check also if the device is in user state or not.
      If not we do not export anything. We presume ACT_DEAD charging */
-  if(mode_to_set && !export && is_in_user_state())
+  if(mode_to_set && can_export && is_in_user_state())
 #else
   if(mode_to_set)
 #endif /* MEEGOLOCK */
@@ -337,11 +334,6 @@ void set_usb_mode(const char *mode)
   /* set return to 1 to be sure to error out if no matching mode is found either */
   int ret=1, net=0;
 
-#ifdef MEEGOLOCK
-  /* Do a second check in case timer suspend causes a race issue */
-  int export = 1;
-#endif
-
   log_debug("Setting %s\n", mode);
 
   /* CHARGING AND FALLBACK CHARGING are always ok to set, so this can be done
@@ -377,9 +369,9 @@ void set_usb_mode(const char *mode)
   /* In ACTDEAD export is always ok */
   if(is_in_user_state())
   {
-	export = usb_moded_get_export_permission();
+	gboolean can_export = usb_moded_get_export_permission();
 
-	if(export && !rescue_mode)
+	if(!can_export && !rescue_mode)
 	{
 		log_debug("Secondary device lock check failed. Not setting mode!\n");
 		goto end;
