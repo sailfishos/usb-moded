@@ -59,6 +59,11 @@
 #include "usb_moded-dsme.h"
 #endif
 
+/* Wakelogging is noisy, do not log it by default */
+#ifndef  VERBOSE_WAKELOCKING
+# define VERBOSE_WAKELOCKING 0
+#endif
+
 /* global definitions */
 
 static int usb_moded_exitcode = EXIT_FAILURE;
@@ -978,7 +983,9 @@ void acquire_wakelock(const char *wakelock_name)
 		 USB_MODED_SUSPEND_DELAY_MAXIMUM_MS * 1000000LL);
 	write_to_sysfs_file("/sys/power/wake_lock", buff);
 
+#if VERBOSE_WAKELOCKING
 	log_debug("acquire_wakelock %s", wakelock_name);
+#endif
 }
 
 /** Release wakelock via sysfs
@@ -987,7 +994,9 @@ void acquire_wakelock(const char *wakelock_name)
  */
 void release_wakelock(const char *wakelock_name)
 {
+#if VERBOSE_WAKELOCKING
 	log_debug("release_wakelock %s", wakelock_name);
+#endif
 
 	write_to_sysfs_file("/sys/power/wake_unlock", wakelock_name);
 }
