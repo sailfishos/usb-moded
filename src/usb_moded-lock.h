@@ -26,6 +26,6 @@
  */
 
 /*============================================================================= */
-int      usb_moded_get_export_permission(void);
+gboolean usb_moded_get_export_permission(void);
 gboolean start_devicelock_listener(void);
 void     stop_devicelock_listener(void);

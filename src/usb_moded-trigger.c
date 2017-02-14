@@ -211,7 +211,7 @@ static void udev_parse(struct udev_device *dev)
 	if(!strcmp(tmp, trigger))
 	{
 #if defined MEEGOLOCK
-	 if(!usb_moded_get_export_permission())
+	 if(usb_moded_get_export_permission())
 #endif /* MEEGOLOCK */
 	   if(strcmp(get_trigger_mode(), get_usb_mode()) != 0)
 	   {
@@ -230,7 +230,7 @@ static void udev_parse(struct udev_device *dev)
     /* for triggers without trigger value */	
     {
 #if defined MEEGOLOCK
-     if(!usb_moded_get_export_permission())
+     if(usb_moded_get_export_permission())
 #endif /* MEEGOLOCK */
        if(strcmp(get_trigger_mode(), get_usb_mode()) != 0)
 	{

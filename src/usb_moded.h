@@ -61,6 +61,7 @@ typedef struct usb_mode
 void set_usb_connected(gboolean connected);
 void set_usb_connected_state(void);
 void set_usb_mode(const char *mode);
+void rethink_usb_charging_fallback(void);
 const char * get_usb_mode(void);
 void set_usb_module(const char *module);
 const char * get_usb_module(void);

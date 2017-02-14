@@ -26,6 +26,8 @@
 #include <dbus/dbus-glib-lowlevel.h>
 
 #include "usb_moded-dsme.h"
+#include "usb_moded.h"
+
 #include "usb_moded-dbus-private.h"
 #include "usb_moded-log.h"
 
@@ -87,11 +89,16 @@ static void device_state_changed(const char *state)
 
     log_debug("device state: %s", state ?: "(null)");
 
-    if( in_user_state != to_user_state ) {
-        in_user_state = to_user_state;
-        log_debug("in user state: %s",
-                  in_user_state ? "true" : "false");
-    }
+    if( in_user_state == to_user_state )
+        goto EXIT;
+
+    in_user_state = to_user_state;
+    log_debug("in user state: %s", in_user_state ? "true" : "false");
+
+    rethink_usb_charging_fallback();
+
+EXIT:
+    return;
 }
 
 static DBusPendingCall *device_state_query_pc = 0;

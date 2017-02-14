@@ -59,6 +59,11 @@
 #include "usb_moded-dsme.h"
 #endif
 
+/* Wakelogging is noisy, do not log it by default */
+#ifndef  VERBOSE_WAKELOCKING
+# define VERBOSE_WAKELOCKING 0
+#endif
+
 /* global definitions */
 
 static int usb_moded_exitcode = EXIT_FAILURE;
@@ -246,6 +251,46 @@ void set_charger_connected(gboolean state)
     current_mode.connected = FALSE;
   }
 }
+/** Check if we can/should leave charging fallback mode
+ */
+void
+rethink_usb_charging_fallback(void)
+{
+    /* Cable must be connected and suitable usb-mode mode
+     * selected for any of this to apply.
+     */
+    if( !get_usb_connection_state() )
+        goto EXIT;
+
+    const char *usb_mode = get_usb_mode();
+
+    if( strcmp(usb_mode, MODE_UNDEFINED) &&
+        strcmp(usb_mode, MODE_CHARGING_FALLBACK) )
+        goto EXIT;
+
+    /* If device locking is supported, the device must be in
+     * unlocked state (or rescue mode must be active).
+     */
+#ifdef MEEGOLOCK
+    if( !usb_moded_get_export_permission() && !rescue_mode ) {
+        log_notice("device is locked; stay in %s", usb_mode);
+        goto EXIT;
+    }
+#endif
+
+    /* Device must be in USER state or in rescue mode
+     */
+    if( !is_in_user_state() && !rescue_mode ) {
+        log_notice("device is not in USER mode; stay in %s", usb_mode);
+        goto EXIT;
+    }
+
+    log_debug("attempt to leave %s", usb_mode);
+    set_usb_connected_state();
+
+EXIT:
+    return;
+}
 
 /** set the chosen usb state
  *
@@ -253,9 +298,6 @@ void set_charger_connected(gboolean state)
 void set_usb_connected_state(void)
 {	
   char *mode_to_set;
-#ifdef MEEGOLOCK
-  int export = 1; /* assume locked */
-#endif /* MEEGOLOCK */
 
   if(rescue_mode)
   {
@@ -279,10 +321,10 @@ void set_usb_connected_state(void)
 
 #ifdef MEEGOLOCK
   /* check if we are allowed to export system contents 0 is unlocked */
-  export = usb_moded_get_export_permission();
+  gboolean can_export = usb_moded_get_export_permission();
   /* We check also if the device is in user state or not.
      If not we do not export anything. We presume ACT_DEAD charging */
-  if(mode_to_set && !export && is_in_user_state())
+  if(mode_to_set && can_export && is_in_user_state())
 #else
   if(mode_to_set)
 #endif /* MEEGOLOCK */
@@ -332,11 +374,6 @@ void set_usb_mode(const char *mode)
   /* set return to 1 to be sure to error out if no matching mode is found either */
   int ret=1, net=0;
 
-#ifdef MEEGOLOCK
-  /* Do a second check in case timer suspend causes a race issue */
-  int export = 1;
-#endif
-
   log_debug("Setting %s\n", mode);
 
   /* CHARGING AND FALLBACK CHARGING are always ok to set, so this can be done
@@ -372,9 +409,9 @@ void set_usb_mode(const char *mode)
   /* In ACTDEAD export is always ok */
   if(is_in_user_state())
   {
-	export = usb_moded_get_export_permission();
+	gboolean can_export = usb_moded_get_export_permission();
 
-	if(export && !rescue_mode)
+	if(!can_export && !rescue_mode)
 	{
 		log_debug("Secondary device lock check failed. Not setting mode!\n");
 		goto end;
@@ -978,7 +1015,9 @@ void acquire_wakelock(const char *wakelock_name)
 		 USB_MODED_SUSPEND_DELAY_MAXIMUM_MS * 1000000LL);
 	write_to_sysfs_file("/sys/power/wake_lock", buff);
 
+#if VERBOSE_WAKELOCKING
 	log_debug("acquire_wakelock %s", wakelock_name);
+#endif
 }
 
 /** Release wakelock via sysfs
@@ -987,7 +1026,9 @@ void acquire_wakelock(const char *wakelock_name)
  */
 void release_wakelock(const char *wakelock_name)
 {
+#if VERBOSE_WAKELOCKING
 	log_debug("release_wakelock %s", wakelock_name);
+#endif
 
 	write_to_sysfs_file("/sys/power/wake_unlock", wakelock_name);
 }
