@@ -251,6 +251,46 @@ void set_charger_connected(gboolean state)
     current_mode.connected = FALSE;
   }
 }
+/** Check if we can/should leave charging fallback mode
+ */
+void
+rethink_usb_charging_fallback(void)
+{
+    /* Cable must be connected and suitable usb-mode mode
+     * selected for any of this to apply.
+     */
+    if( !get_usb_connection_state() )
+        goto EXIT;
+
+    const char *usb_mode = get_usb_mode();
+
+    if( strcmp(usb_mode, MODE_UNDEFINED) &&
+        strcmp(usb_mode, MODE_CHARGING_FALLBACK) )
+        goto EXIT;
+
+    /* If device locking is supported, the device must be in
+     * unlocked state (or rescue mode must be active).
+     */
+#ifdef MEEGOLOCK
+    if( !usb_moded_get_export_permission() && !rescue_mode ) {
+        log_notice("device is locked; stay in %s", usb_mode);
+        goto EXIT;
+    }
+#endif
+
+    /* Device must be in USER state or in rescue mode
+     */
+    if( !is_in_user_state() && !rescue_mode ) {
+        log_notice("device is not in USER mode; stay in %s", usb_mode);
+        goto EXIT;
+    }
+
+    log_debug("attempt to leave %s", usb_mode);
+    set_usb_connected_state();
+
+EXIT:
+    return;
+}
 
 /** set the chosen usb state
  *

@@ -114,29 +114,18 @@ gboolean usb_moded_get_export_permission(void)
 
 static void devicelock_state_changed(devicelock_state_t state)
 {
-    if( device_lock_state != state ) {
-        log_debug("devicelock state: %s -> %s",
-                  devicelock_state_repr(device_lock_state),
-                  devicelock_state_repr(state));
-        device_lock_state = state;
+    if( device_lock_state == state )
+        goto EXIT;
 
-        if( device_lock_state == DEVICE_LOCK_UNLOCKED &&
-            get_usb_connection_state() == 1 )
-        {
-            const char *usb_mode = get_usb_mode();
-            log_debug("usb_mode %s\n", usb_mode);
+    log_debug("devicelock state: %s -> %s",
+              devicelock_state_repr(device_lock_state),
+              devicelock_state_repr(state));
+    device_lock_state = state;
 
-            /* if the mode is MODE_CHARGING_FALLBACK we know the user
-             * has not selected any mode, in case it things are still
-             * undefined it cannot hurt to try again to set a mode */
-            if(!strcmp(usb_mode, MODE_UNDEFINED) ||
-               !strcmp(usb_mode, MODE_CHARGING_FALLBACK))
-            {
-                log_debug("set_usb");
-                set_usb_connected_state();
-            }
-        }
-    }
+    rethink_usb_charging_fallback();
+
+EXIT:
+    return;
 }
 
 static DBusPendingCall *devicelock_state_query_pc = 0;
