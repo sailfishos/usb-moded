@@ -21,6 +21,10 @@
   02110-1301 USA
 */
 
+#ifndef MEEGOLOCK
+# warning usb_moded-dsme.h included without enabling MEEGOLOCK
+#endif
+
 gboolean is_in_user_state(void);
 gboolean dsme_listener_start(void);
 void dsme_listener_stop(void);

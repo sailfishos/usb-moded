@@ -53,10 +53,15 @@
 #define UDHCP_CONFIG_LINK	"/etc/udhcpd.conf"
 
 const char default_interface[] = "usb0";
+
+/** IP forwarding configuration block */
 typedef struct ipforward_data
 {
+	/** Address of primary DNS */
 	char *dns1;
+	/** Address of secondary DNS */
 	char *dns2;
+	/** Interface from which packets should be forwarded */
 	char *nat_interface;
 }ipforward_data;
 

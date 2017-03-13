@@ -50,8 +50,11 @@ static int cleanup = 0;
 static int cable = 0, charger = 0;
 static guint cable_connection_timeout_id = 0;
 
+/** Bookkeeping data for power supply locating heuristics */
 typedef struct power_device {
+        /** Device path used by udev */
         const char *syspath;
+        /** Likelyhood of being power supply */
         int score;
 } power_device;
 

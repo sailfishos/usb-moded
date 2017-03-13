@@ -32,13 +32,13 @@
 #include <signal.h>
 
 #include <libkmod.h>
+
 #ifdef SYSTEMD
 #include <systemd/sd-daemon.h>
 #endif
 
 #include "usb_moded.h"
 #include "usb_moded-modes.h"
-#include "usb_moded-dsme.h"
 #include "usb_moded-dbus.h"
 #include "usb_moded-dbus-private.h"
 #include "usb_moded-hw-ab.h"
@@ -55,6 +55,7 @@
 #include "usb_moded-mac.h"
 #include "usb_moded-android.h"
 #include "usb_moded-systemd.h"
+
 #ifdef MEEGOLOCK
 #include "usb_moded-dsme.h"
 #endif
@@ -280,10 +281,12 @@ rethink_usb_charging_fallback(void)
 
     /* Device must be in USER state or in rescue mode
      */
+#ifdef MEEGOLOCK
     if( !is_in_user_state() && !rescue_mode ) {
         log_notice("device is not in USER mode; stay in %s", usb_mode);
         goto EXIT;
     }
+#endif
 
     log_debug("attempt to leave %s", usb_mode);
     set_usb_connected_state();
