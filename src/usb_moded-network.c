@@ -155,13 +155,13 @@ static int set_usb_ip_forward(struct mode_list_elem *data, struct ipforward_data
   }
   write_to_file("/proc/sys/net/ipv4/ip_forward", "1");
   snprintf(command, 128, "/sbin/iptables -t nat -A POSTROUTING -o %s -j MASQUERADE", nat_interface);
-  system(command);
+  usb_moded_system(command);
 
   snprintf(command, 128, "/sbin/iptables -A FORWARD -i %s -o %s  -m state  --state RELATED,ESTABLISHED -j ACCEPT", nat_interface, interface);
-  system(command);
+  usb_moded_system(command);
 
   snprintf(command, 128, "/sbin/iptables -A FORWARD -i %s -o %s -j ACCEPT", interface, nat_interface);
-  system(command);
+  usb_moded_system(command);
 
   free(interface);
   free(nat_interface);
@@ -178,7 +178,7 @@ static void clean_usb_ip_forward(void)
   connman_reset_state();
 #endif
   write_to_file("/proc/sys/net/ipv4/ip_forward", "0");
-  system("/sbin/iptables -F FORWARD");
+  usb_moded_system("/sbin/iptables -F FORWARD");
 }
 
 #ifdef OFONO
@@ -782,10 +782,10 @@ static int connman_wifi_power_control(DBusConnection *dbus_conn_connman, int on)
 
   /*  /net/connman/technology/wifi net.connman.Technology.SetProperty string:Powered variant:boolean:false */
   if(wifistatus && !on)
-	system("/bin/dbus-send --print-reply --type=method_call --system --dest=net.connman /net/connman/technology/wifi net.connman.Technology.SetProperty string:Powered variant:boolean:false");
+	usb_moded_system("/bin/dbus-send --print-reply --type=method_call --system --dest=net.connman /net/connman/technology/wifi net.connman.Technology.SetProperty string:Powered variant:boolean:false");
   if(wifistatus && on)
        /* turn on wifi after tethering is over and wifi was on before */
-	system("/bin/dbus-send --print-reply --type=method_call --system --dest=net.connman /net/connman/technology/wifi net.connman.Technology.SetProperty string:Powered variant:boolean:true");
+	usb_moded_system("/bin/dbus-send --print-reply --type=method_call --system --dest=net.connman /net/connman/technology/wifi net.connman.Technology.SetProperty string:Powered variant:boolean:true");
 
   return(0);
 }
@@ -972,8 +972,8 @@ int usb_network_up(struct mode_list_elem *data)
   const char *service = NULL;
 
   /* make sure connman will recognize the gadget interface NEEDED? */
-  //system("/bin/dbus-send --print-reply --type=method_call --system --dest=net.connman /net/connman/technology/gadget net.connman.Technology.SetProperty string:Powered variant:boolean:true");
-  //system("/sbin/ifconfig rndis0 up");
+  //usb_moded_system("/bin/dbus-send --print-reply --type=method_call --system --dest=net.connman /net/connman/technology/gadget net.connman.Technology.SetProperty string:Powered variant:boolean:true");
+  //usb_moded_system("/sbin/ifconfig rndis0 up");
 
   log_debug("waiting for connman to pick up interface\n");
   sleep(1);
@@ -1089,25 +1089,25 @@ int usb_network_up(struct mode_list_elem *data)
   if(!strcmp(ip, "dhcp"))
   {
 	sprintf(command, "dhclient -d %s\n", interface);
-	ret = system(command);
+	ret = usb_moded_system(command);
 	if(ret != 0)
 	{	
 		sprintf(command, "udhcpc -i %s\n", interface);
-		system(command);
+		usb_moded_system(command);
 	}
 
   }
   else
   {
 	sprintf(command, "ifconfig %s %s %s\n", interface, ip, netmask);
-	system(command);
+	usb_moded_system(command);
   }
 
   /* TODO: Check first if there is a gateway set */
   if(gateway)
   {
 	sprintf(command, "route add default gw %s\n", gateway);
-        system(command);
+        usb_moded_system(command);
   }
 
   free(interface);
@@ -1179,7 +1179,7 @@ int usb_network_down(struct mode_list_elem *data)
 	return(0);
 
   sprintf(command, "ifconfig %s down\n", interface);
-  system(command);
+  usb_moded_system(command);
 
   /* dhcp client shutdown happens on disconnect automatically */
   if(data->nat)

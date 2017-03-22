@@ -96,4 +96,7 @@ extern int cable_connection_delay;
 
 void usb_moded_stop(int exitcode);
 
+int usb_moded_system_(const char *file, int line, const char *func, const char *command);
+#define usb_moded_system(command)  usb_moded_system_(__FILE__,__LINE__,__FUNCTION__,(command))
+
 #endif /* USB_MODED_H */

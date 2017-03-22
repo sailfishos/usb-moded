@@ -1130,6 +1130,24 @@ void usb_moded_stop(int exitcode)
 	g_main_loop_quit(usb_moded_mainloop);
 }
 
+/** Wrapper to give visibility to blocking system() calls usb-moded is making
+ */
+int
+usb_moded_system_(const char *file, int line, const char *func,
+		  const char *command)
+{
+	log_debug("EXEC %s; from %s:%d: %s()",
+		  command, file, line, func);
+
+	int rc = system(command);
+
+	if( rc != 0 )
+		log_warning("EXEC %s; exit code is %d", command, rc);
+
+	return rc;
+}
+
+
 int main(int argc, char* argv[])
 {
         int opt = 0, opt_idx = 0;
@@ -1220,7 +1238,7 @@ int main(int argc, char* argv[])
 	 * INITIALIZE
 	 * - - - - - - - - - - - - - - - - - - - */
 
-	/* silence system() calls */
+	/* silence usb_moded_system() calls */
 	if(log_type != LOG_TO_STDERR || log_level != LOG_DEBUG )	
 	{
 		freopen("/dev/null", "a", stdout);
