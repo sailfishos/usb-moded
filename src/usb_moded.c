@@ -1147,6 +1147,18 @@ usb_moded_system_(const char *file, int line, const char *func,
 	return rc;
 }
 
+/** Wrapper to give visibility subprocesses usb-moded is invoking via popen()
+ */
+FILE *
+usb_moded_popen_(const char *file, int line, const char *func,
+		 const char *command, const char *type)
+{
+	log_debug("EXEC %s; from %s:%d: %s()",
+		  command, file, line, func);
+
+	return popen(command, type);
+}
+
 /** Wrapper to give visibility to blocking sleeps usb-moded is making
  */
 void

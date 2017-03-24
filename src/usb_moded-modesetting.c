@@ -363,7 +363,7 @@ static void report_mass_storage_blocker(const char *mountpoint, int try)
 
   lsof_command = g_strconcat("lsof ", mountpoint, NULL);
 
-  if( (stream = popen(lsof_command, "r")) )
+  if( (stream = usb_moded_popen(lsof_command, "r")) )
   {
     char *text = 0;
     size_t size = 0;
