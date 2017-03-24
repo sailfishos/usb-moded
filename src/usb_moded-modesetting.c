@@ -194,7 +194,7 @@ static int set_mass_storage_mode(struct mode_list_elem *data)
 				usb_moded_unload_module(MODULE_MASS_STORAGE);
 				sprintf(command2, "modprobe %s luns=%d \n", MODULE_MASS_STORAGE, mountpoints);
 				log_debug("usb-load command = %s \n", command2);
-				ret = system(command2);
+				ret = usb_moded_system(command2);
 				if(ret)
 					return(ret);
 			}
@@ -209,21 +209,21 @@ static int set_mass_storage_mode(struct mode_list_elem *data)
 			else
 				mountpath = mounts[i];
 umount:                 command = g_strconcat("mount | grep ", mountpath, NULL);
-                        ret = system(command);
+                        ret = usb_moded_system(command);
                         g_free(command);
                         if(!ret)
                         {
 				/* no check for / needed as that will fail to umount anyway */
 				command = g_strconcat("umount ", mountpath, NULL);
                                 log_debug("unmount command = %s\n", command);
-                                ret = system(command);
+                                ret = usb_moded_system(command);
                                 g_free(command);
                                 if(ret != 0)
                                 {
 					if(try != 3)
 					{
 						try++;
-						sleep(1);
+						usb_moded_sleep(1);
 						log_err("Umount failed. Retrying\n");
 						report_mass_storage_blocker(mount, 1);
 						goto umount;
@@ -243,7 +243,7 @@ umount:                 command = g_strconcat("mount | grep ", mountpath, NULL);
               	}
 		
 	        /* activate mounts after sleeping 1s to be sure enumeration happened and autoplay will work in windows*/
-		sleep(1);
+		usb_moded_sleep(1);
                 for(i=0 ; mounts[i] != NULL; i++)
                 {       
 			
@@ -251,7 +251,7 @@ umount:                 command = g_strconcat("mount | grep ", mountpath, NULL);
 			{
 				sprintf(command2, "echo %i  > /sys/devices/platform/musb_hdrc/gadget/gadget-lun%d/nofua", fua, i);
 				log_debug("usb lun = %s active\n", command2);
-				system(command2);
+				usb_moded_system(command2);
 				sprintf(command2, "/sys/devices/platform/musb_hdrc/gadget/gadget-lun%d/file", i);
 				log_debug("usb lun = %s active\n", command2);
 				write_to_file(command2, mounts[i]);
@@ -301,13 +301,13 @@ static int unset_mass_storage_mode(struct mode_list_elem *data)
 			else
 				mountpath = mounts[i];
                 	command = g_strconcat("mount | grep ", mountpath, NULL);
-                        ret = system(command);
+                        ret = usb_moded_system(command);
                         g_free(command);
                         if(ret)
                         {
                         	command = g_strconcat("mount ", mountpath, NULL);
 				log_debug("mount command = %s\n",command);
-                                ret = system(command);
+                                ret = usb_moded_system(command);
                                 g_free(command);
 				/* mount returns 0 if success */
                                 if(ret != 0 )
@@ -321,7 +321,7 @@ static int unset_mass_storage_mode(struct mode_list_elem *data)
 						{
                                                		command = g_strconcat("mount -t tmpfs tmpfs -o ro --size=512K ", mount, NULL);
 							log_debug("Total failure, mount ro tmpfs as fallback\n");
-                                                        ret = system(command);
+                                                        ret = usb_moded_system(command);
                                                         g_free(command);
                                                 }
 						usb_moded_send_error_signal(RE_MOUNT_FAILED);
@@ -342,7 +342,7 @@ static int unset_mass_storage_mode(struct mode_list_elem *data)
 			{
 				sprintf(command2, "echo \"\"  > /sys/devices/platform/musb_hdrc/gadget/gadget-lun%d/file", i);
 				log_debug("usb lun = %s inactive\n", command2);
-				system(command2);
+				usb_moded_system(command2);
 			}
                  }
                  g_strfreev(mounts);
@@ -363,7 +363,7 @@ static void report_mass_storage_blocker(const char *mountpoint, int try)
 
   lsof_command = g_strconcat("lsof ", mountpoint, NULL);
 
-  if( (stream = popen(lsof_command, "r")) )
+  if( (stream = usb_moded_popen(lsof_command, "r")) )
   {
     char *text = 0;
     size_t size = 0;
@@ -456,7 +456,7 @@ int set_dynamic_mode(void)
   	char command[256];
 
 	g_snprintf(command, 256, "ifdown %s ; ifup %s", data->network_interface, data->network_interface);
-        system(command);
+        usb_moded_system(command);
 #else
 	usb_network_down(data);
 	network = usb_network_up(data);
@@ -482,7 +482,7 @@ int set_dynamic_mode(void)
   if(data->appsync && !ret)
   {
 	/* let's sleep for a bit (350ms) to allow interfaces to settle before running postsync */
-	usleep(350000);
+	usb_moded_msleep(350);
 	activate_sync_post(data->mode_name);
   }
 

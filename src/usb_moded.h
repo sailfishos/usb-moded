@@ -96,4 +96,15 @@ extern int cable_connection_delay;
 
 void usb_moded_stop(int exitcode);
 
+int usb_moded_system_(const char *file, int line, const char *func, const char *command);
+#define usb_moded_system(command)  usb_moded_system_(__FILE__,__LINE__,__FUNCTION__,(command))
+
+FILE *usb_moded_popen_(const char *file, int line, const char *func, const char *command, const char *type);
+#define usb_moded_popen(command, type) usb_moded_popen_(__FILE__,__LINE__,__FUNCTION__,(command),(type))
+
+void usb_moded_usleep_(const char *file, int line, const char *func, useconds_t usec);
+#define usb_moded_usleep(usec)    usb_moded_usleep_(__FILE__,__LINE__,__FUNCTION__,(usec))
+#define usb_moded_msleep(msec)    usb_moded_usleep_(__FILE__,__LINE__,__FUNCTION__,(msec)*1000)
+#define usb_moded_sleep(sec)      usb_moded_usleep_(__FILE__,__LINE__,__FUNCTION__,(sec)*1000000)
+
 #endif /* USB_MODED_H */

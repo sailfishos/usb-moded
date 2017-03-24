@@ -191,7 +191,7 @@ void set_usb_connected(gboolean connected)
 static gboolean set_disconnected(gpointer data)
 {
   /* let usb settle */
-  sleep(1);
+  usb_moded_sleep(1);
   /* only disconnect for real if we are actually still disconnected */
   if(!get_usb_connection_state())
 	{
@@ -1130,6 +1130,64 @@ void usb_moded_stop(int exitcode)
 	g_main_loop_quit(usb_moded_mainloop);
 }
 
+/** Wrapper to give visibility to blocking system() calls usb-moded is making
+ */
+int
+usb_moded_system_(const char *file, int line, const char *func,
+		  const char *command)
+{
+	log_debug("EXEC %s; from %s:%d: %s()",
+		  command, file, line, func);
+
+	int rc = system(command);
+
+	if( rc != 0 )
+		log_warning("EXEC %s; exit code is %d", command, rc);
+
+	return rc;
+}
+
+/** Wrapper to give visibility subprocesses usb-moded is invoking via popen()
+ */
+FILE *
+usb_moded_popen_(const char *file, int line, const char *func,
+		 const char *command, const char *type)
+{
+	log_debug("EXEC %s; from %s:%d: %s()",
+		  command, file, line, func);
+
+	return popen(command, type);
+}
+
+/** Wrapper to give visibility to blocking sleeps usb-moded is making
+ */
+void
+usb_moded_usleep_(const char *file, int line, const char *func,
+		  useconds_t usec)
+{
+	struct timespec ts = {
+		.tv_sec  = (usec / 1000000),
+		.tv_nsec = (usec % 1000000) * 1000
+	};
+
+	long ms = (ts.tv_nsec + 1000000 - 1) / 1000000;
+
+	if( !ms ) {
+		log_debug("SLEEP %ld seconds; from %s:%d: %s()",
+			  (long)ts.tv_sec, file, line, func);
+	}
+	else if( ts.tv_sec ) {
+		log_debug("SLEEP %ld.%03ld seconds; from %s:%d: %s()",
+			  (long)ts.tv_sec, ms, file, line, func);
+	}
+	else {
+		log_debug("SLEEP %ld milliseconds; from %s:%d: %s()",
+			  ms, file, line, func);
+	}
+
+	do { } while( nanosleep(&ts, &ts) == -1 && errno != EINTR );
+}
+
 int main(int argc, char* argv[])
 {
         int opt = 0, opt_idx = 0;
@@ -1220,7 +1278,7 @@ int main(int argc, char* argv[])
 	 * INITIALIZE
 	 * - - - - - - - - - - - - - - - - - - - */
 
-	/* silence system() calls */
+	/* silence usb_moded_system() calls */
 	if(log_type != LOG_TO_STDERR || log_level != LOG_DEBUG )	
 	{
 		freopen("/dev/null", "a", stdout);

@@ -201,7 +201,7 @@ int usb_moded_module_cleanup(const char *module)
 	if(!strcmp(module, MODULE_NONE))
 		goto END;
 	/* wait a bit for all components listening on dbus to clean up their act 
-	sleep(2); */
+	usb_moded_sleep(2); */
 	/* check if things were not reconnected in that timespan 
 	if(get_usb_connection_state())
 		return(0);
@@ -224,7 +224,7 @@ int usb_moded_module_cleanup(const char *module)
 	while(failure)
 	{
 		/* module did not get unloaded. We will wait a bit and try again */
-		sleep(1);
+		usb_moded_sleep(1);
 		/* send the REALLY  disconnect message */
 		usb_moded_send_signal(USB_REALLY_DISCONNECT);
 		failure = usb_moded_unload_module(module);
