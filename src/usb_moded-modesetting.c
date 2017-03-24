@@ -223,7 +223,7 @@ umount:                 command = g_strconcat("mount | grep ", mountpath, NULL);
 					if(try != 3)
 					{
 						try++;
-						sleep(1);
+						usb_moded_sleep(1);
 						log_err("Umount failed. Retrying\n");
 						report_mass_storage_blocker(mount, 1);
 						goto umount;
@@ -243,7 +243,7 @@ umount:                 command = g_strconcat("mount | grep ", mountpath, NULL);
               	}
 		
 	        /* activate mounts after sleeping 1s to be sure enumeration happened and autoplay will work in windows*/
-		sleep(1);
+		usb_moded_sleep(1);
                 for(i=0 ; mounts[i] != NULL; i++)
                 {       
 			
@@ -482,7 +482,7 @@ int set_dynamic_mode(void)
   if(data->appsync && !ret)
   {
 	/* let's sleep for a bit (350ms) to allow interfaces to settle before running postsync */
-	usleep(350000);
+	usb_moded_msleep(350);
 	activate_sync_post(data->mode_name);
   }
 

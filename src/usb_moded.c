@@ -191,7 +191,7 @@ void set_usb_connected(gboolean connected)
 static gboolean set_disconnected(gpointer data)
 {
   /* let usb settle */
-  sleep(1);
+  usb_moded_sleep(1);
   /* only disconnect for real if we are actually still disconnected */
   if(!get_usb_connection_state())
 	{
@@ -1147,6 +1147,34 @@ usb_moded_system_(const char *file, int line, const char *func,
 	return rc;
 }
 
+/** Wrapper to give visibility to blocking sleeps usb-moded is making
+ */
+void
+usb_moded_usleep_(const char *file, int line, const char *func,
+		  useconds_t usec)
+{
+	struct timespec ts = {
+		.tv_sec  = (usec / 1000000),
+		.tv_nsec = (usec % 1000000) * 1000
+	};
+
+	long ms = (ts.tv_nsec + 1000000 - 1) / 1000000;
+
+	if( !ms ) {
+		log_debug("SLEEP %ld seconds; from %s:%d: %s()",
+			  (long)ts.tv_sec, file, line, func);
+	}
+	else if( ts.tv_sec ) {
+		log_debug("SLEEP %ld.%03ld seconds; from %s:%d: %s()",
+			  (long)ts.tv_sec, ms, file, line, func);
+	}
+	else {
+		log_debug("SLEEP %ld milliseconds; from %s:%d: %s()",
+			  ms, file, line, func);
+	}
+
+	do { } while( nanosleep(&ts, &ts) == -1 && errno != EINTR );
+}
 
 int main(int argc, char* argv[])
 {

@@ -491,10 +491,7 @@ gboolean connman_set_tethering(const char *path, gboolean on)
 	{
 		if (i>0)
 		{
-			struct timespec tv;
-			tv.tv_sec = 0;
-			tv.tv_nsec = 200000000;
-			nanosleep(&tv, NULL);
+			usb_moded_msleep(200);
 		}
 		if (connman_try_set_tethering(connection, path, on))
 		{
@@ -711,7 +708,7 @@ static int connman_set_cellular_online(DBusConnection *dbus_conn_connman, const 
 	/* we don't care for the reply, which is empty anyway if all goes well */
         ret = !dbus_connection_send(dbus_conn_connman, msg, NULL);
 	/* sleep for the connection to come up */
-	sleep(5);
+	usb_moded_sleep(5);
 	/* make sure the message is sent before cleaning up and closing the connection */
 	dbus_connection_flush(dbus_conn_connman);
         dbus_message_unref(msg);
@@ -976,7 +973,7 @@ int usb_network_up(struct mode_list_elem *data)
   //usb_moded_system("/sbin/ifconfig rndis0 up");
 
   log_debug("waiting for connman to pick up interface\n");
-  sleep(1);
+  usb_moded_sleep(1);
   dbus_error_init(&error);
 
   if( (dbus_conn_connman = dbus_bus_get(DBUS_BUS_SYSTEM, &error)) == 0 )
