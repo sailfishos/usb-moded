@@ -32,3 +32,6 @@ int set_dynamic_mode(void);
 void unset_dynamic_mode(void);
 /* clean up for the mode changes on disconnect */
 int usb_moded_mode_cleanup(const char *module);
+void usb_moded_mode_verify_values(void);
+void usb_moded_mode_init(void);
+void usb_moded_mode_quit(void);

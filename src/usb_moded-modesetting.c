@@ -47,10 +47,68 @@
 #include "usb_moded-network.h"
 #include "usb_moded-android.h"
 
+
+static char *read_from_file(const char *path, size_t maxsize);
+
+static GHashTable *tracked_values = 0;
+
+static void usb_moded_mode_track_value(const char *path, const char *text)
+{
+    if( !tracked_values || !path )
+        goto EXIT;
+
+    if( text )
+        g_hash_table_replace(tracked_values, g_strdup(path), g_strdup(text));
+    else
+        g_hash_table_remove(tracked_values, path);
+
+EXIT:
+    return;
+}
+
+void usb_moded_mode_verify_values(void)
+{
+    GHashTableIter iter;
+    gpointer key, value;
+
+    if( !tracked_values )
+        goto EXIT;
+
+    g_hash_table_iter_init(&iter, tracked_values);
+    while( g_hash_table_iter_next(&iter, &key, &value) )
+    {
+        const char *path = key;
+        const char *text = value;
+
+        char *curr = read_from_file(path, 0x1000);
+
+        if( g_strcmp0(text, curr) ) {
+            /* There might be case mismatch between hexadecimal
+             * values used in configuration files vs what we get
+             * back when reading from kernel interfaces. */
+            if( text && curr && !g_ascii_strcasecmp(text, curr) ) {
+                log_debug("unexpected change '%s' : '%s' -> '%s'", path,
+                          text ?: "???",
+                          curr ?: "???");
+            }
+            else {
+                log_warning("unexpected change '%s' : '%s' -> '%s'", path,
+                            text ?: "???",
+                            curr ?: "???");
+            }
+            usb_moded_mode_track_value(path, curr);
+        }
+
+        free(curr);
+    }
+
+EXIT:
+    return;
+}
+
 static void report_mass_storage_blocker(const char *mountpoint, int try);
 static guint delayed_network = 0;
 
-#if LOG_ENABLE_DEBUG
 static char *strip(char *str)
 {
   unsigned char *src = (unsigned char *)str;
@@ -103,7 +161,6 @@ cleanup:
   if(fd != -1) close(fd);
   return text;
 }
-#endif /* LOG_ENABLE_DEBUG */
 
 int write_to_file_real(const char *file, int line, const char *func,
                        const char *path, const char *text)
@@ -111,13 +168,14 @@ int write_to_file_real(const char *file, int line, const char *func,
   int err = -1;
   int fd = -1;
   size_t todo = 0;
+  char *prev = 0;
 
   /* if either path or the text to be written are not there
      we return an error */
   if(!text || !path)
 	return err;
 
-  /* There is usb-moded code and configuration files that use
+  /* There are usb-moded configuration files and code that use
    * "none" as a place-holder for no-function. Attempting to
    * write that into sysfs leads to journal spamming due to
    * EINVAL error return. Substituting "none" with an empty
@@ -127,16 +185,14 @@ int write_to_file_real(const char *file, int line, const char *func,
     text = "";
   }
 
-#if LOG_ENABLE_DEBUG
-  if(log_level >= LOG_DEBUG)
-  {
-    char *prev = read_from_file(path, 0x1000);
-    log_debug("%s:%d: %s(): WRITE '%s' : '%s' --> '%s'",
-              file, line, func,
-              path, prev ?: "???", text);
-    free(prev);
-  }
-#endif
+  /* If the file can be read, it also means we can later check that
+   * the file retains the value we are about to write here. */
+  if( (prev = read_from_file(path, 0x1000)) )
+      usb_moded_mode_track_value(path, text);
+
+  log_debug("%s:%d: %s(): WRITE '%s' : '%s' --> '%s'",
+            file, line, func,
+            path, prev ?: "???", text);
 
   todo  = strlen(text);
 
@@ -164,6 +220,8 @@ int write_to_file_real(const char *file, int line, const char *func,
 cleanup:
 
   if( fd != -1 ) TEMP_FAILURE_RETRY(close(fd));
+
+  free(prev);
 
   return err;
 }
@@ -603,3 +661,21 @@ int usb_moded_mode_cleanup(const char *module)
         return(0);
 }
 
+/** Allocate modesetting related dynamic resouces
+ */
+void usb_moded_mode_init(void)
+{
+    if( !tracked_values ) {
+        tracked_values = g_hash_table_new_full(g_str_hash, g_str_equal,
+                                               g_free, g_free);
+    }
+}
+
+/** Release modesetting related dynamic resouces
+ */
+void usb_moded_mode_quit(void)
+{
+    if( tracked_values ) {
+        g_hash_table_unref(tracked_values), tracked_values = 0;
+    }
+}
