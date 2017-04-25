@@ -116,6 +116,16 @@ int write_to_file(const char *path, const char *text)
   if(!text || !path)
 	return err;
 
+  /* There is usb-moded code and configuration files that use
+   * "none" as a place-holder for no-function. Attempting to
+   * write that into sysfs leads to journal spamming due to
+   * EINVAL error return. Substituting "none" with an empty
+   * string avoids that. */
+  if( !strcmp(path, "/sys/class/android_usb/android0/functions") &&
+      !strcmp(text, "none") ) {
+    text = "";
+  }
+
 #if LOG_ENABLE_DEBUG
   if(log_level >= LOG_DEBUG)
   {
