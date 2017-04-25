@@ -105,7 +105,8 @@ cleanup:
 }
 #endif /* LOG_ENABLE_DEBUG */
 
-int write_to_file(const char *path, const char *text)
+int write_to_file_real(const char *file, int line, const char *func,
+                       const char *path, const char *text)
 {
   int err = -1;
   int fd = -1;
@@ -130,7 +131,9 @@ int write_to_file(const char *path, const char *text)
   if(log_level >= LOG_DEBUG)
   {
     char *prev = read_from_file(path, 0x1000);
-    log_debug("WRITE '%s' : '%s' --> '%s'", path, prev ?: "???", text);
+    log_debug("%s:%d: %s(): WRITE '%s' : '%s' --> '%s'",
+              file, line, func,
+              path, prev ?: "???", text);
     free(prev);
   }
 #endif
