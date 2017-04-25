@@ -75,7 +75,7 @@ AM_CONDITIONAL([CONNMAN], [test x$connman = xtrue])
 
 AC_ARG_ENABLE([systemd], AS_HELP_STRING([--enable-systemd], [Enable systemd notify interface @<:@default=false@:>@]),
   [case "${enableval}" in
-   yes) systemd=true ; CFLAGS="-DSYSTEMD -lsystemd-daemon $CFLAGS" ;;
+   yes) systemd=true ; CFLAGS="-DSYSTEMD $CFLAGS" ;;
    no)  systemd=false ;;
    *) AC_MSG_ERROR([bad value ${enableval} for --enable-systemd]) ;;
    esac],[systemd=false])
@@ -98,6 +98,7 @@ PKG_CHECK_MODULES([USB_MODED], [
  libudev
  libkmod
  ssu-sysinfo
+ libsystemd
 ])
 
 AC_SUBST(USB_MODED_LIBS)
