@@ -30,6 +30,7 @@
 
 #include "usb_moded.h"
 #include "usb_moded-dsme.h"
+#include "usb_moded-modesetting.h"
 #include "usb_moded-dbus-private.h"
 #include "usb_moded-log.h"
 
@@ -427,6 +428,7 @@ dsme_socket_recv_cb(GIOChannel *source,
         dsme_socket_processwd_pong();
 
         /* Do heartbeat actions here */
+        usb_moded_mode_verify_values();
     }
     else if( (msg2 = DSMEMSG_CAST(DSM_MSGTYPE_STATE_CHANGE_IND, msg)) ) {
         dsme_state_update(msg2->state);
