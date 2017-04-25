@@ -22,17 +22,23 @@
   02110-1301 USA
 */
 
+#define _GNU_SOURCE
+
+#include <stdbool.h>
+
 #include <dbus/dbus.h>
-#include <dbus/dbus-glib-lowlevel.h>
 
-#include "usb_moded-dsme.h"
 #include "usb_moded.h"
-
+#include "usb_moded-dsme.h"
 #include "usb_moded-dbus-private.h"
 #include "usb_moded-log.h"
 
+#include <dsme/state.h>
+#include <dsme/protocol.h>
+#include <dsme/processwd.h>
+
 /* ========================================================================= *
- * dsme dbus constants
+ * DSME D-Bus Constants
  * ========================================================================= */
 
 #define DSME_DBUS_SERVICE               "com.nokia.dsme"
@@ -57,62 +63,512 @@
      ",arg0='"DSME_DBUS_SERVICE"'"
 
 /* ========================================================================= *
- * state data
+ * Functionality
  * ========================================================================= */
 
-/* SystemBus connection ref used for dsme ipc */
-static DBusConnection *dsme_con = NULL;
+/* ------------------------------------------------------------------------- *
+ * MISC_UTIL
+ * ------------------------------------------------------------------------- */
 
-/* Flag for: device state == "USER" */
-static gboolean in_user_state = FALSE;
+static const char        *dsme_msg_type_repr                    (int type);
 
-/* Flag for: dsme is available on system bus */
-static gboolean dsme_is_available = FALSE;
+/* ------------------------------------------------------------------------- *
+ * DSME_STATE_TRACKING
+ * ------------------------------------------------------------------------- */
 
-/** Checks if the device is is USER-state.
+static const char        *dsme_state_repr                       (dsme_state_t state);
+static dsme_state_t       dsme_state_parse                      (const char *name);
+
+static void               dsme_state_update                     (dsme_state_t state);
+static bool               dsme_state_is_shutdown                (void);
+static bool               dsme_state_is_user                    (void);
+
+/* ------------------------------------------------------------------------- *
+ * DSME_SOCKET_IPC
+ * ------------------------------------------------------------------------- */
+
+static bool               dsme_socket_send_message              (gpointer msg, const char *request_name);
+static void               dsme_socket_processwd_pong            (void);
+static void               dsme_socket_processwd_init            (void);
+static void               dsme_socket_processwd_quit            (void);
+static void               dsme_socket_query_state               (void);
+
+static gboolean           dsme_socket_recv_cb                   (GIOChannel *source, GIOCondition condition, gpointer data);
+static bool               dsme_socket_is_connected              (void);
+static bool               dsme_socket_connect                   (void);
+static void               dsme_socket_disconnect                (void);
+static void               dsme_socket_reconnect                 (void);
+
+/* ------------------------------------------------------------------------- *
+ * DSME_DBUS_IPC
+ * ------------------------------------------------------------------------- */
+
+static void               dsme_dbus_device_state_update         (const char *state);
+static void               dsme_dbus_device_state_query_cb       (DBusPendingCall *pending, void *aptr);
+static void               dsme_dbus_device_state_query          (void);
+static void               dsme_dbus_device_state_cancel         (void);
+static void               dsme_dbus_device_state_signal         (DBusMessage *msg);
+
+static bool               dsme_dbus_name_owner_available        (void);
+static void               dsme_dbus_name_owner_update           (const char *owner);
+static void               dsme_dbus_name_owner_query_cb         (const char *owner);
+static void               dsme_dbus_name_owner_query            (void);
+static void               dsme_dbus_name_owner_cancel           (void);
+static void               dsme_dbus_name_owner_signal           (DBusMessage *msg);
+
+static DBusHandlerResult  dsme_dbus_filter_cb                   (DBusConnection *con, DBusMessage *msg, void *user_data);
+
+static bool               dsme_dbus_init                        (void);
+static void               dsme_dbus_quit                        (void);
+
+/* ------------------------------------------------------------------------- *
+ * MODULE_API
+ * ------------------------------------------------------------------------- */
+
+gboolean                  dsme_listener_start                   (void);
+void                      dsme_listener_stop                    (void);
+gboolean                  is_in_user_state                      (void);
+
+/* ========================================================================= *
+ * MISC_UTIL
+ * ========================================================================= */
+
+/** Lookup dsme message type name by id
  *
- * @return 1 if it is in USER-state, 0 for not
+ * Note: This is ugly hack, but the way these are defined in libdsme and
+ * libiphb makes it difficult to gauge the type without involving the type
+ * conversion macros - and those we *really* do not want to do use just to
+ * report unhandled stuff in debug verbosity.
  *
+ * @param type private type id from dsme message header
+ *
+ * @return human readable name of the type
  */
-gboolean is_in_user_state(void)
+static const char *
+dsme_msg_type_repr(int type)
 {
-    return in_user_state;
+#define X(name,value) if( type == value ) return #name
+
+    X(CLOSE,                        0x00000001);
+    X(STATE_CHANGE_IND,             0x00000301);
+    X(STATE_QUERY,                  0x00000302);
+    X(SAVE_DATA_IND,                0x00000304);
+    X(POWERUP_REQ,                  0x00000305);
+    X(SHUTDOWN_REQ,                 0x00000306);
+    X(SET_ALARM_STATE,              0x00000307);
+    X(REBOOT_REQ,                   0x00000308);
+    X(STATE_REQ_DENIED_IND,         0x00000309);
+    X(THERMAL_SHUTDOWN_IND,         0x00000310);
+    X(SET_CHARGER_STATE,            0x00000311);
+    X(SET_THERMAL_STATE,            0x00000312);
+    X(SET_EMERGENCY_CALL_STATE,     0x00000313);
+    X(SET_BATTERY_STATE,            0x00000314);
+    X(BATTERY_EMPTY_IND,            0x00000315);
+    X(PROCESSWD_CREATE,             0x00000500);
+    X(PROCESSWD_DELETE,             0x00000501);
+    X(PROCESSWD_CLEAR,              0x00000502);
+    X(PROCESSWD_SET_INTERVAL,       0x00000503);
+    X(PROCESSWD_PING,               0x00000504);
+    X(PROCESSWD_PONG,               0x00000504);
+    X(PROCESSWD_MANUAL_PING,        0x00000505);
+    X(WAIT,                         0x00000600);
+    X(WAKEUP,                       0x00000601);
+    X(GET_VERSION,                  0x00001100);
+    X(DSME_VERSION,                 0x00001101);
+    X(SET_TA_TEST_MODE,             0x00001102);
+
+#undef X
+
+    return "UNKNOWN";
 }
 
 /* ========================================================================= *
- * device state queries
+ * DSME_STATE_TRACKING
  * ========================================================================= */
 
-static void device_state_changed(const char *state)
+/** Lookup table for dsme state name <-> state enum conversion */
+static const struct
 {
-    gboolean to_user_state = state && !strcmp(state, "USER");
+    const char   *name;
+    dsme_state_t  state;
+} dsme_states[] =
+{
+#define DSME_STATE(NAME, VALUE) { #NAME, DSME_STATE_##NAME },
+#include <dsme/state_states.h>
+#undef  DSME_STATE
+};
 
-    log_debug("device state: %s", state ?: "(null)");
+/* Cached dsme state */
+static dsme_state_t dsme_state_val = DSME_STATE_NOT_SET;
 
-    if( in_user_state == to_user_state )
-        goto EXIT;
+/* Flag for: dsme_state_val is USER */
+static bool dsme_user_state = false;
 
-    in_user_state = to_user_state;
-    log_debug("in user state: %s", in_user_state ? "true" : "false");
+/* Flag for: dsme_state_val is SHUTDOWN | REBOOT */
+static bool dsme_shutdown_state = false;
 
-    rethink_usb_charging_fallback();
+/** Convert dsme state enum value to string
+ */
+static const char *
+dsme_state_repr(dsme_state_t state)
+{
+    const char *repr = "DSME_STATE_UNKNOWN";
 
-EXIT:
-    return;
+    for( size_t i = 0; i < G_N_ELEMENTS(dsme_states); ++i ) {
+        if( dsme_states[i].state == state ) {
+            repr = dsme_states[i].name;
+            break;
+        }
+    }
+
+    return repr;
 }
 
-static DBusPendingCall *device_state_query_pc = 0;
-
-static void device_state_cancel(void)
+/** Convert dsme state name to enum value
+ */
+static dsme_state_t
+dsme_state_parse(const char *name)
 {
-    if( device_state_query_pc ) {
-        dbus_pending_call_cancel(device_state_query_pc);
-        dbus_pending_call_unref(device_state_query_pc),
-            device_state_query_pc = 0;
+    dsme_state_t state = DSME_STATE_NOT_SET;
+
+    for( size_t i = 0; i < G_N_ELEMENTS(dsme_states); ++i ) {
+        if( !strcmp(dsme_states[i].name, name) ) {
+            state = dsme_states[i].state;
+            break;
+        }
+    }
+
+    return state;
+}
+
+/** Update cached dsme state
+ */
+static void
+dsme_state_update(dsme_state_t state)
+{
+    /* Handle state change */
+    if( dsme_state_val != state ) {
+        log_debug("dsme_state: %s -> %s",
+                  dsme_state_repr(dsme_state_val),
+                  dsme_state_repr(state));
+        dsme_state_val = state;
+    }
+
+    /* Handle entry to / exit from USER state */
+    bool user_state = (state == DSME_STATE_USER);
+
+    if( dsme_user_state != user_state ) {
+        dsme_user_state = user_state;
+        log_debug("in user state: %s", dsme_user_state ? "true" : "false");
+
+        rethink_usb_charging_fallback();
+    }
+
+    /* Handle entry to / exit from SHUTDOWN / REBOOT state */
+    bool shutdown_state = (state == DSME_STATE_SHUTDOWN ||
+                           state == DSME_STATE_REBOOT);
+
+    if( dsme_shutdown_state != shutdown_state ) {
+        dsme_shutdown_state = shutdown_state;
+        log_debug("in shutdown: %s", dsme_shutdown_state ? "true" : "false");
+
     }
 }
 
-static void device_state_query_cb(DBusPendingCall *pending, void *aptr)
+/** Checks if the device is shutting down (or rebooting)
+ *
+ * @return true if device is shutting down, false otherwise
+ */
+static bool
+dsme_state_is_shutdown(void)
+{
+  return dsme_shutdown_state;
+}
+
+/** Checks if the device is is USER-state.
+ *
+ * @return true if device is in USER-state, false otherwise
+ */
+static bool
+dsme_state_is_user(void)
+{
+    return dsme_user_state;
+}
+
+/* ========================================================================= *
+ * DSME_SOCKET_IPC
+ * ========================================================================= */
+
+/* Connection object for libdsme based ipc with dsme */
+static dsmesock_connection_t *dsme_socket_con = NULL;
+
+/** I/O watch for dsme_socket_con */
+static guint dsme_socket_iowatch = 0;
+
+/** Generic send function for dsmesock messages
+ *
+ * @param msg A pointer to the message to send
+ */
+static bool
+dsme_socket_send_message(gpointer msg, const char *request_name)
+{
+    bool res = false;
+
+    if( !dsme_socket_con ) {
+        log_warning("failed to send %s to dsme; %s",
+                request_name, "not connected");
+        goto EXIT;
+    }
+
+    if( dsmesock_send(dsme_socket_con, msg) == -1) {
+        log_err("failed to send %s to dsme; %m",
+                request_name);
+
+        /* close and try to re-connect */
+        dsme_socket_reconnect();
+        goto EXIT;
+    }
+
+    log_debug("%s sent to DSME", request_name);
+
+    res = true;
+
+EXIT:
+    return res;
+}
+
+/** Send process watchdog pong message to DSME
+ */
+static void
+dsme_socket_processwd_pong(void)
+{
+    DSM_MSGTYPE_PROCESSWD_PONG msg =
+        DSME_MSG_INIT(DSM_MSGTYPE_PROCESSWD_PONG);
+
+    msg.pid = getpid();
+
+    dsme_socket_send_message(&msg, "DSM_MSGTYPE_PROCESSWD_PONG");
+}
+
+/** Register to DSME process watchdog
+ */
+static void
+dsme_socket_processwd_init(void)
+{
+    DSM_MSGTYPE_PROCESSWD_CREATE msg =
+        DSME_MSG_INIT(DSM_MSGTYPE_PROCESSWD_CREATE);
+
+    msg.pid = getpid();
+
+    dsme_socket_send_message(&msg, "DSM_MSGTYPE_PROCESSWD_CREATE");
+}
+
+/** Unregister from DSME process watchdog
+ */
+static void
+dsme_socket_processwd_quit(void)
+{
+    DSM_MSGTYPE_PROCESSWD_DELETE msg =
+        DSME_MSG_INIT(DSM_MSGTYPE_PROCESSWD_DELETE);
+
+    msg.pid = getpid();
+
+    dsme_socket_send_message(&msg, "DSM_MSGTYPE_PROCESSWD_DELETE");
+}
+
+/** Query current DSME state
+ */
+static void
+dsme_socket_query_state(void)
+{
+    DSM_MSGTYPE_STATE_QUERY msg =
+        DSME_MSG_INIT(DSM_MSGTYPE_STATE_QUERY);
+
+    dsme_socket_send_message(&msg, "DSM_MSGTYPE_STATE_QUERY");
+}
+
+/** Callback for pending I/O from dsmesock
+ *
+ * @param source     (not used)
+ * @param condition  I/O condition that caused the callback to be called
+ * @param data       (not used)
+ *
+ * @return TRUE if iowatch is to be kept, or FALSE if it should be removed
+ */
+static gboolean
+dsme_socket_recv_cb(GIOChannel *source,
+                    GIOCondition condition,
+                    gpointer data)
+{
+    gboolean keep_going = TRUE;
+    dsmemsg_generic_t *msg = 0;
+
+    DSM_MSGTYPE_STATE_CHANGE_IND *msg2;
+
+    (void)source;
+    (void)data;
+
+    if( condition & (G_IO_ERR | G_IO_HUP | G_IO_NVAL) ) {
+        if( !dsme_state_is_shutdown() )
+            log_crit("DSME socket hangup/error");
+        keep_going = FALSE;
+        goto EXIT;
+    }
+
+    if( !(msg = dsmesock_receive(dsme_socket_con)) )
+        goto EXIT;
+
+    if( DSMEMSG_CAST(DSM_MSGTYPE_CLOSE, msg) ) {
+        if( !dsme_state_is_shutdown() )
+            log_warning("DSME socket closed");
+        keep_going = FALSE;
+    }
+    else if( DSMEMSG_CAST(DSM_MSGTYPE_PROCESSWD_PING, msg) ) {
+        dsme_socket_processwd_pong();
+
+        /* Do heartbeat actions here */
+    }
+    else if( (msg2 = DSMEMSG_CAST(DSM_MSGTYPE_STATE_CHANGE_IND, msg)) ) {
+        dsme_state_update(msg2->state);
+    }
+    else {
+        log_debug("Unhandled message type %s (0x%x) received from DSME",
+                dsme_msg_type_repr(msg->type_),
+                msg->type_); /* <- unholy access of a private member */
+    }
+
+EXIT:
+    free(msg);
+
+    if( !keep_going ) {
+        if( !dsme_state_is_shutdown() ) {
+            log_warning("DSME i/o notifier disabled;"
+                    " assuming dsme was stopped");
+        }
+
+        /* mark notifier as removed */
+        dsme_socket_iowatch = 0;
+
+        /* close and wait for possible dsme restart */
+        dsme_socket_disconnect();
+    }
+
+    return keep_going;
+}
+
+/** Predicate for: socket connection to dsme exists
+ *
+ * @return true if connected, false otherwise
+ */
+static bool
+dsme_socket_is_connected(void)
+{
+    return dsme_socket_iowatch;
+}
+
+/** Initialise dsmesock connection
+ *
+ * @return true on success, false on failure
+ */
+static bool
+dsme_socket_connect(void)
+{
+    GIOChannel *iochan = NULL;
+
+    /* Already connected ? */
+    if( dsme_socket_iowatch )
+        goto EXIT;
+
+    log_debug("Opening DSME socket");
+
+    if( !(dsme_socket_con = dsmesock_connect()) ) {
+        log_err("Failed to open DSME socket");
+        goto EXIT;
+    }
+
+    log_debug("Adding DSME socket notifier");
+
+    if( !(iochan = g_io_channel_unix_new(dsme_socket_con->fd)) ) {
+        log_err("Failed to set up I/O channel for DSME socket");
+        goto EXIT;
+    }
+
+    dsme_socket_iowatch =
+        g_io_add_watch(iochan,
+                       G_IO_IN | G_IO_ERR | G_IO_HUP | G_IO_NVAL,
+                       dsme_socket_recv_cb, NULL);
+
+    /* Register with DSME's process watchdog */
+    dsme_socket_processwd_init();
+
+    /* Query current state */
+    dsme_socket_query_state();
+
+EXIT:
+    if( iochan ) g_io_channel_unref(iochan);
+
+    /* All or nothing */
+    if( !dsme_socket_iowatch )
+        dsme_socket_disconnect();
+
+    return dsme_socket_is_connected();
+}
+
+/** Close dsmesock connection
+ */
+static void
+dsme_socket_disconnect(void)
+{
+    if( dsme_socket_is_connected() )
+        dsme_socket_processwd_quit();
+
+    if( dsme_socket_iowatch ) {
+        log_debug("Removing DSME socket notifier");
+        g_source_remove(dsme_socket_iowatch);
+        dsme_socket_iowatch = 0;
+    }
+
+    if( dsme_socket_con ) {
+        log_debug("Closing DSME socket");
+        dsmesock_close(dsme_socket_con);
+        dsme_socket_con = 0;
+    }
+
+    // FIXME: should we assume something about the system state?
+}
+
+/** Close dsmesock connection and reconnect if/when dsme is available
+ */
+static void
+dsme_socket_reconnect(void)
+{
+    dsme_socket_disconnect();
+
+    if( dsme_dbus_name_owner_available() && !dsme_state_is_shutdown() )
+        dsme_socket_connect();
+}
+
+/* ========================================================================= *
+ * DSME_DBUS_IPC
+ * ========================================================================= */
+
+/* SystemBus connection ref used for dsme dbus ipc */
+static DBusConnection *dsme_dbus_con = NULL;
+
+/* ------------------------------------------------------------------------- *
+ * device state tracking
+ * ------------------------------------------------------------------------- */
+
+static void
+dsme_dbus_device_state_update(const char *state)
+{
+    dsme_state_update(dsme_state_parse(state));
+}
+
+static DBusPendingCall *dsme_dbus_device_state_query_pc = 0;
+
+static void
+dsme_dbus_device_state_query_cb(DBusPendingCall *pending, void *aptr)
 {
     DBusMessage *rsp = 0;
     const char  *dta = 0;
@@ -140,7 +596,7 @@ static void device_state_query_cb(DBusPendingCall *pending, void *aptr)
         goto EXIT;
     }
 
-    device_state_changed(dta);
+    dsme_dbus_device_state_update(dta);
 
 EXIT:
 
@@ -148,18 +604,19 @@ EXIT:
 
     dbus_error_free(&err);
 
-    dbus_pending_call_unref(device_state_query_pc),
-        device_state_query_pc = 0;
+    dbus_pending_call_unref(dsme_dbus_device_state_query_pc),
+        dsme_dbus_device_state_query_pc = 0;
 }
 
-static void device_state_query(void)
+static void
+dsme_dbus_device_state_query(void)
 {
     DBusMessage     *req = NULL;
     DBusPendingCall *pc  = 0;
 
-    device_state_cancel();
+    dsme_dbus_device_state_cancel();
 
-    if( !dsme_con ) {
+    if( !dsme_dbus_con ) {
         log_err("not connected to system bus; skip device state query");
         goto EXIT;
     }
@@ -175,16 +632,16 @@ static void device_state_query(void)
         goto EXIT;
     }
 
-    if( !dbus_connection_send_with_reply(dsme_con, req, &pc, -1) )
+    if( !dbus_connection_send_with_reply(dsme_dbus_con, req, &pc, -1) )
         goto EXIT;
 
     if( !pc )
         goto EXIT;
 
-    if( !dbus_pending_call_set_notify(pc, device_state_query_cb, 0, 0) )
+    if( !dbus_pending_call_set_notify(pc, dsme_dbus_device_state_query_cb, 0, 0) )
         goto EXIT;
 
-    device_state_query_pc = pc, pc = 0;
+    dsme_dbus_device_state_query_pc = pc, pc = 0;
 
 EXIT:
 
@@ -192,7 +649,18 @@ EXIT:
     if( req ) dbus_message_unref(req);
 }
 
-static void device_state_signal(DBusMessage *msg)
+static void
+dsme_dbus_device_state_cancel(void)
+{
+    if( dsme_dbus_device_state_query_pc ) {
+        dbus_pending_call_cancel(dsme_dbus_device_state_query_pc);
+        dbus_pending_call_unref(dsme_dbus_device_state_query_pc),
+            dsme_dbus_device_state_query_pc = 0;
+    }
+}
+
+static void
+dsme_dbus_device_state_signal(DBusMessage *msg)
 {
     DBusError   err = DBUS_ERROR_INIT;
     const char *dta = 0;
@@ -206,63 +674,82 @@ static void device_state_signal(DBusMessage *msg)
     }
     else
     {
-        device_state_changed(dta);
+        dsme_dbus_device_state_update(dta);
     }
     dbus_error_free(&err);
 }
 
-/* ========================================================================= *
+/* ------------------------------------------------------------------------- *
  * dsme name owner tracking
- * ========================================================================= */
+ * ------------------------------------------------------------------------- */
 
-static void dsme_available_changed(const char *owner)
+/* Flag for: dsme is available on system bus */
+static gchar *dsme_dbus_name_owner_val = 0;
+
+static bool
+dsme_dbus_name_owner_available(void)
 {
-    gboolean is_available = (owner && *owner);
+    return dsme_dbus_name_owner_val != 0;
+}
 
-    if( dsme_is_available != is_available ) {
-        dsme_is_available = is_available;
-        log_debug("dsme is %s", dsme_is_available ? "running" : "stopped");
+static void
+dsme_dbus_name_owner_update(const char *owner)
+{
+    if( owner && !*owner )
+        owner = 0;
 
-        /* Forget cached device state */
-        device_state_changed("UNKNOWN");
+    if( g_strcmp0(dsme_dbus_name_owner_val, owner) ) {
+        log_debug("dsme dbus name owner: %s -> %s",
+                  dsme_dbus_name_owner_val ?: "none",
+                  owner                    ?: "none");
 
-        /* Query current state on dsme startup */
-        if( dsme_is_available ) {
-            device_state_query();
+        g_free(dsme_dbus_name_owner_val),
+            dsme_dbus_name_owner_val = owner ? g_strdup(owner) : 0;
+
+        /* Query current state on dsme startup and initiate
+         * dsmesock connection for process watchdog activity.
+         */
+        if( dsme_dbus_name_owner_val ) {
+            dsme_dbus_device_state_query();
+            dsme_socket_connect();
         }
     }
 }
 
-static DBusPendingCall *dsme_available_pc = 0;
+static DBusPendingCall *dsme_dbus_name_owner_query_pc = 0;
 
-static void dsme_available_cb(const char *owner)
+static void
+dsme_dbus_name_owner_query_cb(const char *owner)
 {
-    dsme_available_changed(owner);
+    dsme_dbus_name_owner_update(owner);
 
-    dbus_pending_call_unref(dsme_available_pc),
-        dsme_available_pc = 0;
+    dbus_pending_call_unref(dsme_dbus_name_owner_query_pc),
+        dsme_dbus_name_owner_query_pc = 0;
 }
 
-static void dsme_available_cancel(void)
+static void
+dsme_dbus_name_owner_query(void)
 {
-    if( dsme_available_pc )
+    dsme_dbus_name_owner_cancel();
+
+    usb_moded_get_name_owner_async(DSME_DBUS_SERVICE,
+                                   dsme_dbus_name_owner_query_cb,
+                                   &dsme_dbus_name_owner_query_pc);
+}
+
+static void
+dsme_dbus_name_owner_cancel(void)
+{
+    if( dsme_dbus_name_owner_query_pc )
     {
-        dbus_pending_call_cancel(dsme_available_pc);
-        dbus_pending_call_unref(dsme_available_pc),
-            dsme_available_pc = 0;
+        dbus_pending_call_cancel(dsme_dbus_name_owner_query_pc);
+        dbus_pending_call_unref(dsme_dbus_name_owner_query_pc),
+            dsme_dbus_name_owner_query_pc = 0;
     }
 }
 
-static void dsme_available_query(void)
-{
-    dsme_available_cancel();
-
-    usb_moded_get_name_owner_async(DSME_DBUS_SERVICE,
-                                   dsme_available_cb,
-                                   &dsme_available_pc);
-}
-
-static void name_owner_signal(DBusMessage *msg)
+static void
+dsme_dbus_name_owner_signal(DBusMessage *msg)
 {
     DBusError   err  = DBUS_ERROR_INIT;
     const char *name = 0;
@@ -280,14 +767,14 @@ static void name_owner_signal(DBusMessage *msg)
     }
     else if( !strcmp(name, DSME_DBUS_SERVICE) )
     {
-        dsme_available_changed(curr);
+        dsme_dbus_name_owner_update(curr);
     }
     dbus_error_free(&err);
 }
 
-/* ========================================================================= *
- * dbus message filter
- * ========================================================================= */
+/* ------------------------------------------------------------------------- *
+ * dbus connection management
+ * ------------------------------------------------------------------------- */
 
 static DBusHandlerResult
 dsme_dbus_filter_cb(DBusConnection *con, DBusMessage *msg, void *user_data)
@@ -299,77 +786,105 @@ dsme_dbus_filter_cb(DBusConnection *con, DBusMessage *msg, void *user_data)
                                DSME_DBUS_SIGNAL_IFACE,
                                DSME_STATE_CHANGE_SIG) )
     {
-        device_state_signal(msg);
+        dsme_dbus_device_state_signal(msg);
     }
     else if( dbus_message_is_signal(msg,
                                     DBUS_INTERFACE_DBUS,
                                     DBUS_NAME_OWNER_CHANGED_SIG) )
     {
-        name_owner_signal(msg);
+        dsme_dbus_name_owner_signal(msg);
     }
 
     return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 }
 
-/* ========================================================================= *
- * start/stop dsme tracking
- * ========================================================================= */
-
-gboolean
-dsme_listener_start(void)
+static bool
+dsme_dbus_init(void)
 {
-    gboolean ack = FALSE;
+    bool ack = false;
 
     /* Get connection ref */
-    if( (dsme_con = usb_moded_dbus_get_connection()) == 0 )
+    if( (dsme_dbus_con = usb_moded_dbus_get_connection()) == 0 )
     {
         log_err("Could not connect to dbus for dsme\n");
         goto cleanup;
     }
 
     /* Add filter callback */
-    if( !dbus_connection_add_filter(dsme_con,
+    if( !dbus_connection_add_filter(dsme_dbus_con,
                                     dsme_dbus_filter_cb , 0, 0) )
     {
         log_err("adding system dbus filter for dsme failed");
         goto cleanup;
     }
 
-    /* Add match without blocking / error checking */
-    dbus_bus_add_match(dsme_con, DSME_STATE_CHANGE_MATCH, 0);
-    dbus_bus_add_match(dsme_con, DSME_OWNER_CHANGE_MATCH, 0);
+    /* Add matches without blocking / error checking */
+    dbus_bus_add_match(dsme_dbus_con, DSME_STATE_CHANGE_MATCH, 0);
+    dbus_bus_add_match(dsme_dbus_con, DSME_OWNER_CHANGE_MATCH, 0);
 
     /* Initiate async dsme name owner query */
-    dsme_available_query();
+    dsme_dbus_name_owner_query();
 
-    ack = TRUE;
+    ack = true;
 
 cleanup:
 
     return ack;
 }
 
-void
-dsme_listener_stop(void)
+static void
+dsme_dbus_quit(void)
 {
-    /* Cancel pending dbus queries */
-    dsme_available_cancel();
-    device_state_cancel();
+    /* Cancel any pending dbus queries */
+    dsme_dbus_name_owner_cancel();
+    dsme_dbus_device_state_cancel();
 
-    if(dsme_con)
+    /* Detach from SystemBus */
+    if(dsme_dbus_con)
     {
         /* Remove filter callback */
-        dbus_connection_remove_filter(dsme_con,
+        dbus_connection_remove_filter(dsme_dbus_con,
                                       dsme_dbus_filter_cb, 0);
 
-        if( dbus_connection_get_is_connected(dsme_con) ) {
-            /* Remove match without blocking / error checking */
-            dbus_bus_remove_match(dsme_con, DSME_STATE_CHANGE_MATCH, 0);
-            dbus_bus_remove_match(dsme_con, DSME_OWNER_CHANGE_MATCH, 0);
+        if( dbus_connection_get_is_connected(dsme_dbus_con) ) {
+            /* Remove matches without blocking / error checking */
+            dbus_bus_remove_match(dsme_dbus_con, DSME_STATE_CHANGE_MATCH, 0);
+            dbus_bus_remove_match(dsme_dbus_con, DSME_OWNER_CHANGE_MATCH, 0);
         }
 
         /* Let go of connection ref */
-        dbus_connection_unref(dsme_con),
-            dsme_con = 0;
+        dbus_connection_unref(dsme_dbus_con),
+            dsme_dbus_con = 0;
     }
+
+    /* Release dynamic resources */
+    g_free(dsme_dbus_name_owner_val),
+        dsme_dbus_name_owner_val = 0;
+}
+
+/* ========================================================================= *
+ * MODULE_API
+ * ========================================================================= */
+
+gboolean
+dsme_listener_start(void)
+{
+    return dsme_dbus_init();
+}
+
+void
+dsme_listener_stop(void)
+{
+    dsme_dbus_quit();
+    dsme_socket_disconnect();
+}
+
+/** Checks if the device is is USER-state.
+ *
+ * @return 1 if it is in USER-state, 0 for not
+ */
+gboolean
+is_in_user_state(void)
+{
+    return dsme_state_is_user();
 }

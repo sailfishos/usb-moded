@@ -99,6 +99,7 @@ PKG_CHECK_MODULES([USB_MODED], [
  libkmod
  ssu-sysinfo
  libsystemd
+ dsme
 ])
 
 AC_SUBST(USB_MODED_LIBS)
