@@ -43,11 +43,65 @@ int android_settings(void)
   return ret;
 }
 
+/** Read android serial number from kernel command line
+ */
+static gchar *get_android_serial(void)
+{
+    static const char path[] = "/proc/cmdline";
+    static const char find[] = "androidboot.serialno=";
+    static const char pbrk[] = " \t\r\n,";
+
+    char   *res  = 0;
+    FILE   *file = 0;
+    size_t  size = 0;
+    char   *data = 0;
+
+    if( !(file = fopen(path, "r")) ) {
+        log_warning("%s: %s: %m", path, "can't open");
+        goto EXIT;
+    }
+
+    if( getline(&data, &size, file) < 0 ) {
+        log_warning("%s: %s: %m", path, "can't read");
+        goto EXIT;
+    }
+
+    char *beg = strstr(data, find);
+    if( !beg ) {
+        log_warning("%s: no serial found", path);
+        goto EXIT;
+    }
+
+    beg += sizeof find - 1;
+    size_t len = strcspn(beg, pbrk);
+    if( len < 1 ) {
+        log_warning("%s: empty serial found", path);
+        goto EXIT;
+    }
+
+    res = g_strndup(beg, len);
+
+EXIT:
+
+    free(data);
+
+    if( file )
+        fclose(file);
+
+    return res;
+}
+
 /** initialize the basic android values
  */
 void android_init_values(void)
 {
-  char *text;
+  gchar *text;
+
+  if( (text = get_android_serial()) )
+  {
+	write_to_file("/sys/class/android_usb/android0/iSerial", text);
+	g_free(text);
+  }
 
   text = get_android_manufacturer();
   if(text)
