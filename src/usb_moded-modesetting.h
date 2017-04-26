@@ -22,9 +22,16 @@
 
 #include "usb_moded-dyn-config.h"
 
-int write_to_file(const char *path, const char *text);
+int write_to_file_real(const char *file, int line, const char *func, const char *path, const char *text);
+
+#define write_to_file(path,text)\
+   write_to_file_real(__FILE__,__LINE__,__FUNCTION__,(path),(text))
+
 int set_mtp_mode(void);
 int set_dynamic_mode(void);
 void unset_dynamic_mode(void);
 /* clean up for the mode changes on disconnect */
 int usb_moded_mode_cleanup(const char *module);
+void usb_moded_mode_verify_values(void);
+void usb_moded_mode_init(void);
+void usb_moded_mode_quit(void);

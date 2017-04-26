@@ -1279,7 +1279,7 @@ int main(int argc, char* argv[])
 	 * - - - - - - - - - - - - - - - - - - - */
 
 	/* silence usb_moded_system() calls */
-	if(log_type != LOG_TO_STDERR || log_level != LOG_DEBUG )	
+	if(log_type != LOG_TO_STDERR && log_level != LOG_DEBUG )
 	{
 		freopen("/dev/null", "a", stdout);
 		freopen("/dev/null", "a", stderr);
@@ -1337,6 +1337,7 @@ int main(int argc, char* argv[])
 #endif
 
 	/* Set daemon config/state data to sane state */
+	usb_moded_mode_init();
 	usb_moded_init();
 
 	/* Allos making systemd control ipc */
@@ -1449,6 +1450,7 @@ EXIT:
 
 	/* Release dynamically allocated config/state data */
 	usb_moded_cleanup();
+	usb_moded_mode_quit();
 
 	/* Detach from SessionBus connection used for APP_SYNC_DBUS.
 	 *

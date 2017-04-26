@@ -14,8 +14,9 @@ BuildRequires: pkgconfig(glib-2.0)
 BuildRequires: pkgconfig(udev)
 BuildRequires: pkgconfig(libkmod)
 BuildRequires: doxygen
-BuildRequires: pkgconfig(libsystemd-daemon)
+BuildRequires: pkgconfig(libsystemd)
 BuildRequires: pkgconfig(ssu-sysinfo)
+BuildRequires: pkgconfig(dsme)
 
 Requires: lsof
 Requires: usb-moded-configs
