@@ -1279,7 +1279,7 @@ int main(int argc, char* argv[])
 	 * - - - - - - - - - - - - - - - - - - - */
 
 	/* silence usb_moded_system() calls */
-	if(log_type != LOG_TO_STDERR || log_level != LOG_DEBUG )	
+	if(log_type != LOG_TO_STDERR && log_level != LOG_DEBUG )
 	{
 		freopen("/dev/null", "a", stdout);
 		freopen("/dev/null", "a", stderr);
