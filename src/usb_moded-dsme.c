@@ -98,7 +98,6 @@ static gboolean           dsme_socket_recv_cb                   (GIOChannel *sou
 static bool               dsme_socket_is_connected              (void);
 static bool               dsme_socket_connect                   (void);
 static void               dsme_socket_disconnect                (void);
-static void               dsme_socket_reconnect                 (void);
 
 /* ------------------------------------------------------------------------- *
  * DSME_DBUS_IPC
@@ -273,6 +272,9 @@ dsme_state_update(dsme_state_t state)
         dsme_shutdown_state = shutdown_state;
         log_debug("in shutdown: %s", dsme_shutdown_state ? "true" : "false");
 
+	/* Re-evaluate dsmesock connection */
+	if( !dsme_shutdown_state )
+	    dsme_socket_connect();
     }
 }
 
@@ -324,10 +326,6 @@ dsme_socket_send_message(gpointer msg, const char *request_name)
     if( dsmesock_send(dsme_socket_con, msg) == -1) {
         log_err("failed to send %s to dsme; %m",
                 request_name);
-
-        /* close and try to re-connect */
-        dsme_socket_reconnect();
-        goto EXIT;
     }
 
     log_debug("%s sent to DSME", request_name);
@@ -477,6 +475,14 @@ dsme_socket_connect(void)
 {
     GIOChannel *iochan = NULL;
 
+    /* No new connections during shutdown */
+    if( dsme_state_is_shutdown() )
+        goto EXIT;
+
+    /* No new connections uness dsme dbus service is available */
+    if( !dsme_dbus_name_owner_available() )
+	goto EXIT;
+
     /* Already connected ? */
     if( dsme_socket_iowatch )
         goto EXIT;
@@ -521,13 +527,15 @@ EXIT:
 static void
 dsme_socket_disconnect(void)
 {
-    if( dsme_socket_is_connected() )
-        dsme_socket_processwd_quit();
-
     if( dsme_socket_iowatch ) {
         log_debug("Removing DSME socket notifier");
         g_source_remove(dsme_socket_iowatch);
         dsme_socket_iowatch = 0;
+
+        /* Still having had a live socket notifier means we have
+         * initiated the dsmesock disconnect and need to deactivate
+         * the process watchdog before actually disconnecting */
+        dsme_socket_processwd_quit();
     }
 
     if( dsme_socket_con ) {
@@ -535,19 +543,6 @@ dsme_socket_disconnect(void)
         dsmesock_close(dsme_socket_con);
         dsme_socket_con = 0;
     }
-
-    // FIXME: should we assume something about the system state?
-}
-
-/** Close dsmesock connection and reconnect if/when dsme is available
- */
-static void
-dsme_socket_reconnect(void)
-{
-    dsme_socket_disconnect();
-
-    if( dsme_dbus_name_owner_available() && !dsme_state_is_shutdown() )
-        dsme_socket_connect();
 }
 
 /* ========================================================================= *
