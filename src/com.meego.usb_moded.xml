@@ -30,6 +30,9 @@
     <method name="get_modes">
       <arg name="modes" type="s" direction="out"/>
     </method>
+    <method name="get_available_modes">
+      <arg name="modes" type="s" direction="out"/>
+    </method>
     <method name="hide_mode">
       <arg name="mode" type="s" direction="in"/>
       <arg name="mode" type="s" direction="out"/>
@@ -41,6 +44,16 @@
     <method name="get_hidden">
       <arg name="modes" type="s" direction="out"/>
     </method>
+    <method name="get_whitelisted_modes">
+      <arg name="modes" type="s" direction="out"/>
+    </method>
+    <method name="set_whitelisted_modes">
+      <arg name="modes" type="s" direction="in"/>
+    </method>
+    <method name="set_whitelisted">
+      <arg name="mode" type="s" direction="in"/>
+      <arg name="whitelisted" type="b" direction="in"/>
+    </method>
     <method name="rescue_off"/>
     <signal name="sig_usb_state_ind">
       <arg name="mode" type="s"/>
@@ -51,12 +64,18 @@
     <signal name="sig_usb_supported_modes_ind">
       <arg name="modes" type="s"/>
     </signal>
+    <signal name="sig_usb_available_modes_ind">
+      <arg name="modes" type="s"/>
+    </signal>
     <signal name="sig_usb_config_ind">
       <arg name="section" type="s"/>
       <arg name="key" type="s"/>
       <arg name="value" type="s"/>
     </signal>
     <signal name="sig_usb_hidden_modes_ind">
+      <arg name="modes" type="s"/>
+    </signal>
+    <signal name="sig_usb_whitelisted_modes_ind">
       <arg name="modes" type="s"/>
     </signal>
   </interface>

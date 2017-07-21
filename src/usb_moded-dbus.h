@@ -38,6 +38,8 @@
 #define USB_MODE_ERROR_SIGNAL_NAME	"sig_usb_state_error_ind"
 #define USB_MODE_SUPPORTED_MODES_SIGNAL_NAME "sig_usb_supported_modes_ind"
 #define USB_MODE_HIDDEN_MODES_SIGNAL_NAME "sig_usb_hidden_modes_ind"
+#define USB_MODE_WHITELISTED_MODES_SIGNAL_NAME "sig_usb_whitelisted_modes_ind"
+#define USB_MODE_AVAILABLE_MODES_SIGNAL_NAME "sig_usb_available_modes_ind"
 
 /* supported methods */
 #define USB_MODE_STATE_REQUEST	"mode_request"  /* returns the current mode */
@@ -51,6 +53,10 @@
 #define USB_MODE_CONFIG_SET	"set_config"	/* set the mode that needs to be activated in the config file */
 #define USB_MODE_NETWORK_SET	"net_config"    /* set the network config in the config file */
 #define USB_MODE_NETWORK_GET	"get_net_config"    /* get the network config from the config file */
+#define USB_MODE_WHITELISTED_MODES_GET "get_whitelisted_modes" /* get the list of whitelisted modes */
+#define USB_MODE_WHITELISTED_MODES_SET "set_whitelisted_modes" /* set the list of whitelisted modes */
+#define USB_MODE_WHITELISTED_SET "set_whitelisted" /* sets whether an specific mode is in the whitelist */
+#define USB_MODE_AVAILABLE_MODES_GET "get_available_modes" /* returns a comma separated list of modes which are currently available for selection */
 
 /**
  * (Transient) states reported by "sig_usb_state_ind" that are not modes.

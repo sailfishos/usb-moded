@@ -137,6 +137,19 @@ static const char introspect_usb_moded[] =
 "    <method name=\"" USB_MODE_LIST "\">\n"
 "      <arg name=\"modes\" type=\"s\" direction=\"out\"/>\n"
 "    </method>\n"
+"    <method name=\"" USB_MODE_AVAILABLE_MODES_GET "\">\n"
+"      <arg name=\"modes\" type=\"s\" direction=\"out\"/>\n"
+"    </method>\n"
+"    <method name=\"" USB_MODE_WHITELISTED_MODES_GET "\">\n"
+"      <arg name=\"modes\" type=\"s\" direction=\"out\"/>\n"
+"    </method>\n"   
+"    <method name=\"" USB_MODE_WHITELISTED_MODES_SET "\">"
+"      <arg name=\"modes\" type=\"s\" direction=\"in\"/>"
+"    </method>"
+"    <method name=\"" USB_MODE_WHITELISTED_SET "\">"
+"      <arg name=\"mode\" type=\"s\" direction=\"in\"/>"
+"      <arg name=\"whitelisted\" type=\"b\" direction=\"in\"/>"
+"     </method>"
 "    <method name=\"" USB_MODE_RESCUE_OFF "\"/>\n"
 "    <signal name=\"" USB_MODE_SIGNAL_NAME "\">\n"
 "      <arg name=\"mode\" type=\"s\"/>\n"
@@ -146,6 +159,12 @@ static const char introspect_usb_moded[] =
 "    </signal>\n"
 "    <signal name=\"" USB_MODE_SUPPORTED_MODES_SIGNAL_NAME "\">\n"
 "      <arg name=\"modes\" type=\"s\"/>\n"
+"    </signal>\n"
+"    <signal name=\"" USB_MODE_AVAILABLE_MODES_SIGNAL_NAME "\">\n"
+"      <arg name=\"modes\" type=\"s\">\n"
+"    </signal>\n"
+"    <signal name=\"" USB_MODE_WHITELISTED_MODES_SIGNAL_NAME "\">\n"
+"      <arg name=\"modes\" type=\"s\">\n"
 "    </signal>\n"
 "    <signal name=\"" USB_MODE_CONFIG_SIGNAL_NAME "\">\n"
 "      <arg name=\"section\" type=\"s\"/>\n"
@@ -368,10 +387,18 @@ error_reply:
 	}
 	else if(!strcmp(member, USB_MODE_LIST))
 	{
-		 gchar *mode_list = get_mode_list();
+		gchar *mode_list = get_mode_list(SUPPORTED_MODES_LIST);
 
                 if((reply = dbus_message_new_method_return(msg)))
                         dbus_message_append_args (reply, DBUS_TYPE_STRING, (const char *) &mode_list, DBUS_TYPE_INVALID);
+		g_free(mode_list);
+	}
+	else if(!strcmp(member, USB_MODE_AVAILABLE_MODES_GET))
+	{
+		gchar *mode_list = get_mode_list(AVAILABLE_MODES_LIST);
+
+		if((reply = dbus_message_new_method_return(msg)))
+			dbus_message_append_args (reply, DBUS_TYPE_STRING, (const char *) &mode_list, DBUS_TYPE_INVALID);
 		g_free(mode_list);
 	}
 	else if(!strcmp(member, USB_MODE_RESCUE_OFF))
@@ -379,6 +406,65 @@ error_reply:
 		rescue_mode = FALSE;
 		log_debug("Rescue mode off\n ");
 		reply = dbus_message_new_method_return(msg);
+	}
+	else if(!strcmp(member, USB_MODE_WHITELISTED_MODES_GET))
+	{
+		gchar *mode_list = get_mode_whitelist();
+
+		if(!mode_list)
+			mode_list = g_strdup("");
+
+		if((reply = dbus_message_new_method_return(msg)))
+			dbus_message_append_args(reply, DBUS_TYPE_STRING, &mode_list, DBUS_TYPE_INVALID);
+		g_free(mode_list);
+	}
+	else if(!strcmp(member, USB_MODE_WHITELISTED_MODES_SET))
+	{
+		const char *whitelist = 0;
+		DBusError err = DBUS_ERROR_INIT;
+
+		if (!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &whitelist, DBUS_TYPE_INVALID))
+			reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
+		else
+		{
+			int ret = set_mode_whitelist(whitelist);
+			if (ret == SET_CONFIG_UPDATED)
+                                usb_moded_send_config_signal(MODE_SETTING_ENTRY, MODE_WHITELIST_KEY, whitelist);
+			if (SET_CONFIG_OK(ret))
+			{
+				if ((reply = dbus_message_new_method_return(msg)))
+					dbus_message_append_args(reply, DBUS_TYPE_STRING, &whitelist, DBUS_TYPE_INVALID);
+			}
+			else
+                                reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, whitelist);
+		}
+		dbus_error_free(&err);
+	}
+	else if (!strcmp(member, USB_MODE_WHITELISTED_SET))
+	{
+		const char *mode = 0;
+		dbus_bool_t enabled = FALSE;
+		DBusError err = DBUS_ERROR_INIT;
+
+                if (!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &mode, DBUS_TYPE_BOOLEAN, &enabled, DBUS_TYPE_INVALID))
+			reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
+		else
+		{
+			int ret = set_mode_in_whitelist(mode, enabled);
+			if (ret == SET_CONFIG_UPDATED) 
+			{
+				char *whitelist = get_mode_whitelist(); 
+				if (!whitelist)
+					whitelist = g_strdup(MODE_UNDEFINED);
+				usb_moded_send_config_signal(MODE_SETTING_ENTRY, MODE_WHITELIST_KEY, whitelist);
+				g_free(whitelist);
+			}
+			if (SET_CONFIG_OK(ret))
+                                reply = dbus_message_new_method_return(msg);
+			else
+				reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, mode);
+		}
+		dbus_error_free(&err);
 	}
 	else
 	{
@@ -682,6 +768,18 @@ int usb_moded_send_supported_modes_signal(const char *supported_modes)
 }
 
 /**
+ * Send regular usb_moded mode list signal
+ *
+ * @return 0 on success, 1 on failure
+ * @param available_modes list of available modes
+ *
+*/
+int usb_moded_send_available_modes_signal(const char *available_modes)
+{
+  return(usb_moded_dbus_signal(USB_MODE_AVAILABLE_MODES_SIGNAL_NAME, available_modes));
+}
+
+/**
  * Send regular usb_moded hidden mode list signal
  *
  * @return 0 on success, 1 on failure
@@ -691,6 +789,17 @@ int usb_moded_send_supported_modes_signal(const char *supported_modes)
 int usb_moded_send_hidden_modes_signal(const char *hidden_modes)
 {
   return(usb_moded_dbus_signal(USB_MODE_HIDDEN_MODES_SIGNAL_NAME, hidden_modes));
+}
+
+/**
+ * Send regular usb_moded whitelisted mode list signal
+ *
+ * @return 0 on success, 1 on failure
+ * @param whitelist list of allowed modes
+ */
+int usb_moded_send_whitelisted_modes_signal(const char *whitelist)
+{
+  return(usb_moded_dbus_signal(USB_MODE_WHITELISTED_MODES_SIGNAL_NAME, whitelist));
 }
 
 /** Async reply handler for usb_moded_get_name_owner_async()

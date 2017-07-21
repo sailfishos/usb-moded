@@ -50,8 +50,14 @@ int usb_moded_send_error_signal(const char *error);
 /* send supported modes signal system bus */
 int usb_moded_send_supported_modes_signal(const char *supported_modes);
 
+/* send available modes signal system bus */
+int usb_moded_send_available_modes_signal(const char *available_modes);
+
 /* send hidden modes signal system bus */
 int usb_moded_send_hidden_modes_signal(const char *hidden_modes);
+
+/* send whitelisted modes signal system bus */
+int usb_moded_send_whitelisted_modes_signal(const char *hidden_modes);
 
 /* Callback function type used with usb_moded_get_name_owner_async() */
 typedef void (*usb_moded_get_name_owner_fn)(const char *owner);

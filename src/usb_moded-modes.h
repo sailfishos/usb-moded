@@ -46,4 +46,6 @@
 #define MODE_CHARGER		"dedicated_charger"
 
 void send_supported_modes_signal(void);
+void send_available_modes_signal(void);
 void send_hidden_modes_signal(void);
+void send_whitelisted_modes_signal(void);
