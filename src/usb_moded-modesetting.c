@@ -30,6 +30,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <sys/stat.h>
 #include <limits.h>
 
@@ -87,7 +88,7 @@ void usb_moded_mode_verify_values(void)
              * values used in configuration files vs what we get
              * back when reading from kernel interfaces. */
             if( text && curr && !g_ascii_strcasecmp(text, curr) ) {
-                log_debug("unexpected change '%s' : '%s' -> '%s'", path,
+                log_debug("unexpected change '%s' : '%s' -> '%s' (case diff only)", path,
                           text ?: "???",
                           curr ?: "???");
             }
@@ -169,26 +170,35 @@ int write_to_file_real(const char *file, int line, const char *func,
   int fd = -1;
   size_t todo = 0;
   char *prev = 0;
+  bool  clear = false;
 
   /* if either path or the text to be written are not there
      we return an error */
   if(!text || !path)
 	return err;
 
-  /* There are usb-moded configuration files and code that use
-   * "none" as a place-holder for no-function. Attempting to
-   * write that into sysfs leads to journal spamming due to
-   * EINVAL error return. Substituting "none" with an empty
-   * string avoids that. */
-  if( !strcmp(path, "/sys/class/android_usb/android0/functions") &&
-      !strcmp(text, "none") ) {
-    text = "";
+  /* When attempting to clear ffs function list, writing an
+   * empty string is ignored and accomplishes nothing - while
+   * writing non-existing function clears the list but returns
+   * write error.
+   *
+   * Treat "none" (which is used as place-holder value in both
+   * configuration files and usb-moded sources) and "" similarly:
+   * - Write invalid function name to sysfs
+   * - Ignore resulting write error under default logging level
+   * - Assume reading from sysfs will result in empty string
+   */
+  if( !strcmp(path, "/sys/class/android_usb/android0/functions") ) {
+    if( !strcmp(text, "") || !strcmp(text, "none") ) {
+      text = "none";
+      clear = true;
+    }
   }
 
   /* If the file can be read, it also means we can later check that
    * the file retains the value we are about to write here. */
   if( (prev = read_from_file(path, 0x1000)) )
-      usb_moded_mode_track_value(path, text);
+        usb_moded_mode_track_value(path, clear ? "" : text);
 
   log_debug("%s:%d: %s(): WRITE '%s' : '%s' --> '%s'",
             file, line, func,
@@ -208,7 +218,10 @@ int write_to_file_real(const char *file, int line, const char *func,
     ssize_t n = TEMP_FAILURE_RETRY(write(fd, text, todo));
     if( n < 0 )
     {
-      log_warning("write(%s): %m", path);
+        if( clear && errno == EINVAL )
+            log_debug("write(%s): %m (expected failure)", path);
+        else
+            log_warning("write(%s): %m", path);
       goto cleanup;
     }
     todo -= n;
