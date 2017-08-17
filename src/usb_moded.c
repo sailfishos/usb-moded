@@ -70,10 +70,6 @@
 static int usb_moded_exitcode = EXIT_FAILURE;
 static GMainLoop *usb_moded_mainloop = NULL;
 
-extern const char *log_name;
-extern int log_level;
-extern int log_type;
-
 gboolean rescue_mode = FALSE;
 gboolean diag_mode = FALSE;
 gboolean hw_fallback = FALSE;
@@ -782,6 +778,7 @@ static void usage(void)
 		  "  -f,  --fallback	  \tassume always connected\n"
                   "  -s,  --force-syslog  \t\tlog to syslog\n"
                   "  -T,  --force-stderr  \t\tlog to stderr\n"
+                  "  -l,  --log-line-info \t\tlog to stderr and show origin of logging\n"
                   "  -D,  --debug	  \t\tturn on debug printing\n"
 		  "  -d,  --diag	  \t\tturn on diag mode\n"
                   "  -h,  --help          \t\tdisplay this help and exit\n"
@@ -1198,6 +1195,7 @@ int main(int argc, char* argv[])
                 { "fallback", no_argument, 0, 'd' },
                 { "force-syslog", no_argument, 0, 's' },
                 { "force-stderr", no_argument, 0, 'T' },
+                { "log-line-info", no_argument, 0, 'l' },
                 { "debug", no_argument, 0, 'D' },
                 { "diag", no_argument, 0, 'd' },
                 { "help", no_argument, 0, 'h' },
@@ -1209,14 +1207,14 @@ int main(int argc, char* argv[])
         };
 
 	log_init();
-	log_name = basename(*argv);
+	log_set_name(basename(*argv));
 
 	/* - - - - - - - - - - - - - - - - - - - *
 	 * OPTIONS
 	 * - - - - - - - - - - - - - - - - - - - */
 
 	 /* Parse the command-line options */
-        while ((opt = getopt_long(argc, argv, "aifsTDdhrnvm:", options, &opt_idx)) != -1)
+        while ((opt = getopt_long(argc, argv, "aifsTlDdhrnvm:", options, &opt_idx)) != -1)
 	{
                 switch (opt) 
 		{
@@ -1230,16 +1228,21 @@ int main(int argc, char* argv[])
 				hw_fallback = TRUE;
 				break;
 		        case 's':
-                        	log_type = LOG_TO_SYSLOG;
+                        	log_set_type(LOG_TO_SYSLOG);
                         	break;
 
                 	case 'T':
-                        	log_type = LOG_TO_STDERR;
+                        	log_set_type(LOG_TO_STDERR);
                         	break;
 
                 	case 'D':
-                        	log_level = LOG_DEBUG;
+                        	log_set_level(LOG_DEBUG);
                         	break;
+
+			case 'l':
+				log_set_type(LOG_TO_STDERR);
+				log_set_lineinfo(true);
+				break;
 
 			case 'd':
 				diag_mode = TRUE;
@@ -1279,7 +1282,7 @@ int main(int argc, char* argv[])
 	 * - - - - - - - - - - - - - - - - - - - */
 
 	/* silence usb_moded_system() calls */
-	if(log_type != LOG_TO_STDERR && log_level != LOG_DEBUG )
+	if( log_get_type() != LOG_TO_STDERR && log_get_level() != LOG_DEBUG )
 	{
 		freopen("/dev/null", "a", stdout);
 		freopen("/dev/null", "a", stderr);
