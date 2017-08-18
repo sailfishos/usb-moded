@@ -54,7 +54,8 @@ extern gboolean rescue_mode;
 */
 static void usb_moded_send_config_signal(const char *section, const char *key, const char *value)
 {
-  log_debug(USB_MODE_CONFIG_SIGNAL_NAME ": %s %s %s\n", section, key, value);
+  log_debug("broadcast signal %s(%s, %s, %s)\n", USB_MODE_CONFIG_SIGNAL_NAME, section, key, value);
+
   if( !have_service_name )
   {
 	log_err("config notification without service: [%s] %s=%s",
@@ -602,6 +603,8 @@ static int usb_moded_dbus_signal(const char *signal_type, const char *content)
 {
   int result = 1;
   DBusMessage* msg = 0;
+
+  log_debug("broadcast signal %s(%s)\n", signal_type, content);
 
   if( !have_service_name )
   {

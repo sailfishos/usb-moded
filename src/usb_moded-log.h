@@ -20,6 +20,7 @@
   02110-1301 USA
 */
 
+#include <stdbool.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -28,9 +29,6 @@
 #include <syslog.h>
 
 /* Logging functionality */
-extern const char *log_name;
-extern int log_level;
-extern int log_type;
 
 #define LOG_ENABLE_DEBUG      01
 #define LOG_ENABLE_TIMESTAMPS 01
@@ -45,25 +43,38 @@ enum
              
 void log_set_level(int lev); 
 int log_get_level(void);
+int log_get_type(void);
+void log_set_type(int type);
+const char *log_get_name(void);
+void log_set_name(const char *name);
+void log_set_lineinfo(bool lineinfo);
+bool log_get_lineinfo(void);
 
 void log_init(void);
-void log_emit_va(int lev, const char *fmt, va_list va);
-void log_emit(int lev, const char *fmt, ...) __attribute__((format(printf,2,3)));
+void log_emit_va(const char *file, const char *func, int line, int lev, const char *fmt, va_list va);
+void log_emit_real(const char *file, const char *func, int line, int lev, const char *fmt, ...) __attribute__((format(printf,5,6)));
 void log_debugf(const char *fmt, ...) __attribute__((format(printf,1,2)));
+bool log_p(int lev);
 
-#define log_crit(...)      log_emit(2, __VA_ARGS__)
-#define log_err(...)       log_emit(3, __VA_ARGS__)
-#define log_warning(...)   log_emit(4, __VA_ARGS__)
+#define log_emit(LEV, FMT, ARGS...) do {\
+        if( log_p(LEV) ) {\
+                log_emit_real(__FILE__,__FUNCTION__,__LINE__, LEV, FMT, ##ARGS);\
+        }\
+} while(0)
+
+#define log_crit(    FMT, ARGS...)   log_emit(LOG_CRIT,    FMT, ##ARGS)
+#define log_err(     FMT, ARGS...)   log_emit(LOG_ERR,     FMT, ##ARGS)
+#define log_warning( FMT, ARGS...)   log_emit(LOG_WARNING, FMT, ##ARGS)
 
 #if LOG_ENABLE_DEBUG
-# define log_notice(...)   log_emit(5, __VA_ARGS__)
-# define log_info(...)     log_emit(6, __VA_ARGS__)
-# define log_debug(...)    log_emit(7, __VA_ARGS__)
+# define log_notice( FMT, ARGS...)   log_emit(LOG_NOTICE,  FMT, ##ARGS)
+# define log_info(   FMT, ARGS...)   log_emit(LOG_INFO,    FMT, ##ARGS)
+# define log_debug(  FMT, ARGS...)   log_emit(LOG_DEBUG,   FMT, ##ARGS)
 #else
-# define log_notice(...)   do{}while(0)
-# define log_info(...)     do{}while(0)
-# define log_debug(...)    do{}while(0)
+# define log_notice( FMT, ARGS...)   do{}while(0)
+# define log_info(   FMT, ARGS...)   do{}while(0)
+# define log_debug(  FMT, ARGS...)   do{}while(0)
 
-# define log_debugf(...)   do{}while(0)
+# define log_debugf( FMT, ARGS...)   do{}while(0)
 #endif
 
