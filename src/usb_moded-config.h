@@ -58,6 +58,7 @@
 #define ANDROID_PRODUCT_KEY		"iProduct"
 #define ANDROID_PRODUCT_ID_KEY		"idProduct"
 #define MODE_HIDE_KEY			"hide"
+#define MODE_WHITELIST_KEY		"whitelist"
 
 char * find_mounts(void);
 int find_sync(void);
@@ -80,6 +81,7 @@ char * get_android_product(void);
 char * get_android_product_id(void);
 
 char * get_hidden_modes(void);
+char * get_mode_whitelist(void);
 
 int check_android_section(void);
 

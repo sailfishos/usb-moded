@@ -334,6 +334,19 @@ void set_usb_connected_state(void)
 	if(!strcmp(mode_to_set, current_mode.mode))
 		goto end;
 
+	if (!strcmp(MODE_ASK, mode_to_set))
+	{
+		/*! If charging mode is the only available selection, don't ask
+ 		 just select it */
+		gchar *available_modes = get_mode_list(AVAILABLE_MODES_LIST);
+		if (!strcmp(MODE_CHARGING, available_modes)) {
+			gchar *temp = mode_to_set;
+			mode_to_set = available_modes;
+			available_modes = temp;
+		}
+		g_free(available_modes);
+	}
+
 	if(!strcmp(MODE_ASK, mode_to_set))
 	{
 		/* send signal, mode will be set when the dialog service calls
@@ -475,6 +488,22 @@ end:
     usb_moded_send_signal(get_usb_mode());
 }
 
+/* check if a mode is in a list */
+static bool mode_in_list(const char *mode, char * const *modes)
+{
+  int i;
+
+  if (!modes)
+    return false;
+
+  for(i = 0; modes[i] != NULL; i++)
+  {
+    if(!strcmp(modes[i], mode))
+      return true;
+  }
+  return false;
+}
+
 /** check if a given usb_mode exists
  *
  * @param mode The mode to look for
@@ -483,13 +512,23 @@ end:
  */
 int valid_mode(const char *mode)
 {
-
+  int valid = 1;
   /* MODE_ASK, MODE_CHARGER and MODE_CHARGING_FALLBACK are not modes that are settable seen their special 'internal' status 
      so we only check the modes that are announed outside. Only exception is the built in MODE_CHARGING */
   if(!strcmp(MODE_CHARGING, mode))
-	return(0);
+        valid = 0;
   else
   {
+    char *whitelist;
+    gchar **whitelist_split = NULL;
+
+    whitelist = get_mode_whitelist();
+    if (whitelist)
+    {
+      whitelist_split = g_strsplit(whitelist, ",", 0);
+      g_free(whitelist);
+    }
+
     /* check dynamic modes */
     if(modelist)
     {
@@ -498,34 +537,30 @@ int valid_mode(const char *mode)
       for( iter = modelist; iter; iter = g_list_next(iter) )
       {
         struct mode_list_elem *data = iter->data;
-	if(!strcmp(mode, data->mode_name))
-		return(0);
+        if(!strcmp(mode, data->mode_name))
+        {
+          if (!whitelist_split || mode_in_list(data->mode_name, whitelist_split))
+            valid = 0;
+          break;
+        }
       }
+
+      g_strfreev(whitelist_split);
     }
   }
-  return(1);
+  return valid;
 
 }
 
 /** make a list of all available usb modes
  *
+ * @param type The type of list to return. Supported or available.
  * @return a comma-separated list of modes (MODE_ASK not included as it is not a real mode)
  *
  */
-gchar *get_mode_list(void)
+gchar *get_mode_list(mode_list_type_t type)
 {
-
   GString *modelist_str;
-  char *hidden_modes_list;
-  gchar **hidden_mode_split = NULL;
-  int hiddenmode = 0, i;
-
-
-  hidden_modes_list = get_hidden_modes();
-  if(hidden_modes_list)
-  {
-    hidden_mode_split = g_strsplit(hidden_modes_list, ",", 0);
-  }
 
   modelist_str = g_string_new(NULL);
 
@@ -535,29 +570,45 @@ gchar *get_mode_list(void)
     if(modelist)
     {
       GList *iter;
+      char *hidden_modes_list, *whitelist;
+      gchar **hidden_mode_split = NULL, **whitelist_split = NULL;
+
+      hidden_modes_list = get_hidden_modes();
+      if(hidden_modes_list)
+      {
+        hidden_mode_split = g_strsplit(hidden_modes_list, ",", 0);
+        g_free(hidden_modes_list);
+      }
+
+      if (type == AVAILABLE_MODES_LIST)
+      {
+        whitelist = get_mode_whitelist();
+        if (whitelist)
+        {
+          whitelist_split = g_strsplit(whitelist, ",", 0);
+          g_free(whitelist);
+        }
+      }
 
       for( iter = modelist; iter; iter = g_list_next(iter) )
       {
         struct mode_list_elem *data = iter->data;
-	if(hidden_modes_list && hidden_mode_split)
-          for(i = 0; hidden_mode_split[i] != NULL; i++)
-	  {
-             if(!strcmp(hidden_mode_split[i], data->mode_name))
-		hiddenmode = 1;
-          }
 
-        if(hiddenmode)
-	{
-	  hiddenmode = 0;
-	  continue;
-	}
+        /* skip items in the hidden list */
+        if (mode_in_list(data->mode_name, hidden_mode_split))
+          continue;
+
+        /* if there is a whitelist skip items not in the list */
+        if (whitelist_split && !mode_in_list(data->mode_name, whitelist_split))
+          continue;
+
 	modelist_str = g_string_append(modelist_str, data->mode_name);
 	modelist_str = g_string_append(modelist_str, ", ");
       }
-    }
 
-  if(hidden_mode_split)
-    g_strfreev(hidden_mode_split);
+      g_strfreev(hidden_mode_split);
+      g_strfreev(whitelist_split);
+    }
 
     /* end with charging mode */
     g_string_append(modelist_str, MODE_CHARGING);
@@ -759,6 +810,7 @@ static void sigint_handler(int signum)
         modelist = read_mode_list(diag_mode);
 
         send_supported_modes_signal();
+        send_available_modes_signal();
     }
     else
     {
@@ -794,8 +846,15 @@ static void usage(void)
 void send_supported_modes_signal(void)
 {
     /* Send supported modes signal */
-    gchar *mode_list = get_mode_list();
+    gchar *mode_list = get_mode_list(SUPPORTED_MODES_LIST);
     usb_moded_send_supported_modes_signal(mode_list);
+    g_free(mode_list);
+}
+
+void send_available_modes_signal(void)
+{
+    gchar *mode_list = get_mode_list(AVAILABLE_MODES_LIST);
+    usb_moded_send_available_modes_signal(mode_list);
     g_free(mode_list);
 }
 
@@ -805,6 +864,15 @@ void send_hidden_modes_signal(void)
     gchar *mode_list = get_hidden_modes();
     if(mode_list) {
         usb_moded_send_hidden_modes_signal(mode_list);
+        g_free(mode_list);
+    }
+}
+
+void send_whitelisted_modes_signal(void)
+{
+    gchar *mode_list = get_mode_whitelist();
+    if(mode_list) {
+        usb_moded_send_whitelisted_modes_signal(mode_list);
         g_free(mode_list);
     }
 }
@@ -1387,7 +1455,9 @@ int main(int argc, char* argv[])
 	/* Broadcast supported / hidden modes */
 	// TODO: should this happen before hwal_init()?
         send_supported_modes_signal();
+        send_available_modes_signal();
         send_hidden_modes_signal();
+        send_whitelisted_modes_signal();
 
 	/* Act on '--fallback' commandline option */
 	if(hw_fallback)

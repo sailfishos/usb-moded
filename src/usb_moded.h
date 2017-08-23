@@ -58,6 +58,11 @@ typedef struct usb_mode
   /*@}*/
 }usb_mode;
 
+typedef enum mode_list_type_t {
+    SUPPORTED_MODES_LIST,
+    AVAILABLE_MODES_LIST
+} mode_list_type_t;
+
 void set_usb_connected(gboolean connected);
 void set_usb_connected_state(void);
 void set_usb_mode(const char *mode);
@@ -70,7 +75,8 @@ struct mode_list_elem * get_usb_mode_data(void);
 gboolean get_usb_connection_state(void);
 void set_usb_connection_state(gboolean state);
 void set_charger_connected(gboolean state);
-gchar *get_mode_list(void);
+gchar *get_mode_list(mode_list_type_t type);
+gchar *get_available_mode_list(void);
 int valid_mode(const char *mode);
 
 /** Name of the wakelock usb_moded uses for temporary suspend delay */

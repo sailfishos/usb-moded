@@ -41,6 +41,7 @@
 #include "usb_moded-config-private.h"
 #include "usb_moded-log.h"
 #include "usb_moded-modes.h"
+#include "usb_moded-modesetting.h"
 
 #ifdef USE_MER_SSU
 # include "usb_moded-ssu.h"
@@ -403,75 +404,77 @@ set_config_result_t set_config_setting(const char *entry, const char *key, const
 
 set_config_result_t set_mode_setting(const char *mode)
 {
+  if (strcmp(mode, MODE_ASK) && valid_mode(mode))
+    return SET_CONFIG_ERROR;
   return (set_config_setting(MODE_SETTING_ENTRY, MODE_SETTING_KEY, mode));
 }
 
 /* Builds the string used for hidden modes, when hide set to one builds the
    new string of hidden modes when adding one, otherwise it will remove one */
-static char * make_hidden_modes_string(const char *mode_name, int hide)
+static char * make_modes_string(const char *key, const char *mode_name, int include)
 {
-  char     *hidden_new = 0;
-  char     *hidden_old = 0;
-  gchar   **hidden_arr = 0;
-  GString  *hidden_tmp = 0;
+  char     *modes_new = 0;
+  char     *modes_old = 0;
+  gchar   **modes_arr = 0;
+  GString  *modes_tmp = 0;
   int i;
 
   /* Get current comma separated list of hidden modes */
-  hidden_old = get_hidden_modes();
-  if(!hidden_old)
+  modes_old = get_conf_string(MODE_SETTING_ENTRY, key);
+  if(!modes_old)
   {
-    hidden_old = g_strdup("");
+    modes_old = g_strdup("");
   }
 
-  hidden_arr = g_strsplit(hidden_old, ",", 0);
+  modes_arr = g_strsplit(modes_old, ",", 0);
 
-  hidden_tmp = g_string_new(NULL);
+  modes_tmp = g_string_new(NULL);
 
-  for(i = 0; hidden_arr[i] != NULL; i++)
+  for(i = 0; modes_arr[i] != NULL; i++)
   {
-    if(strlen(hidden_arr[i]) == 0)
+    if(strlen(modes_arr[i]) == 0)
     {
       /* Skip any empty strings */
       continue;
     }
 
-    if(!strcmp(hidden_arr[i], mode_name))
+    if(!strcmp(modes_arr[i], mode_name))
     {
       /* When unhiding, just skip all matching entries */
-      if(!hide)
+      if(!include)
         continue;
 
       /* When hiding, keep the 1st match and ignore the rest */
-      hide = 0;
+      include = 0;
     }
 
-    if(hidden_tmp->len > 0)
-      hidden_tmp = g_string_append(hidden_tmp, ",");
-    hidden_tmp = g_string_append(hidden_tmp, hidden_arr[i]);
+    if(modes_tmp->len > 0)
+      modes_tmp = g_string_append(modes_tmp, ",");
+    modes_tmp = g_string_append(modes_tmp, modes_arr[i]);
   }
 
-  if(hide)
+  if(include)
   {
     /* Adding a hidden mode and no matching entry was found */
-    if(hidden_tmp->len > 0)
-      hidden_tmp = g_string_append(hidden_tmp, ",");
-    hidden_tmp = g_string_append(hidden_tmp, mode_name);
+    if(modes_tmp->len > 0)
+      modes_tmp = g_string_append(modes_tmp, ",");
+    modes_tmp = g_string_append(modes_tmp, mode_name);
   }
 
-  hidden_new = g_string_free(hidden_tmp, FALSE), hidden_tmp = 0;
+  modes_new = g_string_free(modes_tmp, FALSE), modes_tmp = 0;
 
-  g_strfreev(hidden_arr), hidden_arr = 0;
+  g_strfreev(modes_arr), modes_arr = 0;
 
-  g_free(hidden_old), hidden_old = 0;
+  g_free(modes_old), modes_old = 0;
 
-  return hidden_new;
+  return modes_new;
 }
 
 set_config_result_t set_hide_mode_setting(const char *mode)
 {
   set_config_result_t ret = SET_CONFIG_UNCHANGED;
 
-  char *hidden_modes = make_hidden_modes_string(mode, 1);
+  char *hidden_modes = make_modes_string(MODE_HIDE_KEY, mode, 1);
 
   if( hidden_modes ) {
     ret = set_config_setting(MODE_SETTING_ENTRY, MODE_HIDE_KEY, hidden_modes);
@@ -480,6 +483,7 @@ set_config_result_t set_hide_mode_setting(const char *mode)
   if(ret == SET_CONFIG_UPDATED) {
       send_hidden_modes_signal();
       send_supported_modes_signal();
+      send_available_modes_signal();
   }
 
   g_free(hidden_modes);
@@ -491,7 +495,7 @@ set_config_result_t set_unhide_mode_setting(const char *mode)
 {
   set_config_result_t ret = SET_CONFIG_UNCHANGED;
 
-  char *hidden_modes = make_hidden_modes_string(mode, 0);
+  char *hidden_modes = make_modes_string(MODE_HIDE_KEY, mode, 0);
 
   if( hidden_modes ) {
     ret = set_config_setting(MODE_SETTING_ENTRY, MODE_HIDE_KEY, hidden_modes);
@@ -500,9 +504,51 @@ set_config_result_t set_unhide_mode_setting(const char *mode)
   if(ret == SET_CONFIG_UPDATED) {
       send_hidden_modes_signal();
       send_supported_modes_signal();
+      send_available_modes_signal();
   }
 
   g_free(hidden_modes);
+
+  return(ret);
+}
+
+set_config_result_t set_mode_whitelist(const char *whitelist)
+{
+  set_config_result_t ret = set_config_setting(MODE_SETTING_ENTRY, MODE_WHITELIST_KEY, whitelist);
+
+  if(ret == SET_CONFIG_UPDATED) {
+    char *mode_setting;
+    const char *current_mode;
+
+    mode_setting = get_mode_setting();
+    if (strcmp(mode_setting, MODE_ASK) && valid_mode(mode_setting))
+      set_mode_setting(MODE_ASK);
+    g_free(mode_setting);
+
+    current_mode = get_usb_mode();
+    if (strcmp(current_mode, MODE_CHARGING_FALLBACK) && strcmp(current_mode, MODE_ASK) && valid_mode(current_mode)) {
+      usb_moded_mode_cleanup(get_usb_module());
+      set_usb_mode(MODE_CHARGING_FALLBACK);
+    }
+
+    usb_moded_send_whitelisted_modes_signal(whitelist);
+    send_available_modes_signal();
+  }
+
+  return ret;
+}
+
+set_config_result_t set_mode_in_whitelist(const char *mode, int allowed)
+{
+  set_config_result_t ret = SET_CONFIG_UNCHANGED;
+
+  char *whitelist = make_modes_string(MODE_WHITELIST_KEY, mode, allowed);
+
+  if (whitelist) {
+    ret = set_mode_whitelist(whitelist);
+  }
+
+  g_free(whitelist);
 
   return(ret);
 }
@@ -807,6 +853,10 @@ char * get_android_product_id(void)
 char * get_hidden_modes(void)
 {
   return(get_conf_string(MODE_SETTING_ENTRY, MODE_HIDE_KEY));
+}
+char * get_mode_whitelist(void)
+{
+  return(get_conf_string(MODE_SETTING_ENTRY, MODE_WHITELIST_KEY));
 }
 
 int check_android_section(void)
