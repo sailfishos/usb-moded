@@ -1,5 +1,5 @@
 Name:     usb-moded
-Version:  0.86.0+mer18
+Version:  0.86.0+mer19
 Release:  2
 Summary:  USB mode controller
 Group:    System/System Control
