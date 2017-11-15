@@ -447,7 +447,9 @@ static void udev_parse(struct udev_device *dev, bool initial)
 			else
 				schedule_cable_connection_timeout();
 		}
-		else if (!strcmp(tmp, "USB_DCP")) {
+		else if (!strcmp(tmp, "USB_DCP") ||
+			 !strcmp(tmp, "USB_HVDCP") ||
+			 !strcmp(tmp, "USB_HVDCP_3")) {
 			setup_charger_connection();
 		}
 		else if( !strcmp(tmp, "Unknown")) {
