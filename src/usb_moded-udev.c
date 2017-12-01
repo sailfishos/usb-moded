@@ -405,14 +405,7 @@ static void udev_parse(struct udev_device *dev, bool initial)
 		power_supply_online = udev_device_get_property_value(dev, "POWER_SUPPLY_ONLINE");
 	}
 
-	if (!power_supply_present) {
-		log_err("No usable power supply indicator\n");
-		/* TRY AGAIN?
-		return; */
-		exit(1);
-	}
-
-	if (!strcmp(power_supply_present, "1"))
+	if (power_supply_present && !strcmp(power_supply_present, "1"))
 		connected = true;
 
 	/* Transition period = Connection status derived from udev
@@ -426,6 +419,9 @@ static void udev_parse(struct udev_device *dev, bool initial)
 
 	/* disconnect */
 	if (!connected) {
+		if (warnings && !power_supply_present)
+			log_err("No usable power supply indicator\n");
+
 		log_debug("DISCONNECTED");
 
 		cancel_cable_connection_timeout();
