@@ -379,32 +379,50 @@ static void schedule_cable_connection_timeout(void)
 
 static void udev_parse(struct udev_device *dev, bool initial)
 {
-	const char *tmp = 0;
+	/* udev properties we are interested in */
+	const char *power_supply_present = 0;
+	const char *power_supply_online  = 0;
+	const char *power_supply_type    = 0;
+
+	/* Assume there is no usb connection until proven otherwise */
+	bool connected  = false;
+
+	/* Unless debug logging has been request via command line,
+	 * suppress warnings about potential property issues and/or
+	 * fallback strategies applied (to avoid spamming due to the
+	 * code below seeing the same property values over and over
+	 * again also in stable states).
+	 */
+	bool warnings = log_p(LOG_DEBUG);
 
 	/*
 	 * Check for present first as some drivers use online for when charging
 	 * is enabled
 	 */
-	tmp = udev_device_get_property_value(dev, "POWER_SUPPLY_PRESENT");
-	if (!tmp) {
-		tmp = udev_device_get_property_value(dev, "POWER_SUPPLY_ONLINE");
-		log_warning("Using online property\n");
+	power_supply_present = udev_device_get_property_value(dev, "POWER_SUPPLY_PRESENT");
+	if (!power_supply_present) {
+		power_supply_present =
+		power_supply_online = udev_device_get_property_value(dev, "POWER_SUPPLY_ONLINE");
 	}
 
-	if (!tmp) {
-		log_err("No usable power supply indicator\n");
-		/* TRY AGAIN?
-		return; */
-		exit(1);
+	if (power_supply_present && !strcmp(power_supply_present, "1"))
+		connected = true;
+
+	/* Transition period = Connection status derived from udev
+	 * events disagrees with usb-moded side bookkeeping. */
+	if (connected != get_usb_connection_state()) {
+		/* Enable udev property diagnostic logging */
+		warnings = true;
+		/* Block suspend briefly */
+		delay_suspend();
 	}
 
 	/* disconnect */
-	if (strcmp(tmp, "1")) {
-		log_debug("DISCONNECTED");
+	if (!connected) {
+		if (warnings && !power_supply_present)
+			log_err("No usable power supply indicator\n");
 
-		/* Block suspend briefly on connection state change */
-		if (get_usb_connection_state())
-			delay_suspend();
+		log_debug("DISCONNECTED");
 
 		cancel_cable_connection_timeout();
 
@@ -422,41 +440,43 @@ static void udev_parse(struct udev_device *dev, bool initial)
 		charger = 0;
 	}
 	else {
-		/* Block suspend briefly on connection state change */
-		if (!get_usb_connection_state())
-			delay_suspend();
+		if (warnings && power_supply_online)
+			log_warning("Using online property\n");
 
-		tmp = udev_device_get_property_value(dev, "POWER_SUPPLY_TYPE");
+		power_supply_type = udev_device_get_property_value(dev, "POWER_SUPPLY_TYPE");
 		/*
 		 * Power supply type might not exist also :(
 		 * Send connected event but this will not be able
 		 * to discriminate between charger/cable.
 		 */
-		if (!tmp) {
-			log_warning("Fallback since cable detection might not be accurate. "
-				    "Will connect on any voltage on charger.\n");
+		if (!power_supply_type) {
+			if( warnings )
+				log_warning("Fallback since cable detection might not be accurate. "
+					    "Will connect on any voltage on charger.\n");
 			schedule_cable_connection_timeout();
 			goto cleanup;
 		}
 
-		log_debug("CONNECTED - POWER_SUPPLY_TYPE = %s", tmp);
+		log_debug("CONNECTED - POWER_SUPPLY_TYPE = %s", power_supply_type);
 
-		if (!strcmp(tmp, "USB") || !strcmp(tmp, "USB_CDP")) {
+		if (!strcmp(power_supply_type, "USB") ||
+		    !strcmp(power_supply_type, "USB_CDP")) {
 			if( initial )
 				setup_cable_connection();
 			else
 				schedule_cable_connection_timeout();
 		}
-		else if (!strcmp(tmp, "USB_DCP") ||
-			 !strcmp(tmp, "USB_HVDCP") ||
-			 !strcmp(tmp, "USB_HVDCP_3")) {
+		else if (!strcmp(power_supply_type, "USB_DCP") ||
+			 !strcmp(power_supply_type, "USB_HVDCP") ||
+			 !strcmp(power_supply_type, "USB_HVDCP_3")) {
 			setup_charger_connection();
 		}
-		else if( !strcmp(tmp, "Unknown")) {
+		else if( !strcmp(power_supply_type, "Unknown")) {
 			// nop
 		}
 		else {
-			log_warning("unhandled power supply type: %s", tmp);
+			if (warnings)
+				log_warning("unhandled power supply type: %s", power_supply_type);
 		}
 	}
 
