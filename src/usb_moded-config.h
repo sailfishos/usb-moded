@@ -83,8 +83,6 @@ char * get_android_product_id(void);
 char * get_hidden_modes(void);
 char * get_mode_whitelist(void);
 
-int check_android_section(void);
-
 int is_roaming_not_allowed(void);
 
 typedef enum set_config_result_t {

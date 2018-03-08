@@ -29,19 +29,6 @@
 #include "usb_moded-config.h"
 #include "usb_moded-mac.h"
 
-/** check if android settings are set
- *
- * @return 1 if settings are available, 0 if not
- *
- */
-int android_settings(void)
-{
-  int ret = 0;
-  
-  ret = check_android_section();
-
-  return ret;
-}
 
 /** Read android serial number from kernel command line
  */
@@ -97,6 +84,11 @@ void android_init_values(void)
 {
   gchar *text;
 
+  if( access("/sys/class/android_usb/android0", F_OK) != 0 )
+  {
+    goto EXIT;
+  }
+
   if( (text = get_android_serial()) )
   {
 	write_to_file("/sys/class/android_usb/android0/iSerial", text);
@@ -139,6 +131,9 @@ void android_init_values(void)
   /* Make sure android_usb does not stay disabled in case usb moded
    * has crashed / been killed in inconvenient time. */
   write_to_file("/sys/class/android_usb/android0/enable", "1");
+
+EXIT:
+  return;
 }
 
 /* Set a charging mode for the android gadget

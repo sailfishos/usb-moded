@@ -859,33 +859,6 @@ char * get_mode_whitelist(void)
   return(get_conf_string(MODE_SETTING_ENTRY, MODE_WHITELIST_KEY));
 }
 
-int check_android_section(void)
-{
-  GKeyFile *settingsfile;
-  gboolean test = FALSE;
-  gchar **keys;
-  int ret = 1;
-
-  settingsfile = g_key_file_new();
-  test = g_key_file_load_from_file(settingsfile, FS_MOUNT_CONFIG_FILE, G_KEY_FILE_NONE, NULL);
-  if(!test)
-  {
-	ret = 0;
-	goto cleanup;
-  }
-  keys = g_key_file_get_keys (settingsfile, ANDROID_ENTRY, NULL, NULL);
-  if(keys == NULL)
-  {  
-        ret =  0;
-	goto cleanup;
-  }
-
-  g_strfreev(keys);
-cleanup:
-  g_key_file_free(settingsfile);
-  return(ret);
-}
-
 int is_roaming_not_allowed(void)
 {
   return(get_conf_int(NETWORK_ENTRY, NO_ROAMING_KEY));
