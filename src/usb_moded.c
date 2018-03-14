@@ -733,8 +733,8 @@ static void usb_moded_init(void)
   usb_moded_module_ctx_init();
 
   /* Android specific stuff */
-  if(android_settings())
-  	android_init_values();
+  android_init_values();
+
   /* TODO: add more start-up clean-up and init here if needed */
 }	
 
