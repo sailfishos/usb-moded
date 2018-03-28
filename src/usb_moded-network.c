@@ -100,6 +100,8 @@ static int check_interface(char *interface)
 
 static char* get_interface(struct mode_list_elem *data)
 {
+  (void)data; // FIXME: why is this passed in the 1st place?
+
   char *interface = 0;
   char *setting   = get_network_setting(NETWORK_INTERFACE_KEY);
 

@@ -56,6 +56,8 @@ static void udev_parse(struct udev_device *dev);
 
 static void notify_issue (gpointer data)
 {
+	(void)data;
+
         log_debug("trigger watch destroyed\n!");
 	/* clean up & restart trigger */
 	trigger_stop();

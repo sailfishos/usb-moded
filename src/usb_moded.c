@@ -206,6 +206,8 @@ void set_usb_connected(gboolean connected)
 
 static gboolean set_disconnected(gpointer data)
 {
+  (void)data;
+
   /* let usb settle */
   usb_moded_sleep(1);
   /* only disconnect for real if we are actually still disconnected */
@@ -229,6 +231,8 @@ static gboolean set_disconnected(gpointer data)
 /* set disconnected without sending signals. */
 static gboolean set_disconnected_silent(gpointer data)
 {
+  (void)data;
+
 if(!get_usb_connection_state())
         {
                 log_debug("Resetting connection data after HUP\n");
@@ -787,6 +791,8 @@ static void usb_moded_cleanup(void)
 /* charging fallback handler */
 static gboolean charging_fallback(gpointer data)
 {
+  (void)data;
+
   /* if a mode has been set we don't want it changed to charging
    * after 5 seconds. We set it to ask, so anything different 
    * means a mode has been set */
@@ -1372,8 +1378,12 @@ int main(int argc, char* argv[])
 	/* silence usb_moded_system() calls */
 	if( log_get_type() != LOG_TO_STDERR && log_get_level() != LOG_DEBUG )
 	{
-		freopen("/dev/null", "a", stdout);
-		freopen("/dev/null", "a", stderr);
+		if( !freopen("/dev/null", "a", stdout) ) {
+			log_err("can't redirect stdout: %m");
+		}
+		if( !freopen("/dev/null", "a", stderr) ) {
+			log_err("can't redirect stderr: %m");
+		}
 	}
 
 #if !GLIB_CHECK_VERSION(2, 36, 0)

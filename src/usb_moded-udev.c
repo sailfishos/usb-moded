@@ -70,6 +70,8 @@ static gboolean cable_connection_timeout_cb(gpointer data);
 
 static void notify_issue (gpointer data)
 {
+	(void)data;
+
 	/* we do not want to restart when we try to clean up */
 	if(cleanup)
 		return;
@@ -335,6 +337,8 @@ static void setup_charger_connection(void)
 
 static gboolean cable_connection_timeout_cb(gpointer data)
 {
+	(void)data;
+
 	log_debug("connect delay: timeout");
 	cable_connection_timeout_id = 0;
 
