@@ -43,8 +43,12 @@
 #define USB_MODED_LOCKFILE	"/var/run/usb_moded.pid"
 #define MAX_READ_BUF 512
 
+/** Mode list types
+ */
 typedef enum mode_list_type_t {
+    /** All configured modes */
     SUPPORTED_MODES_LIST,
+    /** Configured modes that can be activated */
     AVAILABLE_MODES_LIST
 } mode_list_type_t;
 

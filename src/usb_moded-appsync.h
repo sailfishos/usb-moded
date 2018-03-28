@@ -32,6 +32,8 @@
 #define APP_INFO_SYSTEMD_KEY	"systemd"
 #define APP_INFO_POST		"post"
 
+/** Application activation state
+ */
 typedef enum {
   /** Application is not relevant for the current mode */
   APP_STATE_DONTCARE = 0,
@@ -46,15 +48,13 @@ typedef enum {
  */
 typedef struct list_elem
 {
-  /*@{*/
-  char *name;		/* name of the app to launch */
-  char *mode; 		/* mode in which to launch the app */
-  char *launch;		/* dbus launch command/address */ 
-  app_state_t state;	/* marker to check if the app has started sucessfully */
-  int systemd;		/* marker to know if we start it with systemd or not */
-  int post;		/* marker to indicate when to start the app */
-  /*@}*/
-}list_elem;
+  char *name;           /**< name of the app to launch */
+  char *mode;           /**< mode in which to launch the app */
+  char *launch;         /**< dbus launch command/address */
+  app_state_t state;    /**< marker to check if the app has started sucessfully */
+  int systemd;          /**< marker to know if we start it with systemd or not */
+  int post;             /**< marker to indicate when to start the app */
+} list_elem;
 
 void readlist(int diag);
 int activate_sync(const char *mode);

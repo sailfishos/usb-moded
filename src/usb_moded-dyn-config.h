@@ -65,36 +65,34 @@ android engineers prefered to have sysfs entries... go figure... */
  */
 typedef struct mode_list_elem
 {
-  /*@{ */
-  char *mode_name;			/* mode name */
-  char *mode_module;			/* needed module for given mode */
-  int appsync;				/* requires appsync or not */
-  int network;				/* bring up network or not */
-  int mass_storage;			/* Use mass-storage functions */
-  char *network_interface;		/* Which network interface to bring up if network needs to be enabled */
-  char *sysfs_path;			/* path to set sysfs options */
-  char *sysfs_value;			/* option name/value to write to sysfs */
-  char *sysfs_reset_value;		/* value to reset the the sysfs to default */
-  char *softconnect;			/* value to be written to softconnect interface */
-  char *softconnect_disconnect;		/* value to set on the softconnect interface to disable after disconnect */
-  char *softconnect_path;		/* path for the softconnect */
-  char *android_extra_sysfs_path;	/* path for static value that never changes that needs to be set by sysfs :( */
-  char *android_extra_sysfs_value;	/* static value that never changes that needs to be set by sysfs :( */
-  char *android_extra_sysfs_path2;	/* path for static value that never changes that needs to be set by sysfs :( */
-  char *android_extra_sysfs_value2;	/* static value that never changes that needs to be set by sysfs :( */
-  char *android_extra_sysfs_path3;	/* path for static value that never changes that needs to be set by sysfs :( */
-  char *android_extra_sysfs_value3;	/* static value that never changes that needs to be set by sysfs :( */
-  char *android_extra_sysfs_path4;	/* path for static value that never changes that needs to be set by sysfs :( */
-  char *android_extra_sysfs_value4;	/* static value that never changes that needs to be set by sysfs :( */
-  char *idProduct;			/* product id to assign to a specific profile */
-  char *idVendorOverride;		/* Temporary vendor override for special modes used by odms in testing/manufacturing */
-  int nat;				/* If NAT should be set up in this mode or not */
-  int dhcp_server;			/* if a DHCP server needs to be configured and started or not */
+  char *mode_name;                      /**< Mode name */
+  char *mode_module;                    /**< Needed module for given mode */
+  int appsync;                          /**< Requires appsync or not */
+  int network;                          /**< Bring up network or not */
+  int mass_storage;                     /**< Use mass-storage functions */
+  char *network_interface;              /**< Which network interface to bring up if network needs to be enabled */
+  char *sysfs_path;                     /**< Path to set sysfs options */
+  char *sysfs_value;                    /**< Option name/value to write to sysfs */
+  char *sysfs_reset_value;              /**< Value to reset the the sysfs to default */
+  char *softconnect;                    /**< Value to be written to softconnect interface */
+  char *softconnect_disconnect;         /**< Value to set on the softconnect interface to disable after disconnect */
+  char *softconnect_path;               /**< Path for the softconnect */
+  char *android_extra_sysfs_path;       /**< Path for static value that never changes that needs to be set by sysfs :( */
+  char *android_extra_sysfs_value;      /**< Static value that never changes that needs to be set by sysfs :( */
+  char *android_extra_sysfs_path2;      /**< Path for static value that never changes that needs to be set by sysfs :( */
+  char *android_extra_sysfs_value2;     /**< Static value that never changes that needs to be set by sysfs :( */
+  char *android_extra_sysfs_path3;      /**< Path for static value that never changes that needs to be set by sysfs :( */
+  char *android_extra_sysfs_value3;     /**< Static value that never changes that needs to be set by sysfs :( */
+  char *android_extra_sysfs_path4;      /**< Path for static value that never changes that needs to be set by sysfs :( */
+  char *android_extra_sysfs_value4;     /**< Static value that never changes that needs to be set by sysfs :( */
+  char *idProduct;                      /**< Product id to assign to a specific profile */
+  char *idVendorOverride;               /**< Temporary vendor override for special modes used by odms in testing/manufacturing */
+  int nat;                              /**< If NAT should be set up in this mode or not */
+  int dhcp_server;                      /**< if a DHCP server needs to be configured and started or not */
 #ifdef CONNMAN
-  char* connman_tethering;		/* connman's tethering technology path */
+  char* connman_tethering;              /**< Connman's tethering technology path */
 #endif
- /*@} */
-}mode_list_elem;
+} mode_list_elem;
 
 /* diag is used to select a secondary configuration location for diagnostic purposes */
 GList *read_mode_list(int diag);
