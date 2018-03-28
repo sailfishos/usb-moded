@@ -43,21 +43,6 @@
 #define USB_MODED_LOCKFILE	"/var/run/usb_moded.pid"
 #define MAX_READ_BUF 512
 
-/** 
- * a struct containing all the usb_moded info needed 
- */
-typedef struct usb_mode  
-{
-  /*@{*/
-  gboolean connected; 		/* connection status, 1 for connected */
-  gboolean mounted;  		/* mount status, 1 for mounted -UNUSED atm- */
-  gboolean android_usb_broken;  /* Used to keep an active gadget for broken Android kernels */
-  char *mode;  			/* the mode name */
-  char *module; 		/* the module name for the specific mode */
-  struct mode_list_elem *data;  /* contains the mode data */
-  /*@}*/
-}usb_mode;
-
 typedef enum mode_list_type_t {
     SUPPORTED_MODES_LIST,
     AVAILABLE_MODES_LIST
