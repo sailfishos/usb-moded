@@ -793,6 +793,8 @@ static gboolean charging_fallback(gpointer data)
 {
   (void)data;
 
+  charging_timeout = 0;
+
   /* if a mode has been set we don't want it changed to charging
    * after 5 seconds. We set it to ask, so anything different 
    * means a mode has been set */
@@ -806,7 +808,6 @@ static gboolean charging_fallback(gpointer data)
   free(current_mode.mode);
   current_mode.mode = strdup(MODE_ASK);
   current_mode.data = NULL;
-  charging_timeout = 0;
   log_info("Falling back on charging mode.\n");
 	
   return(FALSE);
