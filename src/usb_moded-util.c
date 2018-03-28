@@ -29,8 +29,7 @@
 
 #include "usb_moded-dbus.h"
 
-DBusError       error;
-DBusConnection *conn = 0;
+static DBusConnection *conn = 0;
 
 static int query_mode (void)
 {
@@ -408,7 +407,7 @@ int main (int argc, char *argv[])
    }
 
   /* init dbus */
-  dbus_error_init(&error);
+  DBusError error = DBUS_ERROR_INIT;
 
   conn = dbus_bus_get_private(DBUS_BUS_SYSTEM, &error);
   if (!conn)

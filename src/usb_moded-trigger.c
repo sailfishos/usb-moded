@@ -47,7 +47,7 @@ static struct udev *udev = 0;
 static struct udev_monitor *mon = 0;
 static GIOChannel *iochannel = 0;
 static guint watch_id = 0;
-static const char *dev_name;
+static const char *dev_name = 0;
 
 /* static function definitions */
 static gboolean monitor_udev(GIOChannel *iochannel G_GNUC_UNUSED, GIOCondition cond,

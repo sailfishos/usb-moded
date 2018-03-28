@@ -47,8 +47,6 @@
 static DBusConnection *dbus_connection_sys = NULL;
 static gboolean        have_service_name   = FALSE;
 
-extern gboolean rescue_mode;
-
 /**
  * Issues "sig_usb_config_ind" signal.
 */

@@ -40,10 +40,10 @@
 #include "usb_moded-modes.h"
 
 /* global variables */
-static struct udev *udev;
-static struct udev_monitor *mon;
-static GIOChannel *iochannel;
-static guint watch_id; 
+static struct udev *udev = 0;
+static struct udev_monitor *mon = 0;
+static GIOChannel *iochannel = 0;
+static guint watch_id = 0;
 static char *dev_name = 0;
 static int cleanup = 0;
 /* track cable and charger connects disconnects */

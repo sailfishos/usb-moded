@@ -52,7 +52,7 @@
 #define UDHCP_CONFIG_DIR	"/run/usb-moded"
 #define UDHCP_CONFIG_LINK	"/etc/udhcpd.conf"
 
-const char default_interface[] = "usb0";
+static const char default_interface[] = "usb0";
 
 /** IP forwarding configuration block */
 typedef struct ipforward_data

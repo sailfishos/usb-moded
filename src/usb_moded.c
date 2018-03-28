@@ -83,11 +83,11 @@ static int usb_moded_exitcode = EXIT_FAILURE;
 static GMainLoop *usb_moded_mainloop = NULL;
 
 gboolean rescue_mode = FALSE;
-gboolean diag_mode = FALSE;
-gboolean hw_fallback = FALSE;
-gboolean android_broken_usb = FALSE;
-gboolean android_ignore_udev_events = FALSE;
-gboolean android_ignore_next_udev_disconnect_event = FALSE;
+static gboolean diag_mode = FALSE;
+static gboolean hw_fallback = FALSE;
+static gboolean android_broken_usb = FALSE;
+static gboolean android_ignore_udev_events = FALSE;
+static gboolean android_ignore_next_udev_disconnect_event = FALSE;
 #ifdef SYSTEMD
 static gboolean systemd_notify = FALSE;
 #endif
@@ -132,9 +132,17 @@ static void set_cable_connection_delay(int delay_ms)
 	}
 }
 
-struct usb_mode current_mode;
-guint charging_timeout = 0;
-static GList *modelist;
+static struct usb_mode current_mode = {
+    .connected = FALSE,
+    .mounted = FALSE,
+    .android_usb_broken = FALSE,
+    .mode = NULL,
+    .module = NULL,
+    .data = NULL,
+};
+
+static guint charging_timeout = 0;
+static GList *modelist = 0;
 
 /* static helper functions */
 static gboolean set_disconnected(gpointer data);

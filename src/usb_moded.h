@@ -88,6 +88,7 @@ void allow_suspend(void);
 void delay_suspend(void);
 
 extern int cable_connection_delay;
+extern gboolean rescue_mode;
 
 void usb_moded_stop(int exitcode);
 
