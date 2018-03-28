@@ -528,7 +528,12 @@ set_config_result_t set_mode_whitelist(const char *whitelist)
     g_free(mode_setting);
 
     current_mode = get_usb_mode();
-    if (strcmp(current_mode, MODE_CHARGING_FALLBACK) && strcmp(current_mode, MODE_ASK) && valid_mode(current_mode)) {
+    if (!strcmp(current_mode, MODE_UNDEFINED)) {
+      /* Disconnected -> do nothing */
+    }
+    else if (strcmp(current_mode, MODE_CHARGING_FALLBACK) && strcmp(current_mode, MODE_ASK) && valid_mode(current_mode)) {
+      /* Invalid mode that is not MODE_ASK or MODE_CHARGING_FALLBACK
+       * -> switch to MODE_CHARGING_FALLBACK */
       usb_moded_mode_cleanup(get_usb_module());
       set_usb_mode(MODE_CHARGING_FALLBACK);
     }
