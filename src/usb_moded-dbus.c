@@ -188,6 +188,11 @@ static DBusHandlerResult msg_handler(DBusConnection *const connection, DBusMessa
 
   if(!interface || !member || !object) goto EXIT;
 
+  log_debug("DBUS %s %s.%s from %s",
+            dbus_message_type_to_string(type),
+            interface, member,
+            dbus_message_get_sender(msg) ?: "N/A");
+
   if( type == DBUS_MESSAGE_TYPE_SIGNAL )
   {
 	if( !strcmp(interface, INIT_DONE_INTERFACE) && !strcmp(member, INIT_DONE_SIGNAL) ) {
