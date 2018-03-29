@@ -85,10 +85,12 @@ char * get_mode_whitelist(void);
 
 int is_roaming_not_allowed(void);
 
+/** Configuration change result
+ */
 typedef enum set_config_result_t {
-	SET_CONFIG_ERROR = -1,
-	SET_CONFIG_UPDATED,
-	SET_CONFIG_UNCHANGED
+    SET_CONFIG_ERROR = -1,  /**< Value change failed */
+    SET_CONFIG_UPDATED,     /**< Value change succeeded */
+    SET_CONFIG_UNCHANGED,   /**< Value did not change */
 } set_config_result_t;
 
 int conf_file_merge(void);

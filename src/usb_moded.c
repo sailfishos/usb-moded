@@ -65,17 +65,29 @@
 # define VERBOSE_WAKELOCKING 0
 #endif
 
+/** A struct containing all the usb_moded info needed
+ */
+typedef struct usb_mode
+{
+  gboolean connected;           /**< Connection status, 1 for connected */
+  gboolean mounted;             /**< Mount status, 1 for mounted -UNUSED atm- */
+  gboolean android_usb_broken;  /**< Used to keep an active gadget for broken Android kernels */
+  char *mode;                   /**< The mode name */
+  char *module;                 /**< The module name for the specific mode */
+  struct mode_list_elem *data;  /**< Contains the mode data */
+} usb_mode;
+
 /* global definitions */
 
 static int usb_moded_exitcode = EXIT_FAILURE;
 static GMainLoop *usb_moded_mainloop = NULL;
 
 gboolean rescue_mode = FALSE;
-gboolean diag_mode = FALSE;
-gboolean hw_fallback = FALSE;
-gboolean android_broken_usb = FALSE;
-gboolean android_ignore_udev_events = FALSE;
-gboolean android_ignore_next_udev_disconnect_event = FALSE;
+static gboolean diag_mode = FALSE;
+static gboolean hw_fallback = FALSE;
+static gboolean android_broken_usb = FALSE;
+static gboolean android_ignore_udev_events = FALSE;
+static gboolean android_ignore_next_udev_disconnect_event = FALSE;
 #ifdef SYSTEMD
 static gboolean systemd_notify = FALSE;
 #endif
@@ -120,9 +132,17 @@ static void set_cable_connection_delay(int delay_ms)
 	}
 }
 
-struct usb_mode current_mode;
-guint charging_timeout = 0;
-static GList *modelist;
+static struct usb_mode current_mode = {
+    .connected = FALSE,
+    .mounted = FALSE,
+    .android_usb_broken = FALSE,
+    .mode = NULL,
+    .module = NULL,
+    .data = NULL,
+};
+
+static guint charging_timeout = 0;
+static GList *modelist = 0;
 
 /* static helper functions */
 static gboolean set_disconnected(gpointer data);
@@ -186,6 +206,8 @@ void set_usb_connected(gboolean connected)
 
 static gboolean set_disconnected(gpointer data)
 {
+  (void)data;
+
   /* let usb settle */
   usb_moded_sleep(1);
   /* only disconnect for real if we are actually still disconnected */
@@ -209,6 +231,8 @@ static gboolean set_disconnected(gpointer data)
 /* set disconnected without sending signals. */
 static gboolean set_disconnected_silent(gpointer data)
 {
+  (void)data;
+
 if(!get_usb_connection_state())
         {
                 log_debug("Resetting connection data after HUP\n");
@@ -767,6 +791,10 @@ static void usb_moded_cleanup(void)
 /* charging fallback handler */
 static gboolean charging_fallback(gpointer data)
 {
+  (void)data;
+
+  charging_timeout = 0;
+
   /* if a mode has been set we don't want it changed to charging
    * after 5 seconds. We set it to ask, so anything different 
    * means a mode has been set */
@@ -780,7 +808,6 @@ static gboolean charging_fallback(gpointer data)
   free(current_mode.mode);
   current_mode.mode = strdup(MODE_ASK);
   current_mode.data = NULL;
-  charging_timeout = 0;
   log_info("Falling back on charging mode.\n");
 	
   return(FALSE);
@@ -1352,8 +1379,12 @@ int main(int argc, char* argv[])
 	/* silence usb_moded_system() calls */
 	if( log_get_type() != LOG_TO_STDERR && log_get_level() != LOG_DEBUG )
 	{
-		freopen("/dev/null", "a", stdout);
-		freopen("/dev/null", "a", stderr);
+		if( !freopen("/dev/null", "a", stdout) ) {
+			log_err("can't redirect stdout: %m");
+		}
+		if( !freopen("/dev/null", "a", stderr) ) {
+			log_err("can't redirect stderr: %m");
+		}
 	}
 
 #if !GLIB_CHECK_VERSION(2, 36, 0)

@@ -52,7 +52,7 @@ static void cancel_enumerate_usb_timer(void);
 static GList *sync_list = NULL;
 
 static guint enumerate_usb_id = 0;
-static struct timeval sync_tv;
+static struct timeval sync_tv = {0, 0};
 #ifdef APP_SYNC_DBUS
 static  int no_dbus = 0;
 #else

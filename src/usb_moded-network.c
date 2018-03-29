@@ -52,7 +52,7 @@
 #define UDHCP_CONFIG_DIR	"/run/usb-moded"
 #define UDHCP_CONFIG_LINK	"/etc/udhcpd.conf"
 
-const char default_interface[] = "usb0";
+static const char default_interface[] = "usb0";
 
 /** IP forwarding configuration block */
 typedef struct ipforward_data
@@ -100,6 +100,8 @@ static int check_interface(char *interface)
 
 static char* get_interface(struct mode_list_elem *data)
 {
+  (void)data; // FIXME: why is this passed in the 1st place?
+
   char *interface = 0;
   char *setting   = get_network_setting(NETWORK_INTERFACE_KEY);
 

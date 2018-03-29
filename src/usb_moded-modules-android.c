@@ -38,9 +38,6 @@
 #include "usb_moded-config.h"
 #include "usb_moded-modesetting.h"
 
-/* kmod context - initialized at start in usb_moded_init */
-struct kmod_ctx *ctx;
-
 /** load module 
  *
  * @param module Name of the module to load

@@ -22,7 +22,7 @@ test_gcc_flag() {
 
 # We use gnu99 instead of c99 because many have interpreted the standard
 # in a way that int64_t isn't defined on non-64 bit platforms.
-CFLAGS="-Os -std=gnu99 -Wall -Wextra -pipe  -Wold-style-definition -Wfloat-equal -Wmissing-declarations -Wmissing-prototypes -Wstrict-prototypes -Wendif-labels -Wpointer-arith -Wcast-align -Wwrite-strings -Winline -Wno-unused-parameter -finline-small-functions -Wno-unused-result -fstack-protector -D_FORTIFY_SOURCE=2 -Wl,-z,relro,-z,now -fPIE -fpie -pie"
+CFLAGS="-Os -std=gnu99 -Wall -Wextra -pipe  -Wold-style-definition -Wfloat-equal -Wmissing-declarations -Wmissing-prototypes -Wstrict-prototypes -Wendif-labels -Wpointer-arith -Wcast-align -Wwrite-strings -Winline -finline-small-functions -fstack-protector -D_FORTIFY_SOURCE=2 -Wl,-z,relro,-z,now -fPIE -fpie -pie"
 LDFLAGS="-z relro -z now"
 
 AC_ARG_ENABLE([debug], AS_HELP_STRING([--enable-debug],[Enable debug @<:@default=false@:>@]),

@@ -65,12 +65,14 @@ static void log_gettime(struct timeval *tv)
 	timersub(tv, &log_begtime, tv);
 }
 
-/**
- * Print the logged messages to the selected output
+/** Print the logged messages to the selected output
  *
- * @param lev The wanted log level
- * @param fmt The message to be logged
- * @param va The stdarg variable list
+ * @param file  Source file name
+ * @param func  Function name
+ * @param line  Line in source file
+ * @param lev   The wanted log level
+ * @param fmt   The message format string
+ * @param va    Arguments for the format string
  */
 void log_emit_va(const char *file, const char *func, int line, int lev, const char *fmt, va_list va)
 {
@@ -138,6 +140,15 @@ void log_emit_va(const char *file, const char *func, int line, int lev, const ch
 	errno = saved;
 }
 
+/** Print the logged messages to the selected output
+ *
+ * @param file  Source file name
+ * @param func  Function name
+ * @param line  Line in source file
+ * @param lev   The wanted log level
+ * @param fmt   The message format string
+ * @param ...   Arguments for the format string
+ */
 void log_emit_real(const char *file, const char *func, int line, int lev, const char *fmt, ...)
 {
         va_list va;

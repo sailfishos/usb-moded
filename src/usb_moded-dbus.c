@@ -47,8 +47,6 @@
 static DBusConnection *dbus_connection_sys = NULL;
 static gboolean        have_service_name   = FALSE;
 
-extern gboolean rescue_mode;
-
 /**
  * Issues "sig_usb_config_ind" signal.
 */
@@ -187,6 +185,11 @@ static DBusHandlerResult msg_handler(DBusConnection *const connection, DBusMessa
   (void)user_data;
 
   if(!interface || !member || !object) goto EXIT;
+
+  log_debug("DBUS %s %s.%s from %s",
+            dbus_message_type_to_string(type),
+            interface, member,
+            dbus_message_get_sender(msg) ?: "N/A");
 
   if( type == DBUS_MESSAGE_TYPE_SIGNAL )
   {
