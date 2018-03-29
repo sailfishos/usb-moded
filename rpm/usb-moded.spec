@@ -16,13 +16,14 @@ BuildRequires: pkgconfig(libkmod)
 BuildRequires: doxygen
 BuildRequires: pkgconfig(libsystemd)
 BuildRequires: pkgconfig(ssu-sysinfo)
-BuildRequires: pkgconfig(dsme)
+BuildRequires: pkgconfig(dsme) >= 0.65.0
 
 Requires: lsof
 Requires: usb-moded-configs
 Requires: busybox-symlinks-dhcp
 Requires(post): systemd
 Requires(postun): systemd
+Conflicts: dsme < 0.79.0
 
 %description
 Usb_moded is a daemon to control the USB states. For this
