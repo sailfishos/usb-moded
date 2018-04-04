@@ -68,12 +68,6 @@
  * ========================================================================= */
 
 /* ------------------------------------------------------------------------- *
- * MISC_UTIL
- * ------------------------------------------------------------------------- */
-
-static const char        *dsme_msg_type_repr                    (int type);
-
-/* ------------------------------------------------------------------------- *
  * DSME_STATE_TRACKING
  * ------------------------------------------------------------------------- */
 
@@ -88,7 +82,7 @@ static bool               dsme_state_is_user                    (void);
  * DSME_SOCKET_IPC
  * ------------------------------------------------------------------------- */
 
-static bool               dsme_socket_send_message              (gpointer msg, const char *request_name);
+static bool               dsme_socket_send_message              (void *msg);
 static void               dsme_socket_processwd_pong            (void);
 static void               dsme_socket_processwd_init            (void);
 static void               dsme_socket_processwd_quit            (void);
@@ -128,59 +122,6 @@ static void               dsme_dbus_quit                        (void);
 gboolean                  dsme_listener_start                   (void);
 void                      dsme_listener_stop                    (void);
 gboolean                  is_in_user_state                      (void);
-
-/* ========================================================================= *
- * MISC_UTIL
- * ========================================================================= */
-
-/** Lookup dsme message type name by id
- *
- * Note: This is ugly hack, but the way these are defined in libdsme and
- * libiphb makes it difficult to gauge the type without involving the type
- * conversion macros - and those we *really* do not want to do use just to
- * report unhandled stuff in debug verbosity.
- *
- * @param type private type id from dsme message header
- *
- * @return human readable name of the type
- */
-static const char *
-dsme_msg_type_repr(int type)
-{
-#define X(name,value) if( type == value ) return #name
-
-    X(CLOSE,                        0x00000001);
-    X(STATE_CHANGE_IND,             0x00000301);
-    X(STATE_QUERY,                  0x00000302);
-    X(SAVE_DATA_IND,                0x00000304);
-    X(POWERUP_REQ,                  0x00000305);
-    X(SHUTDOWN_REQ,                 0x00000306);
-    X(SET_ALARM_STATE,              0x00000307);
-    X(REBOOT_REQ,                   0x00000308);
-    X(STATE_REQ_DENIED_IND,         0x00000309);
-    X(THERMAL_SHUTDOWN_IND,         0x00000310);
-    X(SET_CHARGER_STATE,            0x00000311);
-    X(SET_THERMAL_STATE,            0x00000312);
-    X(SET_EMERGENCY_CALL_STATE,     0x00000313);
-    X(SET_BATTERY_STATE,            0x00000314);
-    X(BATTERY_EMPTY_IND,            0x00000315);
-    X(PROCESSWD_CREATE,             0x00000500);
-    X(PROCESSWD_DELETE,             0x00000501);
-    X(PROCESSWD_CLEAR,              0x00000502);
-    X(PROCESSWD_SET_INTERVAL,       0x00000503);
-    X(PROCESSWD_PING,               0x00000504);
-    X(PROCESSWD_PONG,               0x00000504);
-    X(PROCESSWD_MANUAL_PING,        0x00000505);
-    X(WAIT,                         0x00000600);
-    X(WAKEUP,                       0x00000601);
-    X(GET_VERSION,                  0x00001100);
-    X(DSME_VERSION,                 0x00001101);
-    X(SET_TA_TEST_MODE,             0x00001102);
-
-#undef X
-
-    return "UNKNOWN";
-}
 
 /* ========================================================================= *
  * DSME_STATE_TRACKING
@@ -313,22 +254,22 @@ static guint dsme_socket_iowatch = 0;
  * @param msg A pointer to the message to send
  */
 static bool
-dsme_socket_send_message(gpointer msg, const char *request_name)
+dsme_socket_send_message(gpointer msg)
 {
     bool res = false;
 
     if( !dsme_socket_con ) {
         log_warning("failed to send %s to dsme; %s",
-                request_name, "not connected");
+                    dsmemsg_name(msg),"not connected");
         goto EXIT;
     }
 
     if( dsmesock_send(dsme_socket_con, msg) == -1) {
         log_err("failed to send %s to dsme; %m",
-                request_name);
+                dsmemsg_name(msg));
     }
 
-    log_debug("%s sent to DSME", request_name);
+    log_debug("%s sent to DSME", dsmemsg_name(msg));
 
     res = true;
 
@@ -346,7 +287,7 @@ dsme_socket_processwd_pong(void)
 
     msg.pid = getpid();
 
-    dsme_socket_send_message(&msg, "DSM_MSGTYPE_PROCESSWD_PONG");
+    dsme_socket_send_message(&msg);
 }
 
 /** Register to DSME process watchdog
@@ -359,7 +300,7 @@ dsme_socket_processwd_init(void)
 
     msg.pid = getpid();
 
-    dsme_socket_send_message(&msg, "DSM_MSGTYPE_PROCESSWD_CREATE");
+    dsme_socket_send_message(&msg);
 }
 
 /** Unregister from DSME process watchdog
@@ -372,7 +313,7 @@ dsme_socket_processwd_quit(void)
 
     msg.pid = getpid();
 
-    dsme_socket_send_message(&msg, "DSM_MSGTYPE_PROCESSWD_DELETE");
+    dsme_socket_send_message(&msg);
 }
 
 /** Query current DSME state
@@ -383,7 +324,7 @@ dsme_socket_query_state(void)
     DSM_MSGTYPE_STATE_QUERY msg =
         DSME_MSG_INIT(DSM_MSGTYPE_STATE_QUERY);
 
-    dsme_socket_send_message(&msg, "DSM_MSGTYPE_STATE_QUERY");
+    dsme_socket_send_message(&msg);
 }
 
 /** Callback for pending I/O from dsmesock
@@ -432,9 +373,8 @@ dsme_socket_recv_cb(GIOChannel *source,
         dsme_state_update(msg2->state);
     }
     else {
-        log_debug("Unhandled message type %s (0x%x) received from DSME",
-                dsme_msg_type_repr(msg->type_),
-                msg->type_); /* <- unholy access of a private member */
+        log_debug("Unhandled %s message received from DSME",
+                  dsmemsg_name(msg));
     }
 
 EXIT:
