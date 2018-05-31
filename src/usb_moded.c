@@ -150,7 +150,6 @@ static gboolean set_disconnected_silent(gpointer data);
 static void usb_moded_init(void);
 static gboolean charging_fallback(gpointer data);
 static void usage(void);
-static bool init_done_p(void);
 
 /* ============= Implementation starts here =========================================== */
 /** set the usb connection status 
@@ -1192,13 +1191,35 @@ void delay_suspend(void)
 					 allow_suspend_cb, 0);
 }
 
+/** Path to init-done flag file */
+static const char init_done_flagfile[] = "/run/systemd/boot-status/init-done";
+
+/** cached init-done-reached state */
+static bool init_done_reached = false;
+
 /** Check if system has already been successfully booted up
  *
  * @return true if init-done has been reached, or false otherwise
  */
-static bool init_done_p(void)
+bool init_done_p(void)
 {
-	return access("/run/systemd/boot-status/init-done", F_OK) == 0;
+	return init_done_reached;
+}
+
+/** Update cached init-done-reached state */
+void set_init_done(bool reached)
+{
+	if( init_done_reached != reached ) {
+		init_done_reached = reached;
+		log_debug("init_done -> %s",
+			  init_done_reached ? "reached" : "not reached");
+	}
+}
+
+/** Check whether init-done flag file exists */
+void probe_init_done(void)
+{
+	set_init_done(access(init_done_flagfile, F_OK) == 0);
 }
 
 /** Request orderly exit from mainloop
@@ -1393,6 +1414,9 @@ int main(int argc, char* argv[])
 #if !GLIB_CHECK_VERSION(2, 31, 0)
 	g_thread_init(NULL);
 #endif
+
+	/* Check if we are in mid-bootup */
+	probe_init_done();
 
 	/* Must be the 1st libdbus call that is made */
 	dbus_threads_init_default();

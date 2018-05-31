@@ -25,6 +25,7 @@
 #define USB_MODED_H_
 
 #include <stdlib.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
@@ -102,5 +103,9 @@ void usb_moded_usleep_(const char *file, int line, const char *func, useconds_t 
 #define usb_moded_usleep(usec)    usb_moded_usleep_(__FILE__,__LINE__,__FUNCTION__,(usec))
 #define usb_moded_msleep(msec)    usb_moded_usleep_(__FILE__,__LINE__,__FUNCTION__,(msec)*1000)
 #define usb_moded_sleep(sec)      usb_moded_usleep_(__FILE__,__LINE__,__FUNCTION__,(sec)*1000000)
+
+bool init_done_p(void);
+void set_init_done(bool reached);
+void probe_init_done(void);
 
 #endif /* USB_MODED_H */

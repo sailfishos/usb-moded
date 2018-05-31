@@ -194,6 +194,9 @@ static DBusHandlerResult msg_handler(DBusConnection *const connection, DBusMessa
   if( type == DBUS_MESSAGE_TYPE_SIGNAL )
   {
 	if( !strcmp(interface, INIT_DONE_INTERFACE) && !strcmp(member, INIT_DONE_SIGNAL) ) {
+		/* Update the cached state value */
+		set_init_done(true);
+
 		/* Auto-disable rescue mode when bootup is finished */
 		if( rescue_mode ) {
 			rescue_mode = FALSE;
@@ -597,6 +600,9 @@ gboolean usb_moded_dbus_init_connection(void)
 
   /* Listen to init-done signals */
   dbus_bus_add_match(dbus_connection_sys, INIT_DONE_MATCH, 0);
+
+  /* Re-check flag file after adding signal listener */
+  probe_init_done();
 
   /* Connect D-Bus to the mainloop */
   dbus_connection_setup_with_g_main(dbus_connection_sys, NULL);
