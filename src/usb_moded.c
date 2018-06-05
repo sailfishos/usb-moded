@@ -92,6 +92,30 @@ static gboolean android_ignore_next_udev_disconnect_event = FALSE;
 static gboolean systemd_notify = FALSE;
 #endif
 
+/** Optional android usb function to setup during bootup */
+static gchar *android_bootup_function = 0;
+
+
+/** Get android usb function to setup during bootup
+ *
+ * @returns function name, or NULL if no function was requested
+ */
+const char *get_android_bootup_function(void)
+{
+	return android_bootup_function;
+}
+
+/** Set android usb function to setup during bootup
+ *
+ * @param function usb function name, or NULL
+ */
+void set_android_bootup_function(const char *function)
+{
+	char *value = function ? g_strdup(function) : 0;
+	g_free(android_bootup_function);
+	android_bootup_function = value;
+}
+
 /** Default allowed cable detection delay
  *
  * To comply with USB standards, the delay should be
@@ -879,6 +903,10 @@ static void usage(void)
 		"      output version information and exit\n"
 		"  -m,  --max-cable-delay=<ms>\n"
 		"      maximum delay before accepting cable connection\n"
+		"  -b,  --android-bootup-function=<function>\n"
+		"      Setup given function during bootup. Might be required\n"
+		"      on some devices to make enumeration work on the 1st\n"
+		"      cable connect.\n"
 		"\n");
 }
 
@@ -1332,6 +1360,7 @@ int main(int argc, char* argv[])
 		{ "systemd", no_argument, 0, 'n' },
                 { "version", no_argument, 0, 'v' },
                 { "max-cable-delay", required_argument, 0, 'm' },
+                { "android-bootup-function", required_argument, 0, 'b' },
                 { 0, 0, 0, 0 }
         };
 
@@ -1343,7 +1372,7 @@ int main(int argc, char* argv[])
 	 * - - - - - - - - - - - - - - - - - - - */
 
 	 /* Parse the command-line options */
-        while ((opt = getopt_long(argc, argv, "aifsTlDdhrnvm:", options, &opt_idx)) != -1)
+        while ((opt = getopt_long(argc, argv, "aifsTlDdhrnvm:b:", options, &opt_idx)) != -1)
 	{
                 switch (opt) 
 		{
@@ -1395,6 +1424,10 @@ int main(int argc, char* argv[])
 
 			case 'm':
 				set_cable_connection_delay(strtol(optarg, 0, 0));
+				break;
+
+			case 'b':
+				set_android_bootup_function(optarg);
 				break;
 
 	                default:
@@ -1601,6 +1634,8 @@ EXIT:
 	usb_moded_appsync_cleanup();
 # endif
 #endif
+
+	set_android_bootup_function(0);
 
 	/* Must be done just before exit to make sure no more wakelocks
 	 * are taken and left behind on exit path */

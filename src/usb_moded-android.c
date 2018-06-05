@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <glib.h>
 
+#include "usb_moded.h"
 #include "usb_moded-android.h"
 #include "usb_moded-log.h"
 #include "usb_moded-modesetting.h"
@@ -84,11 +85,17 @@ void android_init_values(void)
 {
   gchar *text;
 
+  /* If the directory is not there, no point emitting warnings
+   * about every file that is not going to be there either. */
   if( access("/sys/class/android_usb/android0", F_OK) != 0 )
   {
     goto EXIT;
   }
 
+  /* Disable */
+  write_to_file("/sys/class/android_usb/android0/enable", "0");
+
+  /* Configure */
   if( (text = get_android_serial()) )
   {
 	write_to_file("/sys/class/android_usb/android0/iSerial", text);
@@ -128,8 +135,22 @@ void android_init_values(void)
   /* For rndis to be discovered correctly in M$ Windows (vista and later) */
   write_to_file("/sys/class/android_usb/f_rndis/wceis", "1");
 
-  /* Make sure android_usb does not stay disabled in case usb moded
-   * has crashed / been killed in inconvenient time. */
+
+  /* Some devices can have enumeration issues due to incomplete
+   * configuration on the 1st connect after bootup. Briefly setting
+   * up for example mass_storage function can be utilized as a
+   * workaround in such cases. */
+  if(!init_done_p()) {
+    const char *function = get_android_bootup_function();
+    if(function) {
+      write_to_file("/sys/class/android_usb/android0/functions", function);
+      write_to_file("/sys/class/android_usb/android0/enable", "1");
+      write_to_file("/sys/class/android_usb/android0/enable", "0");
+    }
+  }
+
+  /* Clear functions and enable */
+  write_to_file("/sys/class/android_usb/android0/functions", "none");
   write_to_file("/sys/class/android_usb/android0/enable", "1");
 
 EXIT:

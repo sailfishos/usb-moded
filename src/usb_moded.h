@@ -108,4 +108,7 @@ bool init_done_p(void);
 void set_init_done(bool reached);
 void probe_init_done(void);
 
+const char *get_android_bootup_function(void);
+void set_android_bootup_function(const char *function);
+
 #endif /* USB_MODED_H */
