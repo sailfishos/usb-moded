@@ -849,24 +849,37 @@ static void usage(void)
 {
         fprintf(stdout,
                 "Usage: usb_moded [OPTION]...\n"
-                  "USB mode daemon\n"
-                  "\n"
-		  "  -a,  --android_usb_broken \tkeep gadget active on broken android kernels\n"
-		  "  -i,  --android_usb_broken_udev_events \tignore incorrect disconnect events after mode setting\n"
-		  "  -f,  --fallback	  \tassume always connected\n"
-                  "  -s,  --force-syslog  \t\tlog to syslog\n"
-                  "  -T,  --force-stderr  \t\tlog to stderr\n"
-                  "  -l,  --log-line-info \t\tlog to stderr and show origin of logging\n"
-                  "  -D,  --debug	  \t\tturn on debug printing\n"
-		  "  -d,  --diag	  \t\tturn on diag mode\n"
-                  "  -h,  --help          \t\tdisplay this help and exit\n"
-		  "  -r,  --rescue	  \t\trescue mode\n"
+		"USB mode daemon\n"
+		"\n"
+		"  -a,  --android_usb_broken\n"
+		"      keep gadget active on broken android kernels\n"
+		"  -i,  --android_usb_broken_udev_events\n"
+		"      ignore incorrect disconnect events after mode setting\n"
+		"  -f,  --fallback	 \n"
+		"      assume always connected\n"
+		"  -s,  --force-syslog \n"
+		"      log to syslog\n"
+		"  -T,  --force-stderr \n"
+		"      log to stderr\n"
+		"  -l,  --log-line-info\n"
+		"      log to stderr and show origin of logging\n"
+		"  -D,  --debug	 \n"
+		"      turn on debug printing\n"
+		"  -d,  --diag	 \n"
+		"      turn on diag mode\n"
+		"  -h,  --help         \n"
+		"      display this help and exit\n"
+		"  -r,  --rescue	 \n"
+		"      rescue mode\n"
 #ifdef SYSTEMD
-		  "  -n,  --systemd       \t\tnotify systemd when started up\n"
+		"  -n,  --systemd      \n"
+		"      notify systemd when started up\n"
 #endif
-                  "  -v,  --version       \t\toutput version information and exit\n"
-                  "  -m,  --max-cable-delay=<ms>\tmaximum delay before accepting cable connection\n"
-                  "\n");
+		"  -v,  --version      \n"
+		"      output version information and exit\n"
+		"  -m,  --max-cable-delay=<ms>\n"
+		"      maximum delay before accepting cable connection\n"
+		"\n");
 }
 
 void send_supported_modes_signal(void)
