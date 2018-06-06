@@ -92,6 +92,30 @@ static gboolean android_ignore_next_udev_disconnect_event = FALSE;
 static gboolean systemd_notify = FALSE;
 #endif
 
+/** Optional android usb function to setup during bootup */
+static gchar *android_bootup_function = 0;
+
+
+/** Get android usb function to setup during bootup
+ *
+ * @returns function name, or NULL if no function was requested
+ */
+const char *get_android_bootup_function(void)
+{
+	return android_bootup_function;
+}
+
+/** Set android usb function to setup during bootup
+ *
+ * @param function usb function name, or NULL
+ */
+void set_android_bootup_function(const char *function)
+{
+	char *value = function ? g_strdup(function) : 0;
+	g_free(android_bootup_function);
+	android_bootup_function = value;
+}
+
 /** Default allowed cable detection delay
  *
  * To comply with USB standards, the delay should be
@@ -150,7 +174,6 @@ static gboolean set_disconnected_silent(gpointer data);
 static void usb_moded_init(void);
 static gboolean charging_fallback(gpointer data);
 static void usage(void);
-static bool init_done_p(void);
 
 /* ============= Implementation starts here =========================================== */
 /** set the usb connection status 
@@ -850,24 +873,41 @@ static void usage(void)
 {
         fprintf(stdout,
                 "Usage: usb_moded [OPTION]...\n"
-                  "USB mode daemon\n"
-                  "\n"
-		  "  -a,  --android_usb_broken \tkeep gadget active on broken android kernels\n"
-		  "  -i,  --android_usb_broken_udev_events \tignore incorrect disconnect events after mode setting\n"
-		  "  -f,  --fallback	  \tassume always connected\n"
-                  "  -s,  --force-syslog  \t\tlog to syslog\n"
-                  "  -T,  --force-stderr  \t\tlog to stderr\n"
-                  "  -l,  --log-line-info \t\tlog to stderr and show origin of logging\n"
-                  "  -D,  --debug	  \t\tturn on debug printing\n"
-		  "  -d,  --diag	  \t\tturn on diag mode\n"
-                  "  -h,  --help          \t\tdisplay this help and exit\n"
-		  "  -r,  --rescue	  \t\trescue mode\n"
+		"USB mode daemon\n"
+		"\n"
+		"  -a,  --android_usb_broken\n"
+		"      keep gadget active on broken android kernels\n"
+		"  -i,  --android_usb_broken_udev_events\n"
+		"      ignore incorrect disconnect events after mode setting\n"
+		"  -f,  --fallback	 \n"
+		"      assume always connected\n"
+		"  -s,  --force-syslog \n"
+		"      log to syslog\n"
+		"  -T,  --force-stderr \n"
+		"      log to stderr\n"
+		"  -l,  --log-line-info\n"
+		"      log to stderr and show origin of logging\n"
+		"  -D,  --debug	 \n"
+		"      turn on debug printing\n"
+		"  -d,  --diag	 \n"
+		"      turn on diag mode\n"
+		"  -h,  --help         \n"
+		"      display this help and exit\n"
+		"  -r,  --rescue	 \n"
+		"      rescue mode\n"
 #ifdef SYSTEMD
-		  "  -n,  --systemd       \t\tnotify systemd when started up\n"
+		"  -n,  --systemd      \n"
+		"      notify systemd when started up\n"
 #endif
-                  "  -v,  --version       \t\toutput version information and exit\n"
-                  "  -m,  --max-cable-delay=<ms>\tmaximum delay before accepting cable connection\n"
-                  "\n");
+		"  -v,  --version      \n"
+		"      output version information and exit\n"
+		"  -m,  --max-cable-delay=<ms>\n"
+		"      maximum delay before accepting cable connection\n"
+		"  -b,  --android-bootup-function=<function>\n"
+		"      Setup given function during bootup. Might be required\n"
+		"      on some devices to make enumeration work on the 1st\n"
+		"      cable connect.\n"
+		"\n");
 }
 
 void send_supported_modes_signal(void)
@@ -1192,13 +1232,35 @@ void delay_suspend(void)
 					 allow_suspend_cb, 0);
 }
 
+/** Path to init-done flag file */
+static const char init_done_flagfile[] = "/run/systemd/boot-status/init-done";
+
+/** cached init-done-reached state */
+static bool init_done_reached = false;
+
 /** Check if system has already been successfully booted up
  *
  * @return true if init-done has been reached, or false otherwise
  */
-static bool init_done_p(void)
+bool init_done_p(void)
 {
-	return access("/run/systemd/boot-status/init-done", F_OK) == 0;
+	return init_done_reached;
+}
+
+/** Update cached init-done-reached state */
+void set_init_done(bool reached)
+{
+	if( init_done_reached != reached ) {
+		init_done_reached = reached;
+		log_debug("init_done -> %s",
+			  init_done_reached ? "reached" : "not reached");
+	}
+}
+
+/** Check whether init-done flag file exists */
+void probe_init_done(void)
+{
+	set_init_done(access(init_done_flagfile, F_OK) == 0);
 }
 
 /** Request orderly exit from mainloop
@@ -1298,6 +1360,7 @@ int main(int argc, char* argv[])
 		{ "systemd", no_argument, 0, 'n' },
                 { "version", no_argument, 0, 'v' },
                 { "max-cable-delay", required_argument, 0, 'm' },
+                { "android-bootup-function", required_argument, 0, 'b' },
                 { 0, 0, 0, 0 }
         };
 
@@ -1309,7 +1372,7 @@ int main(int argc, char* argv[])
 	 * - - - - - - - - - - - - - - - - - - - */
 
 	 /* Parse the command-line options */
-        while ((opt = getopt_long(argc, argv, "aifsTlDdhrnvm:", options, &opt_idx)) != -1)
+        while ((opt = getopt_long(argc, argv, "aifsTlDdhrnvm:b:", options, &opt_idx)) != -1)
 	{
                 switch (opt) 
 		{
@@ -1363,6 +1426,10 @@ int main(int argc, char* argv[])
 				set_cable_connection_delay(strtol(optarg, 0, 0));
 				break;
 
+			case 'b':
+				set_android_bootup_function(optarg);
+				break;
+
 	                default:
         	                usage();
 				exit(0);
@@ -1393,6 +1460,9 @@ int main(int argc, char* argv[])
 #if !GLIB_CHECK_VERSION(2, 31, 0)
 	g_thread_init(NULL);
 #endif
+
+	/* Check if we are in mid-bootup */
+	probe_init_done();
 
 	/* Must be the 1st libdbus call that is made */
 	dbus_threads_init_default();
@@ -1564,6 +1634,8 @@ EXIT:
 	usb_moded_appsync_cleanup();
 # endif
 #endif
+
+	set_android_bootup_function(0);
 
 	/* Must be done just before exit to make sure no more wakelocks
 	 * are taken and left behind on exit path */
