@@ -1,0 +1,328 @@
+# ----------------------------------------------------------- -*- mode: sh -*-
+# Package version
+VERSION   := 0.86.0
+
+# Dummy default install dir - override from packaging scripts
+DESTDIR ?= /tmp/usb-moded-test-install
+
+# ----------------------------------------------------------------------------
+# Standard directories
+# ----------------------------------------------------------------------------
+
+_PREFIX         ?= /usr#                         # /usr
+_INCLUDEDIR     ?= $(_PREFIX)/include#           # /usr/include
+_EXEC_PREFIX    ?= $(_PREFIX)#                   # /usr
+_BINDIR         ?= $(_EXEC_PREFIX)/bin#          # /usr/bin
+_SBINDIR        ?= $(_EXEC_PREFIX)/sbin#         # /usr/sbin
+_LIBEXECDIR     ?= $(_EXEC_PREFIX)/libexec#      # /usr/libexec
+_LIBDIR         ?= $(_EXEC_PREFIX)/lib#          # /usr/lib
+_SYSCONFDIR     ?= /etc#                         # /etc
+_DATADIR        ?= $(_PREFIX)/share#             # /usr/share
+_MANDIR         ?= $(_DATADIR)/man#              # /usr/share/man
+_INFODIR        ?= $(_DATADIR)/info#             # /usr/share/info
+_DEFAULTDOCDIR  ?= $(_DATADIR)/doc#              # /usr/share/doc
+_LOCALSTATEDIR  ?= /var#                         # /var
+_UNITDIR        ?= /lib/systemd/system#
+_TESTSDIR       ?= /opt/tests#                   # /opt/tests
+
+# ----------------------------------------------------------------------------
+# Install directories
+# ----------------------------------------------------------------------------
+
+USB_MODED_SBIN_PATH   ?= $(_SBINDIR)
+
+# ----------------------------------------------------------------------------
+# Files to build / install
+# ----------------------------------------------------------------------------
+
+TARGETS_SBIN += usb_moded
+TARGETS_SBIN += usb_moded_util
+
+TARGETS_ALL  += $(TARGETS_PLUGIN) $(TARGETS_SBIN) $(TARGETS_BIN)
+
+TARGETS_ALL  += udev-search
+
+# ----------------------------------------------------------------------------
+# Top level targets
+# ----------------------------------------------------------------------------
+
+.PHONY: build install clean distclean mostlyclean
+
+build:: $(TARGETS_ALL)
+
+install:: build
+
+clean:: mostlyclean
+	$(RM) $(TARGETS_ALL)
+
+distclean:: clean
+
+mostlyclean::
+	$(RM) *.o *~ *.bak */*.o */*~ */*.bak
+
+install :: install_main
+
+install_main::
+	# sbin executables
+	install -d -m 755 $(DESTDIR)$(USB_MODED_SBIN_PATH)
+	install -m 755 $(TARGETS_SBIN) $(DESTDIR)$(USB_MODED_SBIN_PATH)
+	# config directories and files
+	install -d -m 755 $(DESTDIR)/etc
+	# /etc/udhcpd.conf
+	install -d -m 755 $(DESTDIR)/etc/usb-moded/
+	install -d -m 755 $(DESTDIR)/etc/usb-moded/dyn-modes
+	install -d -m 755 $(DESTDIR)/etc/usb-moded/run
+	install -d -m 755 $(DESTDIR)/etc/modprobe.d
+	# /etc/modprobe.d/g_ether.conf
+	# /etc/modprobe.d/usb_moded.conf
+	install -d -m 755 $(DESTDIR)/etc/tmpfiles.d
+	# /etc/tmpfiles.d/usb-moded.conf
+	install -d -m 755 $(DESTDIR)/etc/dbus-1/system.d
+	install -m 644 debian/usb_moded.conf $(DESTDIR)/etc/dbus-1/system.d/
+
+# ----------------------------------------------------------------------------
+# Build rules
+# ----------------------------------------------------------------------------
+
+%.pic.o     : %.c     ; $(CC) -o $@ -c $< -fPIC $(CPPFLAGS) $(CFLAGS)
+%.so        : %.pic.o ; $(CC) -shared -o $@ $^ $(LDFLAGS) $(LDLIBS)
+%.o         : %.c     ; $(CC) -o $@ -c $< $(CPPFLAGS) $(CFLAGS)
+%           : %.o     ; $(CC) -o $@ $^ $(LDFLAGS) $(LDLIBS)
+%.a         :         ; $(AR) ru $@ $^
+
+# ----------------------------------------------------------------------------
+# Preprocessor options
+# ----------------------------------------------------------------------------
+
+# Preprocessor Defaults
+CPPFLAGS += -D_GNU_SOURCE
+CPPFLAGS += -D_FILE_OFFSET_BITS=64
+CPPFLAGS += -D_FORTIFY_SOURCE=2
+
+# usb-moded specific options
+CPPFLAGS += -DSTATIC_CONFIG
+CPPFLAGS += -DSYSTEMD
+CPPFLAGS += -DCONNMAN
+CPPFLAGS += -DAPP_SYNC
+CPPFLAGS += -DUSE_MER_SSU
+CPPFLAGS += -DMEEGOLOCK
+CPPFLAGS += -DDEBUG
+
+# ----------------------------------------------------------------------------
+# Compiler options
+# ----------------------------------------------------------------------------
+
+CFLAGS   += -std=c99
+CFLAGS   += -O2
+CFLAGS   += -g
+CFLAGS   += -Wall
+CFLAGS   += -Wwrite-strings
+CFLAGS   += -Wmissing-prototypes
+#CFLAGS   += -Wextra
+#CFLAGS   += -Werror
+
+# ----------------------------------------------------------------------------
+# Linker options
+# ----------------------------------------------------------------------------
+
+LDFLAGS  += -pthread
+LDFLAGS  += -g
+LDFLAGS  += -pthread
+LDFLAGS  += -Wl,--as-needed
+
+LDLIBS   += -ldl
+
+# ----------------------------------------------------------------------------
+# Flags from pkg-config
+# ----------------------------------------------------------------------------
+PKG_NAMES += dbus-1
+PKG_NAMES += dbus-glib-1
+PKG_NAMES += glib-2.0
+PKG_NAMES += libudev
+PKG_NAMES += libkmod
+PKG_NAMES += libsystemd
+PKG_NAMES += ssu-sysinfo
+PKG_NAMES += dsme
+
+maintenance  = normalize clean distclean mostlyclean
+maintenance += protos-post
+
+intersection = $(strip $(foreach w,$1, $(filter $w,$2)))
+ifneq ($(call intersection,$(maintenance),$(MAKECMDGOALS)),)
+PKG_CONFIG   ?= true
+endif
+
+ifneq ($(strip $(PKG_NAMES)),)
+PKG_CONFIG   ?= pkg-config
+PKG_CFLAGS   := $(shell $(PKG_CONFIG) --cflags $(PKG_NAMES))
+PKG_LDLIBS   := $(shell $(PKG_CONFIG) --libs   $(PKG_NAMES))
+PKG_CPPFLAGS := $(filter -D%,$(PKG_CFLAGS)) $(filter -I%,$(PKG_CFLAGS))
+PKG_CFLAGS   := $(filter-out -I%, $(filter-out -D%, $(PKG_CFLAGS)))
+endif
+
+CPPFLAGS += $(PKG_CPPFLAGS)
+CFLAGS   += $(PKG_CFLAGS)
+LDLIBS   += $(PKG_LDLIBS)
+
+# ----------------------------------------------------------------------------
+# usb_moded
+# ----------------------------------------------------------------------------
+
+usb_moded-OBJS += src/usb_moded.o
+usb_moded-OBJS += src/usb_moded-android.o
+usb_moded-OBJS += src/usb_moded-appsync.o
+usb_moded-OBJS += src/usb_moded-config.o
+usb_moded-OBJS += src/usb_moded-configfs.o
+usb_moded-OBJS += src/usb_moded-dbus.o
+usb_moded-OBJS += src/usb_moded-devicelock.o
+usb_moded-OBJS += src/usb_moded-dsme.o
+usb_moded-OBJS += src/usb_moded-dyn-config.o
+usb_moded-OBJS += src/usb_moded-log.o
+usb_moded-OBJS += src/usb_moded-mac.o
+usb_moded-OBJS += src/usb_moded-modesetting.o
+usb_moded-OBJS += src/usb_moded-modules.o
+usb_moded-OBJS += src/usb_moded-network.o
+usb_moded-OBJS += src/usb_moded-ssu.o
+usb_moded-OBJS += src/usb_moded-systemd.o
+usb_moded-OBJS += src/usb_moded-trigger.o
+usb_moded-OBJS += src/usb_moded-udev.o
+
+usb_moded : $(usb_moded-OBJS)
+	$(CC) -o $@ $^ $(LDFLAGS) $(LDLIBS)
+
+# ----------------------------------------------------------------------------
+# udev-search
+# ----------------------------------------------------------------------------
+
+udev-search-OBJS += utils/udev-search.o
+
+udev-search : $(udev-search-OBJS)
+	$(CC) -o $@ $^ $(LDFLAGS) $(LDLIBS)
+
+# ----------------------------------------------------------------------------
+# usb_moded_util
+# ----------------------------------------------------------------------------
+
+usb_moded_util-OBJS += src/usb_moded-util.o
+
+usb_moded_util : $(usb_moded_util-OBJS)
+	$(CC) -o $@ $^ $(LDFLAGS) $(LDLIBS)
+
+# ----------------------------------------------------------------------------
+# SOURCE FILES
+# ----------------------------------------------------------------------------
+
+# Files without whitespace issues
+
+CLEAN_SOURCES += src/usb_moded-android.c
+CLEAN_SOURCES += src/usb_moded-appsync-dbus.c
+CLEAN_SOURCES += src/usb_moded-appsync.c
+CLEAN_SOURCES += src/usb_moded-config.c
+CLEAN_SOURCES += src/usb_moded-configfs.c
+CLEAN_SOURCES += src/usb_moded-dbus.c
+CLEAN_SOURCES += src/usb_moded-devicelock.c
+CLEAN_SOURCES += src/usb_moded-dsme.c
+CLEAN_SOURCES += src/usb_moded-dyn-config.c
+CLEAN_SOURCES += src/usb_moded-log.c
+CLEAN_SOURCES += src/usb_moded-mac.c
+CLEAN_SOURCES += src/usb_moded-modesetting.c
+CLEAN_SOURCES += src/usb_moded-modules.c
+CLEAN_SOURCES += src/usb_moded-network.c
+CLEAN_SOURCES += src/usb_moded-ssu.c
+CLEAN_SOURCES += src/usb_moded-systemd.c
+CLEAN_SOURCES += src/usb_moded-trigger.c
+CLEAN_SOURCES += src/usb_moded-udev.c
+CLEAN_SOURCES += src/usb_moded-util.c
+CLEAN_SOURCES += src/usb_moded.c
+CLEAN_SOURCES += utils/udev-search.c
+
+CLEAN_HEADERS += src/usb_moded-android.h
+CLEAN_HEADERS += src/usb_moded-appsync-dbus-private.h
+CLEAN_HEADERS += src/usb_moded-appsync-dbus.h
+CLEAN_HEADERS += src/usb_moded-appsync.h
+CLEAN_HEADERS += src/usb_moded-config-private.h
+CLEAN_HEADERS += src/usb_moded-config.h
+CLEAN_HEADERS += src/usb_moded-configfs.h
+CLEAN_HEADERS += src/usb_moded-dbus-private.h
+CLEAN_HEADERS += src/usb_moded-dbus.h
+CLEAN_HEADERS += src/usb_moded-devicelock.h
+CLEAN_HEADERS += src/usb_moded-dsme.h
+CLEAN_HEADERS += src/usb_moded-dyn-config.h
+CLEAN_HEADERS += src/usb_moded-log.h
+CLEAN_HEADERS += src/usb_moded-mac.h
+CLEAN_HEADERS += src/usb_moded-modes.h
+CLEAN_HEADERS += src/usb_moded-modesetting.h
+CLEAN_HEADERS += src/usb_moded-modules.h
+CLEAN_HEADERS += src/usb_moded-network.h
+CLEAN_HEADERS += src/usb_moded-ssu.h
+CLEAN_HEADERS += src/usb_moded-systemd.h
+CLEAN_HEADERS += src/usb_moded-trigger.h
+CLEAN_HEADERS += src/usb_moded-udev.h
+CLEAN_HEADERS += src/usb_moded.h
+
+# Files with whitespace issues
+
+# DIRTY_SOURCES += foo.c
+# DIRTY_HEADERS += foo.h
+
+# Files that will not pass preprocessor / compiler ...
+
+# BROKEN_SOURCES += foo.c foo.h
+
+ALL_SOURCES += $(CLEAN_SOURCES) $(DIRTY_SOURCES)
+ALL_HEADERS += $(CLEAN_HEADERS) $(DIRTY_HEADERS)
+
+# ----------------------------------------------------------------------------
+# Source code normalization
+# ----------------------------------------------------------------------------
+
+.PHONY: normalize
+normalize::
+	normalize_whitespace -M Makefile.custom
+	normalize_whitespace -a $(CLEAN_SOURCES) $(CLEAN_HEADERS)
+	normalize_whitespace -e -s $(DIRTY_SOURCES) $(DIRTY_HEADERS)
+
+# ----------------------------------------------------------------------------
+# AUTOMATIC HEADER DEPENDENCIES
+# ----------------------------------------------------------------------------
+
+.PHONY: depend
+depend::
+	@echo "Updating .depend"
+	$(CC) -MM $(CPPFLAGS) $(CLEAN_SOURCES) $(DIRTY_SOURCES) |\
+	./depend_filter.py > .depend
+
+ifneq ($(MAKECMDGOALS),depend) # not while: make depend
+ifneq (,$(wildcard .depend))   # not if .depend does not exist
+include .depend
+endif
+endif
+
+# ----------------------------------------------------------------------------
+# AUTOMATIC PROTOTYPE GENERFATION
+# ----------------------------------------------------------------------------
+
+.SUFFIXES: .q .p .g
+
+%.q : %.c ; $(CC) -o $@ -E $< $(CPPFLAGS) $(MCE_CFLAGS)
+%.p : %.q ; cproto -s < $< | prettyproto.py > $@
+%.g : %.q ; cproto    < $< | prettyproto.py > $@
+
+clean::
+	$(RM) *.[qpg] src/*.[qpg] utils/*.[qpg]
+
+protos-pre: $(patsubst %.c,%.q,$(ALL_SOURCES))
+	touch $@
+
+protos-post: $(patsubst %.c,%.p,$(ALL_SOURCES)) $(patsubst %.c,%.g,$(ALL_SOURCES))
+	touch $@
+
+clean::
+	$(RM) protos-pre protos-post
+
+# ----------------------------------------------------------------------------
+# REMOVE FLUFF LEFT BY MB2 BUILDS
+# ----------------------------------------------------------------------------
+
+distclean::
+	$(RM) -r RPMS installroot

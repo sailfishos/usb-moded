@@ -3,9 +3,7 @@
  * Copyright (C) 2018 Jolla Ltd.
  *
  * Author: Philippe De Swert <philippe.de-swert@nokia.com>
- * Author: Philippe De Swert <phdeswer@lumi.maa>
- * Author: Philippe De Swert <philippedeswert@gmail.com>
- * Author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
+ * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the Lesser GNU General Public License
@@ -22,20 +20,25 @@
  * 02110-1301 USA
  */
 
-#ifndef  USB_MODED_APPSYNC_DBUS_PRIVATE_H_
-# define USB_MODED_APPSYNC_DBUS_PRIVATE_H_
+#ifndef  USB_MODED_UDEV_H_
+# define USB_MODED_UDEV_H_
 
-#include "usb_moded-appsync-dbus.h"
+/*
+ * hardware abstraction glue layer.
+ * Each HW abstraction system needs to implement the functions declared here
+ *
+ * Communication is done through the signal functions defined in usb_moded.h
+ */
+
+# include <glib.h>
 
 /* ========================================================================= *
  * Prototypes
  * ========================================================================= */
 
-/* -- dbusappsync -- */
+/* -- umudev -- */
 
-gboolean dbusappsync_init_connection(void);
-gboolean dbusappsync_init           (void);
-void     dbusappsync_cleanup        (void);
-int      dbusappsync_launch_app     (char *launch);
+gboolean umudev_init(void);
+void     umudev_quit(void);
 
-#endif /* USB_MODED_APPSYNC_DBUS_PRIVATE_H_ */
+#endif /* USB_MODED_UDEV_H_ */

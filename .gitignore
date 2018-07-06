@@ -1,9 +1,0 @@
-*.o
-config.h*
-000*
-src/.deps/*
-RPMS*
-installroot*
-autom4te.cache
-cov-int
-docs/html

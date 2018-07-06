@@ -1,11 +1,9 @@
-/*
- * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2018 Jolla Ltd.
+/**
+ * @file usb_moded-configfs.h
  *
- * Author: Philippe De Swert <philippe.de-swert@nokia.com>
- * Author: Philippe De Swert <phdeswer@lumi.maa>
- * Author: Philippe De Swert <philippedeswert@gmail.com>
- * Author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
+ * Copyright (C) 2018 Jolla. All rights reserved.
+ *
+ * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the Lesser GNU General Public License
@@ -22,20 +20,23 @@
  * 02110-1301 USA
  */
 
-#ifndef  USB_MODED_APPSYNC_DBUS_PRIVATE_H_
-# define USB_MODED_APPSYNC_DBUS_PRIVATE_H_
+#ifndef  USB_MODED_CONFIGFS_H_
+# define USB_MODED_CONFIGFS_H_
 
-#include "usb_moded-appsync-dbus.h"
+# include <stdbool.h>
 
 /* ========================================================================= *
  * Prototypes
  * ========================================================================= */
 
-/* -- dbusappsync -- */
+/* -- configfs -- */
 
-gboolean dbusappsync_init_connection(void);
-gboolean dbusappsync_init           (void);
-void     dbusappsync_cleanup        (void);
-int      dbusappsync_launch_app     (char *launch);
+bool configfs_init_values      (void);
+bool configfs_in_use           (void);
+bool configfs_set_charging_mode(void);
+bool configfs_set_productid    (const char *id);
+bool configfs_set_vendorid     (const char *id);
+bool configfs_set_function     (const char *func);
+bool configfs_set_udc          (bool enable);
 
-#endif /* USB_MODED_APPSYNC_DBUS_PRIVATE_H_ */
+#endif /* USB_MODED_CONFIGFS_H_ */
