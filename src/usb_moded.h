@@ -115,8 +115,6 @@ bool                   usbmoded_get_connection_state         (void);
 void                   usbmoded_set_usb_connected_state      (void);
 void                   usbmoded_set_usb_connected            (bool connected);
 void                   usbmoded_set_charger_connected        (bool state);
-const char            *usbmoded_get_android_bootup_function  (void);
-void                   usbmoded_set_android_bootup_function  (const char *function);
 int                    usbmoded_valid_mode                   (const char *mode);
 gchar                 *usbmoded_get_mode_list                (mode_list_type_t type);
 const char            *usbmoded_get_usb_module               (void);

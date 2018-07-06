@@ -178,23 +178,6 @@ bool android_init_values(void)
     /* For rndis to be discovered correctly in M$ Windows (vista and later) */
     write_to_file("/sys/class/android_usb/f_rndis/wceis", "1");
 
-    /* Some devices can have enumeration issues due to incomplete
-     * configuration on the 1st connect after bootup. Briefly setting
-     * up for example mass_storage function can be utilized as a
-     * workaround in such cases. */
-    if(!usbmoded_init_done_p()) {
-        const char *function = usbmoded_get_android_bootup_function();
-        if(function) {
-            write_to_file(ANDROID0_FUNCTIONS, function);
-            write_to_file(ANDROID0_ENABLE, "1");
-            write_to_file(ANDROID0_ENABLE, "0");
-        }
-    }
-
-    /* Clear functions and enable */
-    write_to_file(ANDROID0_FUNCTIONS, "none");
-    write_to_file(ANDROID0_ENABLE, "1");
-
 EXIT:
     return android_in_use();
 }

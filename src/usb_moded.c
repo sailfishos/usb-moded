@@ -203,9 +203,6 @@ void                   usbmoded_set_charger_connected        (bool state);
 
 // ----------------------------------------------------------------
 // internal movements
-// ...
-const char            *usbmoded_get_android_bootup_function  (void);
-void                   usbmoded_set_android_bootup_function  (const char *function);
 
 static void            usbmoded_set_cable_connection_delay   (int delay_ms);
 
@@ -272,9 +269,6 @@ static bool android_ignore_next_udev_disconnect_event = false;
 #ifdef SYSTEMD
 static bool systemd_notify = false;
 #endif
-
-/** Optional android usb function to setup during bootup */
-static gchar *android_bootup_function = 0;
 
 /** Currently allowed cable detection delay
  */
@@ -886,26 +880,6 @@ void usbmoded_set_charger_connected(bool state)
     }
 EXIT:
     return;
-}
-
-/** Get android usb function to setup during bootup
- *
- * @returns function name, or NULL if no function was requested
- */
-const char *usbmoded_get_android_bootup_function(void)
-{
-    return android_bootup_function;
-}
-
-/** Set android usb function to setup during bootup
- *
- * @param function usb function name, or NULL
- */
-void usbmoded_set_android_bootup_function(const char *function)
-{
-    char *value = function ? g_strdup(function) : 0;
-    g_free(android_bootup_function);
-    android_bootup_function = value;
 }
 
 /** Helper for setting allowed cable detection delay
@@ -1787,7 +1761,7 @@ int main(int argc, char* argv[])
             break;
 
         case 'b':
-            usbmoded_set_android_bootup_function(optarg);
+            log_warning("Deprecated option: --android-bootup-function");
             break;
 
         default:
@@ -1994,8 +1968,6 @@ EXIT:
     dbusappsync_cleanup();
 # endif
 #endif
-
-    usbmoded_set_android_bootup_function(0);
 
     /* Must be done just before exit to make sure no more wakelocks
      * are taken and left behind on exit path */
