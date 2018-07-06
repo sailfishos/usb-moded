@@ -1,10 +1,8 @@
 /**
- * @file usb_moded-trigger.h
+ * @file usb_moded-configfs.h
  *
- * Copyright (C) 2011 Nokia Corporation. All rights reserved.
- * Copyright (C) 2018 Jolla Ltd.
+ * Copyright (C) 2018 Jolla. All rights reserved.
  *
- * @author: Philippe De Swert <philippe.de-swert@nokia.com>
  * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
  *
  * This program is free software; you can redistribute it and/or
@@ -22,16 +20,23 @@
  * 02110-1301 USA
  */
 
-#ifndef  USB_MODED_TRIGGER_H_
-# define USB_MODED_TRIGGER_H_
+#ifndef  USB_MODED_CONFIGFS_H_
+# define USB_MODED_CONFIGFS_H_
+
+# include <stdbool.h>
 
 /* ========================================================================= *
  * Prototypes
  * ========================================================================= */
 
-/* -- trigger -- */
+/* -- configfs -- */
 
-gboolean trigger_init(void);
-void     trigger_stop(void);
+bool configfs_init_values      (void);
+bool configfs_in_use           (void);
+bool configfs_set_charging_mode(void);
+bool configfs_set_productid    (const char *id);
+bool configfs_set_vendorid     (const char *id);
+bool configfs_set_function     (const char *func);
+bool configfs_set_udc          (bool enable);
 
-#endif /* USB_MODED_TRIGGER_H_ */
+#endif /* USB_MODED_CONFIGFS_H_ */

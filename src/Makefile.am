@@ -1,3 +1,5 @@
+USB_MODED_CFLAGS += -D_GNU_SOURCE
+
 sbin_PROGRAMS = usb_moded \
 		usb_moded_util 
 
@@ -9,7 +11,7 @@ usb_moded_LDFLAGS = \
 
 usb_moded_LDADD = \
         $(USB_MODED_LIBS)
-		
+
 usb_moded_SOURCES = \
         usb_moded.c \
 	usb_moded.h \
@@ -17,7 +19,7 @@ usb_moded_SOURCES = \
 	usb_moded-dbus.c \
 	usb_moded-dbus.h \
 	usb_moded-dbus-private.h \
-	usb_moded-hw-ab.h \
+	usb_moded-udev.h \
 	usb_moded-config-private.h \
 	usb_moded-modules.h \
 	usb_moded-log.h \
@@ -35,6 +37,8 @@ usb_moded_SOURCES = \
 	usb_moded-udev.c \
 	usb_moded-trigger.c \
 	usb_moded-modules.c \
+	usb_moded-configfs.c \
+	usb_moded-configfs.h \
 	usb_moded-android.h \
 	usb_moded-android.c
 

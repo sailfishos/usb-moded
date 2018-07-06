@@ -1,10 +1,8 @@
-/**
- * @file usb_moded-trigger.h
- *
- * Copyright (C) 2011 Nokia Corporation. All rights reserved.
+/*
+ * Copyright (C) 2010 Nokia Corporation. All rights reserved.
  * Copyright (C) 2018 Jolla Ltd.
  *
- * @author: Philippe De Swert <philippe.de-swert@nokia.com>
+ * Author: Philippe De Swert <philippe.de-swert@nokia.com>
  * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
  *
  * This program is free software; you can redistribute it and/or
@@ -22,16 +20,25 @@
  * 02110-1301 USA
  */
 
-#ifndef  USB_MODED_TRIGGER_H_
-# define USB_MODED_TRIGGER_H_
+#ifndef  USB_MODED_UDEV_H_
+# define USB_MODED_UDEV_H_
+
+/*
+ * hardware abstraction glue layer.
+ * Each HW abstraction system needs to implement the functions declared here
+ *
+ * Communication is done through the signal functions defined in usb_moded.h
+ */
+
+# include <glib.h>
 
 /* ========================================================================= *
  * Prototypes
  * ========================================================================= */
 
-/* -- trigger -- */
+/* -- umudev -- */
 
-gboolean trigger_init(void);
-void     trigger_stop(void);
+gboolean umudev_init(void);
+void     umudev_quit(void);
 
-#endif /* USB_MODED_TRIGGER_H_ */
+#endif /* USB_MODED_UDEV_H_ */

@@ -1,0 +1,9 @@
+[Unit]
+#Description=Buteo MTP daemon
+[Service]
+Environment="LANG=en_GB.utf8"
+Environment="MSYNCD_LOGGING_LEVEL=7"
+Type=simple
+ExecStart=/usr/lib/mtp/mtp_service
+Restart=no
+[Install]
