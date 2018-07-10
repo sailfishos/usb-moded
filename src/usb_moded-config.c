@@ -233,7 +233,7 @@ static void config_create_conf_file(void)
     struct stat dir_stat;
 
     /* since this function can also be called when the dir exists we only create
-     it if it is missing */
+     * it if it is missing */
     if(stat(CONFIG_FILE_DIR, &dir_stat))
     {
         dir = mkdir(CONFIG_FILE_DIR, 0755);
@@ -355,7 +355,7 @@ static char * config_get_kcmdline_string(const char *entry)
     cmdLine[len] = '\0';
 
     /* we're looking for a piece of the kernel command line matching this:
-     ip=192.168.3.100::192.168.3.1:255.255.255.0::usb0:on */
+     * ip=192.168.3.100::192.168.3.1:255.255.255.0::usb0:on */
     if (!g_shell_parse_argv(cmdLine, &argc, &argv, &optErr))
     {
         g_error_free(optErr);
@@ -451,8 +451,8 @@ set_config_result_t config_set_config_setting(const char *entry, const char *key
     g_key_file_set_string(settingsfile, entry, key, value);
     keyfile = g_key_file_to_data (settingsfile, NULL, NULL);
     /* free the settingsfile before writing things out to be sure
-     the contents will be correctly written to file afterwards.
-     Just a precaution. */
+     * the contents will be correctly written to file afterwards.
+     * Just a precaution. */
     g_key_file_free(settingsfile);
     if (g_file_set_contents(FS_MOUNT_CONFIG_FILE, keyfile, -1, NULL))
         ret = SET_CONFIG_UPDATED;
@@ -469,7 +469,7 @@ set_config_result_t config_set_mode_setting(const char *mode)
 }
 
 /* Builds the string used for hidden modes, when hide set to one builds the
- new string of hidden modes when adding one, otherwise it will remove one */
+ * new string of hidden modes when adding one, otherwise it will remove one */
 static char * config_make_modes_string(const char *key, const char *mode_name, int include)
 {
     char     *modes_new = 0;
@@ -654,8 +654,8 @@ set_config_result_t config_set_network_setting(const char *config, const char *s
         g_key_file_set_string(settingsfile, NETWORK_ENTRY, config, setting);
         keyfile = g_key_file_to_data (settingsfile, NULL, NULL);
         /* free the settingsfile before writing things out to be sure
-         the contents will be correctly written to file afterwards.
-         Just a precaution. */
+         * the contents will be correctly written to file afterwards.
+         * Just a precaution. */
         g_key_file_free(settingsfile);
         if (g_file_set_contents(FS_MOUNT_CONFIG_FILE, keyfile, -1, NULL))
             ret = SET_CONFIG_UPDATED;
@@ -684,13 +684,13 @@ char * config_get_network_setting(const char *config)
     {
 
         /* check main configuration before using
-         the information from the specific mode */
+         * the information from the specific mode */
         ret = config_get_network_interface();
 
         if(ret)
             goto end;
         /* no interface override specified, let's use the one
-         from the mode config */
+         * from the mode config */
         data = usbmoded_get_usb_mode_data();
         if(data)
         {

@@ -145,7 +145,7 @@ cleanup:
     if( confdir ) g_dir_close(confdir);
 
     /* sort list alphabetically so services for a mode
-     can be run in a certain order */
+     * can be run in a certain order */
     sync_list=g_list_sort(sync_list, appsync_list_sort_func);
 
     /* set up session bus connection if app sync in use
@@ -291,7 +291,7 @@ int appsync_activate_sync(const char *mode)
             else if(data->launch)
             {
                 /* skipping if dbus session bus is not available,
-                 or not compiled in */
+                 * or not compiled in */
                 if(no_dbus)
                     appsync_mark_active(data->name, 0);
 #ifdef APP_SYNC_DBUS
@@ -352,7 +352,7 @@ int appsync_activate_sync_post(const char *mode)
             else if(data->launch)
             {
                 /* skipping if dbus session bus is not available,
-                 or not compiled in */
+                 * or not compiled in */
                 if(no_dbus)
                     continue;
 #ifdef APP_SYNC_DBUS

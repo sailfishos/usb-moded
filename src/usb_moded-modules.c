@@ -191,12 +191,12 @@ int modules_load_module(const char *module)
     if(!strcmp(module, MODULE_CHARGING) || !strcmp(module, MODULE_CHARGE_FALLBACK))
     {
         /* split the string in module name and argument, they are the same for MODULE_CHARGE_FALLBACK
-         so no need to handle them separately  */
+         * so no need to handle them separately  */
         gchar **strings;
 
         /* since the mass_storage module is the newer one and we check against it to avoid
-         loading failures we use it here, as we fall back to g_file_storage if g_mass_storage
-         fails to load */
+         * loading failures we use it here, as we fall back to g_file_storage if g_mass_storage
+         * fails to load */
         strings = g_strsplit(MODULE_CHARGE_FALLBACK, " ", 2);
         //log_debug("module args = %s, module = %s\n", strings[1], strings[0]);
         charging_args = strdup(strings[1]);
@@ -208,7 +208,7 @@ int modules_load_module(const char *module)
     }
     ret = kmod_module_new_from_name(ctx, load, &mod);
     /* since kmod_module_new_from_name does not check if the module
-     exists we test it's path in case we deal with the mass-storage one */
+     * exists we test it's path in case we deal with the mass-storage one */
     if(!strcmp(module, MODULE_MASS_STORAGE) &&
        (kmod_module_get_path(mod) == NULL))
     {
@@ -330,21 +330,21 @@ int modules_cleanup_module(const char *module)
     }
 
     /* wait a bit for all components listening on dbus to clean up their act
-     usbmoded_sleep(2); */
+     * usbmoded_sleep(2); */
     /* check if things were not reconnected in that timespan
-     if(usbmoded_get_connection_state())
-     return(0);
+     * if(usbmoded_get_connection_state())
+     * return(0);
      */
 
     failure = modules_unload_module(module);
 
     /* if we have MODULE_MASS_STORAGE it might be MODULE_FILE_STORAGE might
-     be loaded. So check and unload that one if unloading fails first time */
+     * be loaded. So check and unload that one if unloading fails first time */
     if(failure && !strcmp(MODULE_MASS_STORAGE, module))
         failure = modules_unload_module(MODULE_FILE_STORAGE);
 
     /* if it still failed it might be the mode has not been cleaned-up correctly,
-     so we clean up the mode to be sure */
+     * so we clean up the mode to be sure */
     if(failure)
     {
         modesetting_cleanup(modules_get_loaded_module());

@@ -199,7 +199,7 @@ int modesetting_write_to_file_real(const char *file, int line, const char *func,
     bool  clear = false;
 
     /* if either path or the text to be written are not there
-     we return an error */
+     * we return an error */
     if(!text || !path)
         return err;
 
@@ -296,7 +296,7 @@ static int modesetting_set_mass_storage_mode(struct mode_list_elem *data)
         if(strcmp(data->mode_module, MODULE_NONE))
         {
             /* check if the file storage module has been loaded with sufficient luns in the parameter,
-             if not, unload and reload or load it. Since  mountpoints start at 0 the amount of them is one more than their id */
+             * if not, unload and reload or load it. Since  mountpoints start at 0 the amount of them is one more than their id */
             sprintf(command2, "/sys/devices/platform/musb_hdrc/gadget/gadget-lun%d/file", (mountpoints - 1) );
             if(access(command2, R_OK) == -1)
             {
@@ -586,7 +586,7 @@ int modesetting_set_dynamic_mode(void)
     }
 
     /* try a second time to bring up the network if it failed the first time,
-     this can happen with functionfs based gadgets (which is why we sleep for a bit */
+     * this can happen with functionfs based gadgets (which is why we sleep for a bit */
     if(network != 0 && data->network)
     {
         log_debug("Retry setting up the network later\n");
@@ -596,7 +596,7 @@ int modesetting_set_dynamic_mode(void)
     }
 
     /* Needs to be called before application post synching so
-     that the dhcp server has the right config */
+     * that the dhcp server has the right config */
     if(data->nat || data->dhcp_server)
         network_set_up_dhcpd(data);
 
@@ -703,7 +703,7 @@ int modesetting_cleanup(const char *module)
     if(!strcmp(module, MODULE_MASS_STORAGE)|| !strcmp(module, MODULE_FILE_STORAGE))
     {
         /* no clean-up needs to be done when we come from charging mode. We need
-         to check since we use fake mass-storage for charging */
+         * to check since we use fake mass-storage for charging */
         if(!strcmp(MODE_CHARGING, usbmoded_get_usb_mode()) || !strcmp(MODE_CHARGING_FALLBACK, usbmoded_get_usb_mode()))
             return 0;
         modesetting_unset_mass_storage_mode(NULL);

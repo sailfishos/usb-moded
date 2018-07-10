@@ -543,7 +543,7 @@ static void usbmoded_switch_to_mode(const char *mode)
         ret = modules_load_module(data->mode_module);
 
         /* set data before calling any of the dynamic mode functions
-         as they will use the usbmoded_get_usb_mode_data function */
+         * as they will use the usbmoded_get_usb_mode_data function */
         usbmoded_set_usb_mode_data(data);
 
         /* check if modules are ok before continuing */
@@ -779,8 +779,8 @@ void usbmoded_set_usb_connected_state(void)
 
         if (!strcmp(MODE_ASK, mode_to_set))
         {
-            /*! If charging mode is the only available selection, don't ask
-             just select it */
+            /* If charging mode is the only available selection, don't ask
+             * just select it */
             gchar *available_modes = usbmoded_get_mode_list(AVAILABLE_MODES_LIST);
             if (!strcmp(MODE_CHARGING, available_modes)) {
                 gchar *temp = mode_to_set;
@@ -793,12 +793,12 @@ void usbmoded_set_usb_connected_state(void)
         if(!strcmp(MODE_ASK, mode_to_set))
         {
             /* send signal, mode will be set when the dialog service calls
-             the set_mode method call.
+             * the set_mode method call.
              */
             umdbus_send_state_signal(USB_CONNECTED_DIALOG_SHOW);
 
             /* in case there was nobody listening for the UI, they will know
-             that the UI is needed by requesting the current mode */
+             * that the UI is needed by requesting the current mode */
             usbmoded_set_usb_mode(MODE_ASK);
         }
         else
@@ -807,8 +807,8 @@ void usbmoded_set_usb_connected_state(void)
     else
     {
         /* config is corrupted or we do not have a mode configured, fallback to charging
-         We also fall back here in case the device is locked and we do not
-         export the system contents. Or if we are in acting dead mode.
+         * We also fall back here in case the device is locked and we do not
+         * export the system contents. Or if we are in acting dead mode.
          */
         usbmoded_set_usb_mode(MODE_CHARGING_FALLBACK);
     }
@@ -872,7 +872,7 @@ EXIT:
 void usbmoded_set_charger_connected(bool state)
 {
     /* check if charger is already connected
-     to avoid spamming dbus */
+     * to avoid spamming dbus */
     if( !usbmoded_set_connection_state(state) )
         goto EXIT;
 
@@ -949,7 +949,7 @@ int usbmoded_valid_mode(const char *mode)
 {
     int valid = 1;
     /* MODE_ASK, MODE_CHARGER and MODE_CHARGING_FALLBACK are not modes that are settable seen their special 'internal' status
-     so we only check the modes that are announed outside. Only exception is the built in MODE_CHARGING */
+     * so we only check the modes that are announed outside. Only exception is the built in MODE_CHARGING */
     if(!strcmp(MODE_CHARGING, mode))
         valid = 0;
     else

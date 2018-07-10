@@ -461,7 +461,7 @@ static int umudev_score_as_power_supply(const char *syspath)
         score = score + 10;
 
     /* type is used to detect if it is a cable or dedicated charger.
-     Bonus points if it is there. */
+     * Bonus points if it is there. */
     if(udev_device_get_property_value(dev, "POWER_SUPPLY_TYPE"))
         score = score + 10;
 
