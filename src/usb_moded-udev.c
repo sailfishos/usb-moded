@@ -44,6 +44,7 @@
 #include "usb_moded-udev.h"
 #include "usb_moded.h"
 #include "usb_moded-modes.h"
+#include "usb_moded-dbus-private.h"
 
 /* ========================================================================= *
  * Types
@@ -202,10 +203,12 @@ static void cable_state_changed(void)
         break;
     case CABLE_STATE_CHARGER_CONNECTED:
         log_debug("*** HANDLE CHARGER DISCONNECT");
+        umdbus_send_state_signal(CHARGER_DISCONNECTED);
         usbmoded_set_charger_connected(false);
         break;
     case CABLE_STATE_PC_CONNECTED:
         log_debug("*** HANDLE PC DISCONNECT");
+        umdbus_send_state_signal(USB_DISCONNECTED);
         usbmoded_set_usb_connected(false);
         break;
     }
@@ -221,10 +224,12 @@ static void cable_state_changed(void)
         break;
     case CABLE_STATE_CHARGER_CONNECTED:
         log_debug("*** HANDLE CHARGER CONNECT");
+        umdbus_send_state_signal(CHARGER_CONNECTED);
         usbmoded_set_charger_connected(true);
         break;
     case CABLE_STATE_PC_CONNECTED:
         log_debug("*** HANDLE PC CONNECT");
+        umdbus_send_state_signal(USB_CONNECTED);
         usbmoded_set_usb_connected(true);
         break;
     }

@@ -763,26 +763,14 @@ EXIT:
  */
 void usbmoded_set_usb_connected(bool connected)
 {
-    /* Do not go through the routine if already connected to avoid
-     * spurious load/unloads due to faulty signalling
-     * NOKIA: careful with devicelock
-     */
     if( !usbmoded_set_connection_state(connected) )
         goto EXIT;
 
     if( usbmoded_get_connection_state() ) {
-        log_debug("usb connected\n");
-
-        /* signal usb connected */
-        umdbus_send_state_signal(USB_CONNECTED);
-
-        /* choose mode, then call  usbmoded_set_usb_mode(chosen_mode)
-         */
+        /* choose mode + call usbmoded_set_usb_mode() */
         usbmoded_set_usb_connected_state();
     }
     else {
-        log_debug("usb disconnected\n");
-        umdbus_send_state_signal(USB_DISCONNECTED);
         usbmoded_set_usb_mode(MODE_UNDEFINED);
     }
 EXIT:
@@ -800,11 +788,9 @@ void usbmoded_set_charger_connected(bool state)
         goto EXIT;
 
     if( usbmoded_get_connection_state() ) {
-        umdbus_send_state_signal(CHARGER_CONNECTED);
         usbmoded_set_usb_mode(MODE_CHARGER);
     }
     else {
-        umdbus_send_state_signal(CHARGER_DISCONNECTED);
         usbmoded_set_usb_mode(MODE_UNDEFINED);
     }
 EXIT:
