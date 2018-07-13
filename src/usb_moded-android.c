@@ -267,7 +267,15 @@ bool
 android_set_productid(const char *id)
 {
     bool ack = false;
+
     if( id && android_in_use() ) {
+        char str[16];
+        char *end = 0;
+        unsigned num = strtol(id, &end, 16);
+        if( end > id && *end == 0 ) {
+            snprintf(str, sizeof str, "%04x", num);
+            id = str;
+        }
         ack = write_to_file(ANDROID0_ID_PRODUCT, id) != -1;
     }
     log_debug("ANDROID %s(%s) -> %d", __func__, id, ack);
@@ -283,6 +291,13 @@ android_set_vendorid(const char *id)
 {
     bool ack = false;
     if( id && android_in_use() ) {
+        char str[16];
+        char *end = 0;
+        unsigned num = strtol(id, &end, 16);
+        if( end > id && *end == 0 ) {
+            snprintf(str, sizeof str, "%04x", num);
+            id = str;
+        }
         ack = write_to_file(ANDROID0_ID_VENDOR, id) != -1;
     }
     log_debug("ANDROID %s(%s) -> %d", __func__, id, ack);
