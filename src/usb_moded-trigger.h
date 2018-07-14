@@ -31,7 +31,7 @@
 
 /* -- trigger -- */
 
-gboolean trigger_init(void);
+bool     trigger_init(void);
 void     trigger_stop(void);
 
 #endif /* USB_MODED_TRIGGER_H_ */

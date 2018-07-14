@@ -55,7 +55,7 @@
 static void     trigger_udev_error_cb        (gpointer data);
 static gboolean trigger_udev_input_cb        (GIOChannel *iochannel, GIOCondition cond, gpointer data);
 static void     trigger_parse_udev_properties(struct udev_device *dev);
-gboolean        trigger_init                 (void);
+bool            trigger_init                 (void);
 void            trigger_stop                 (void);
 
 /* ========================================================================= *
@@ -64,9 +64,8 @@ void            trigger_stop                 (void);
 
 static struct udev         *trigger_udev_handle    = 0;
 static struct udev_monitor *trigger_udev_monitor   = 0;
-static GIOChannel          *trigger_udev_iochannel = 0;
-static guint                trigger_udev_input_id  = 0;
-static const char          *trigger_udev_sysname   = 0;
+static guint                trigger_udev_watch_id  = 0;
+static gchar               *trigger_udev_sysname   = 0;
 
 /* ========================================================================= *
  * Functions
@@ -82,71 +81,99 @@ static void trigger_udev_error_cb (gpointer data)
     trigger_init();
 }
 
-gboolean trigger_init(void)
+bool trigger_init(void)
 {
-    const gchar *udev_path = NULL;
-    struct udev_device *dev;
-    int ret = 0;
+    bool ack = false;
+
+    gchar *devpath   = 0;
+    gchar *subsystem = 0;
+    struct udev_device *dev = 0;
+    GIOChannel          *chn = 0;
+
+    int ret;
+
+    if( !(devpath = config_check_trigger()) ) {
+        log_err("No trigger path. Not starting trigger.\n");
+        goto EXIT;
+    }
+
+    if( !(subsystem = config_get_trigger_subsystem()) ) {
+        log_err("No trigger subsystem. Not starting trigger.\n");
+        goto EXIT;
+    }
 
     /* Create the udev object */
-    trigger_udev_handle = udev_new();
-    if (!trigger_udev_handle)
-    {
+    if( !(trigger_udev_handle = udev_new()) ) {
         log_err("Can't create udev\n");
-        return 1;
     }
 
-    udev_path = config_check_trigger();
-    if(udev_path)
-        dev = udev_device_new_from_syspath(trigger_udev_handle, udev_path);
-    else
-    {
-        log_err("No trigger path. Not starting trigger.\n");
-        return 1;
-    }
-    if (!dev)
-    {
+    dev = udev_device_new_from_syspath(trigger_udev_handle, devpath);
+    if( !dev ) {
         log_err("Unable to find the trigger device.");
-        return 1;
+        goto EXIT;
     }
-    else
-    {
-        trigger_udev_sysname = udev_device_get_sysname(dev);
-        log_debug("device name = %s\n", trigger_udev_sysname);
-    }
-    trigger_udev_monitor = udev_monitor_new_from_netlink (trigger_udev_handle, "udev");
-    if (!trigger_udev_monitor)
-    {
+
+    trigger_udev_sysname = g_strdup(udev_device_get_sysname(dev));
+    log_debug("device name = %s\n", trigger_udev_sysname);
+
+    trigger_udev_monitor = udev_monitor_new_from_netlink(trigger_udev_handle,
+                                                         "udev");
+    if( !trigger_udev_monitor ) {
         log_err("Unable to monitor the netlink\n");
-        /* communicate failure, mainloop will exit and call appropriate clean-up */
-        return 1;
+        goto EXIT;
     }
-    ret = udev_monitor_filter_add_match_subsystem_devtype(trigger_udev_monitor, config_get_trigger_subsystem(), NULL);
-    if(ret != 0)
-    {
+
+    ret = udev_monitor_filter_add_match_subsystem_devtype(trigger_udev_monitor,
+                                                          subsystem,
+                                                          NULL);
+    if (ret != 0 ) {
         log_err("Udev match failed.\n");
-        return 1;
+        goto EXIT;
     }
-    ret = udev_monitor_enable_receiving (trigger_udev_monitor);
-    if(ret != 0)
-    {
+
+    ret = udev_monitor_enable_receiving(trigger_udev_monitor);
+    if( ret != 0 ) {
         log_err("Failed to enable monitor recieving.\n");
-        return 1;
+        goto EXIT;
     }
 
     /* check if we are already connected */
     trigger_parse_udev_properties(dev);
 
-    trigger_udev_iochannel = g_io_channel_unix_new(udev_monitor_get_fd(trigger_udev_monitor));
-    trigger_udev_input_id = g_io_add_watch_full(trigger_udev_iochannel, 0, G_IO_IN, trigger_udev_input_cb, NULL, trigger_udev_error_cb);
+    chn = g_io_channel_unix_new(udev_monitor_get_fd(trigger_udev_monitor));
+    if( !chn )
+        goto EXIT;
+
+    trigger_udev_watch_id = g_io_add_watch_full(chn,
+                                                0,
+                                                G_IO_IN,
+                                                trigger_udev_input_cb,
+                                                NULL,
+                                                trigger_udev_error_cb);
 
     /* everything went well */
     log_debug("Trigger enabled!\n");
-    return 0;
+    ack = true;
+
+EXIT:
+    if(chn)
+        g_io_channel_unref(chn);
+
+    if( dev )
+        udev_device_unref(dev);
+
+    g_free(subsystem);
+    g_free(devpath);
+
+    /* All or nothing */
+    if( !ack )
+        trigger_stop();
+
+    return ack;
 }
 
 static gboolean trigger_udev_input_cb(GIOChannel *iochannel G_GNUC_UNUSED, GIOCondition cond,
-                               gpointer data G_GNUC_UNUSED)
+                                      gpointer data G_GNUC_UNUSED)
 {
     struct udev_device *dev;
 
@@ -159,7 +186,7 @@ static gboolean trigger_udev_input_cb(GIOChannel *iochannel G_GNUC_UNUSED, GIOCo
             /* check if it is the actual device we want to check */
             if(strcmp(trigger_udev_sysname, udev_device_get_sysname(dev))) {
                 log_crit("name does not match, disabling udev trigger io-watch");
-                trigger_udev_input_id = 0;
+                trigger_udev_watch_id = 0;
                 return FALSE;
             }
 
@@ -174,7 +201,7 @@ static gboolean trigger_udev_input_cb(GIOChannel *iochannel G_GNUC_UNUSED, GIOCo
         else
         {
             log_debug("Bad trigger data. Stopping\n");
-            trigger_udev_input_id = 0;
+            trigger_udev_watch_id = 0;
             trigger_stop();
             return FALSE;
         }
@@ -186,14 +213,10 @@ static gboolean trigger_udev_input_cb(GIOChannel *iochannel G_GNUC_UNUSED, GIOCo
 
 void trigger_stop(void)
 {
-    if(trigger_udev_input_id)
+    if(trigger_udev_watch_id)
     {
-        g_source_remove(trigger_udev_input_id);
-        trigger_udev_input_id = 0;
-    }
-    if(trigger_udev_iochannel) {
-        g_io_channel_unref(trigger_udev_iochannel);
-        trigger_udev_iochannel = NULL;
+        g_source_remove(trigger_udev_watch_id);
+        trigger_udev_watch_id = 0;
     }
     if(trigger_udev_monitor)
     {
@@ -205,7 +228,8 @@ void trigger_stop(void)
         udev_unref(trigger_udev_handle);
         trigger_udev_handle = 0;
     }
-    trigger_udev_sysname = 0;
+    g_free(trigger_udev_sysname),
+        trigger_udev_sysname = 0;
 }
 
 static void trigger_parse_udev_properties(struct udev_device *dev)
