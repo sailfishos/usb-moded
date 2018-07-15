@@ -173,6 +173,7 @@ void                   usbmoded_rethink_usb_charging_fallback(void);
 
 static bool            usbmoded_switch_to_charging           (void);
 static void            usbmoded_switch_to_mode               (const char *mode);
+static void            usbmoded_mode_switched                (const char *override);
 
 const char            *usbmoded_get_hardware_mode            (void);
 static void            usbmoded_update_hardware_mode         (void);
@@ -268,13 +269,13 @@ static bool systemd_notify = false;
 int usbmoded_cable_connection_delay = CABLE_CONNECTION_DELAY_DEFAULT;
 
 static struct usb_mode current_mode = {
-    .connected = false,
-    .mounted = false,
+    .connected     = false,
+    .mounted       = false,
     .internal_mode = NULL,
     .hardware_mode = NULL,
     .external_mode = NULL,
-    .module = NULL,
-    .data = NULL,
+    .module        = NULL,
+    .data          = NULL,
 };
 
 static GList *modelist = 0;
@@ -457,6 +458,8 @@ SUCCESS:
 
 static void usbmoded_switch_to_mode(const char *mode)
 {
+    const char *override = 0;
+
     /* set return to 1 to be sure to error out if no matching mode is found either */
 
     log_debug("Cleaning up previous mode");
@@ -509,6 +512,8 @@ static void usbmoded_switch_to_mode(const char *mode)
     log_warning("mode setting failed, fall back to charging");
     usbmoded_set_usb_mode_data(NULL);
 
+    override = MODE_CHARGING_FALLBACK;
+
 CHARGE:
     if( usbmoded_switch_to_charging() )
         goto SUCCESS;
@@ -521,11 +526,16 @@ CHARGE:
      * no mode matched, and charging setup failed too.
      */
 
+    override = MODE_UNDEFINED;
+
     usbmoded_set_usb_module(MODULE_NONE);
     mode = MODE_UNDEFINED;
     log_debug("mode setting failed or device disconnected, mode to set was = %s\n", mode);
 
 SUCCESS:
+    /* TODO: WORKER -> MAIN THREAD BARRIER */
+    usbmoded_mode_switched(override);
+
     return;
 }
 
@@ -540,8 +550,10 @@ static void usbmoded_update_hardware_mode(void)
     const char *hardware_mode = usbmoded_map_mode_to_hardware(internal_mode);
 
     gchar *previous = current_mode.hardware_mode;
-    if( !g_strcmp0(previous, hardware_mode) )
+    if( !g_strcmp0(previous, hardware_mode) ) {
+        usbmoded_mode_switched(0);
         goto EXIT;
+    }
 
     log_debug("hardware_mode: %s -> %s",
               previous, hardware_mode);
@@ -551,6 +563,7 @@ static void usbmoded_update_hardware_mode(void)
 
     // DO THE MODESWITCH
 
+    /* TODO: MAIN THREAD -> WORKERBARRIER */
     usbmoded_switch_to_mode(current_mode.hardware_mode);
 
 EXIT:
@@ -617,13 +630,31 @@ void usbmoded_set_usb_mode(const char *mode)
     current_mode.internal_mode = g_strdup(mode);
     g_free(previous);
 
-    // PROPAGATE DOWN TO USB
+    // PROPAGATE DOWN TO GADGET CONFIG
     usbmoded_update_hardware_mode();
+
+EXIT:
+    return;
+}
+
+static void usbmoded_mode_switched(const char *override)
+{
+    if( override ) {
+        /* Requested usb mode could not be activated at
+         * gadget control level. Update state info, but
+         * leave lower level as-is.
+         */
+        log_debug("internal_mode: %s -> %s (override)",
+                  current_mode.internal_mode,
+                  override);
+
+        g_free(current_mode.internal_mode),
+            current_mode.internal_mode = g_strdup(override);
+    }
 
     // PROPAGATE UP DBUS
     usbmoded_update_external_mode();
 
-EXIT:
     return;
 }
 
