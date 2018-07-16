@@ -272,8 +272,7 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
             else
             {
                 /* check if usb is connected, since it makes no sense to change mode if it isn't */
-                if(!usbmoded_get_connection_state())
-                {
+                if( usbmoded_get_cable_state() != CABLE_STATE_PC_CONNECTED ) {
                     log_warning("USB not connected, not changing mode!\n");
                     goto error_reply;
                 }

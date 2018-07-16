@@ -71,6 +71,14 @@
  * Types
  * ========================================================================= */
 
+typedef enum {
+    CABLE_STATE_UNKNOWN,
+    CABLE_STATE_DISCONNECTED,
+    CABLE_STATE_CHARGER_CONNECTED,
+    CABLE_STATE_PC_CONNECTED,
+    CABLE_STATE_NUMOF
+} cable_state_t;
+
 /** Mode list types
  */
 typedef enum mode_list_type_t {
@@ -105,16 +113,20 @@ extern bool            usbmoded_rescue_mode;
  * Functions
  * ========================================================================= */
 
+/* -- cable -- */
+
+const char *cable_state_repr(cable_state_t state);
+
 /* -- usbmoded -- */
 
 void                   usbmoded_rethink_usb_charging_fallback(void);
 const char            *usbmoded_get_external_mode            (void);
 const char            *usbmoded_get_usb_mode                 (void);
 void                   usbmoded_set_usb_mode                 (const char *internal_mode);
+void                   usbmoded_select_usb_mode              (void);
+void                   usbmoded_set_cable_state              (cable_state_t cable_state);
+cable_state_t          usbmoded_get_cable_state              (void);
 bool                   usbmoded_get_connection_state         (void);
-void                   usbmoded_set_usb_connected_state      (void);
-void                   usbmoded_set_usb_connected            (bool connected);
-void                   usbmoded_set_charger_connected        (bool state);
 int                    usbmoded_valid_mode                   (const char *mode);
 gchar                 *usbmoded_get_mode_list                (mode_list_type_t type);
 const char            *usbmoded_get_usb_module               (void);

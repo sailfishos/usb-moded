@@ -1240,21 +1240,12 @@ int network_down(struct mode_list_elem *data)
  */
 int network_update(void)
 {
-    struct mode_list_elem * data;
-
-    if(!usbmoded_get_connection_state())
-        return(0);
-
-    data = usbmoded_get_usb_mode_data();
-    if(data == NULL)
-        return(0);
-    if(data->network)
-    {
-        network_down(data);
-        network_up(data);
-        return(0);
+    if( usbmoded_get_cable_state() == CABLE_STATE_PC_CONNECTED ) {
+        struct mode_list_elem *data = usbmoded_get_usb_mode_data();
+        if( data && data->network ) {
+            network_down(data);
+            network_up(data);
+        }
     }
-    else
-        return(0);
-
+    return 0;
 }

@@ -47,33 +47,19 @@
 #include "usb_moded-dbus-private.h"
 
 /* ========================================================================= *
- * Types
- * ========================================================================= */
-
-typedef enum {
-    CABLE_STATE_UNKNOWN,
-    CABLE_STATE_DISCONNECTED,
-    CABLE_STATE_CHARGER_CONNECTED,
-    CABLE_STATE_PC_CONNECTED,
-    CABLE_STATE_NUMOF
-} cable_state_t;
-
-/* ========================================================================= *
  * Prototypes
  * ========================================================================= */
 
-/* -- cable -- */
-
-static gboolean      cable_state_timer_cb   (gpointer aptr);
-static void          cable_state_stop_timer (void);
-static void          cable_state_start_timer(void);
-static bool          cable_state_connected  (void);
-static cable_state_t cable_state_get        (void);
-static void          cable_state_set        (cable_state_t state);
-static void          cable_state_changed    (void);
-static void          cable_state_from_udev  (cable_state_t state);
-
 /* -- umudev -- */
+
+static gboolean      umudev_cable_state_timer_cb   (gpointer aptr);
+static void          umudev_cable_state_stop_timer (void);
+static void          umudev_cable_state_start_timer(void);
+static bool          umudev_cable_state_connected  (void);
+static cable_state_t umudev_cable_state_get        (void);
+static void          umudev_cable_state_set        (cable_state_t state);
+static void          umudev_cable_state_changed    (void);
+static void          umudev_cable_state_from_udev  (cable_state_t state);
 
 static void     umudev_io_error_cb          (gpointer data);
 static gboolean umudev_io_input_cb          (GIOChannel *iochannel, GIOCondition cond, gpointer data);
@@ -86,13 +72,6 @@ void            umudev_quit                 (void);
  * Data
  * ========================================================================= */
 
-static const char * const cable_state_name[CABLE_STATE_NUMOF] = {
-    [CABLE_STATE_UNKNOWN]           = "unknown",
-    [CABLE_STATE_DISCONNECTED]      = "disconnected",
-    [CABLE_STATE_CHARGER_CONNECTED] = "charger_connected",
-    [CABLE_STATE_PC_CONNECTED]      = "pc_connected",
-};
-
 /* global variables */
 static struct udev         *umudev_object     = 0;
 static struct udev_monitor *umudev_monitor    = 0;
@@ -101,57 +80,58 @@ static guint                umudev_watch_id   = 0;
 static bool                 umudev_in_cleanup = false;
 
 /** Cable state as evaluated from udev events */
-static cable_state_t cable_state_current  = CABLE_STATE_UNKNOWN;
+static cable_state_t umudev_cable_state_current  = CABLE_STATE_UNKNOWN;
 
 /** Cable state considered active by usb-moded */
-static cable_state_t cable_state_active   = CABLE_STATE_UNKNOWN;
+static cable_state_t umudev_cable_state_active   = CABLE_STATE_UNKNOWN;
 
 /** Previously active cable state */
-static cable_state_t cable_state_previous = CABLE_STATE_UNKNOWN;
+static cable_state_t umudev_cable_state_previous = CABLE_STATE_UNKNOWN;
 
 /** Timer id for delaying: reported by udev -> active in usb-moded */
-static guint cable_state_timer_id = 0;
+static guint umudev_cable_state_timer_id = 0;
 
 /* ========================================================================= *
  * cable state
  * ========================================================================= */
 
-static gboolean cable_state_timer_cb(gpointer aptr)
+static gboolean umudev_cable_state_timer_cb(gpointer aptr)
 {
     (void)aptr;
-    cable_state_timer_id = 0;
+    umudev_cable_state_timer_id = 0;
 
     log_debug("trigger delayed transfer to: %s",
-              cable_state_name[cable_state_current]);
-    cable_state_set(cable_state_current);
+              cable_state_repr(umudev_cable_state_current));
+    umudev_cable_state_set(umudev_cable_state_current);
     return FALSE;
 }
 
-static void cable_state_stop_timer(void)
+static void umudev_cable_state_stop_timer(void)
 {
-    if( cable_state_timer_id ) {
+    if( umudev_cable_state_timer_id ) {
         log_debug("cancel delayed transfer to: %s",
-                  cable_state_name[cable_state_current]);
-        g_source_remove(cable_state_timer_id),
-            cable_state_timer_id = 0;
+                  cable_state_repr(umudev_cable_state_current));
+        g_source_remove(umudev_cable_state_timer_id),
+            umudev_cable_state_timer_id = 0;
     }
 }
 
-static void cable_state_start_timer(void)
+static void umudev_cable_state_start_timer(void)
 {
-    if( !cable_state_timer_id ) {
+    if( !umudev_cable_state_timer_id ) {
         log_debug("schedule delayed transfer to: %s",
-                  cable_state_name[cable_state_current]);
-        cable_state_timer_id = g_timeout_add(usbmoded_cable_connection_delay,
-                                             cable_state_timer_cb, 0);
+                  cable_state_repr(umudev_cable_state_current));
+        umudev_cable_state_timer_id =
+            g_timeout_add(usbmoded_cable_connection_delay,
+                          umudev_cable_state_timer_cb, 0);
     }
 }
 
 static bool
-cable_state_connected(void)
+umudev_cable_state_connected(void)
 {
     bool connected = false;
-    switch( cable_state_get() ) {
+    switch( umudev_cable_state_get() ) {
     default:
         break;
     case CABLE_STATE_CHARGER_CONNECTED:
@@ -162,32 +142,32 @@ cable_state_connected(void)
     return connected;
 }
 
-static cable_state_t cable_state_get(void)
+static cable_state_t umudev_cable_state_get(void)
 {
-    return cable_state_active;
+    return umudev_cable_state_active;
 }
 
-static void cable_state_set(cable_state_t state)
+static void umudev_cable_state_set(cable_state_t state)
 {
-    cable_state_stop_timer();
+    umudev_cable_state_stop_timer();
 
-    if( cable_state_active == state )
+    if( umudev_cable_state_active == state )
         goto EXIT;
 
-    cable_state_previous = cable_state_active;
-    cable_state_active   = state;
+    umudev_cable_state_previous = umudev_cable_state_active;
+    umudev_cable_state_active   = state;
 
     log_debug("cable_state: %s -> %s",
-              cable_state_name[cable_state_previous],
-              cable_state_name[cable_state_active]);
+              cable_state_repr(umudev_cable_state_previous),
+              cable_state_repr(umudev_cable_state_active));
 
-    cable_state_changed();
+    umudev_cable_state_changed();
 
 EXIT:
     return;
 }
 
-static void cable_state_changed(void)
+static void umudev_cable_state_changed(void)
 {
     /* The rest of usb-moded separates charger
      * and pc connection states... make single
@@ -196,61 +176,56 @@ static void cable_state_changed(void)
     /* First handle pc/charger disconnect based
      * on previous state.
      */
-    switch( cable_state_previous ) {
+    switch( umudev_cable_state_previous ) {
     default:
     case CABLE_STATE_DISCONNECTED:
         /* dontcare */
         break;
     case CABLE_STATE_CHARGER_CONNECTED:
-        log_debug("*** HANDLE CHARGER DISCONNECT");
         umdbus_send_state_signal(CHARGER_DISCONNECTED);
-        usbmoded_set_charger_connected(false);
         break;
     case CABLE_STATE_PC_CONNECTED:
-        log_debug("*** HANDLE PC DISCONNECT");
         umdbus_send_state_signal(USB_DISCONNECTED);
-        usbmoded_set_usb_connected(false);
         break;
     }
 
-    /* Then handle pc/charger sconnect based
+    /* Then handle pc/charger connect based
      * on current state.
      */
 
-    switch( cable_state_active ) {
+    switch( umudev_cable_state_active ) {
     default:
     case CABLE_STATE_DISCONNECTED:
         /* dontcare */
         break;
     case CABLE_STATE_CHARGER_CONNECTED:
-        log_debug("*** HANDLE CHARGER CONNECT");
         umdbus_send_state_signal(CHARGER_CONNECTED);
-        usbmoded_set_charger_connected(true);
         break;
     case CABLE_STATE_PC_CONNECTED:
-        log_debug("*** HANDLE PC CONNECT");
         umdbus_send_state_signal(USB_CONNECTED);
-        usbmoded_set_usb_connected(true);
         break;
     }
+
+    /* Then act on usb mode */
+    usbmoded_set_cable_state(umudev_cable_state_active);
 }
 
-static void cable_state_from_udev(cable_state_t curr)
+static void umudev_cable_state_from_udev(cable_state_t curr)
 {
-    cable_state_t prev = cable_state_current;
-    cable_state_current = curr;
+    cable_state_t prev = umudev_cable_state_current;
+    umudev_cable_state_current = curr;
 
     if( prev == curr )
         goto EXIT;
 
     log_debug("reported cable state: %s -> %s",
-              cable_state_name[prev],
-              cable_state_name[curr]);
+              cable_state_repr(prev),
+              cable_state_repr(curr));
 
     if( curr == CABLE_STATE_PC_CONNECTED && prev != CABLE_STATE_UNKNOWN )
-        cable_state_start_timer();
+        umudev_cable_state_start_timer();
     else
-        cable_state_set(curr);
+        umudev_cable_state_set(curr);
 
 EXIT:
     return;
@@ -371,7 +346,7 @@ static void umudev_parse_properties(struct udev_device *dev, bool initial)
 
         if( warnings && !power_supply_present )
             log_err("No usable power supply indicator\n");
-        cable_state_from_udev(CABLE_STATE_DISCONNECTED);
+        umudev_cable_state_from_udev(CABLE_STATE_DISCONNECTED);
     }
     else {
         if( warnings && power_supply_online )
@@ -393,7 +368,7 @@ static void umudev_parse_properties(struct udev_device *dev, bool initial)
             if( warnings )
                 log_warning("Fallback since cable detection might not be accurate. "
                             "Will connect on any voltage on charger.\n");
-            cable_state_from_udev(CABLE_STATE_PC_CONNECTED);
+            umudev_cable_state_from_udev(CABLE_STATE_PC_CONNECTED);
             goto cleanup;
         }
 
@@ -401,27 +376,27 @@ static void umudev_parse_properties(struct udev_device *dev, bool initial)
 
         if( !strcmp(power_supply_type, "USB") ||
             !strcmp(power_supply_type, "USB_CDP") ) {
-            cable_state_from_udev(CABLE_STATE_PC_CONNECTED);
+            umudev_cable_state_from_udev(CABLE_STATE_PC_CONNECTED);
         }
         else if( !strcmp(power_supply_type, "USB_DCP") ||
                  !strcmp(power_supply_type, "USB_HVDCP") ||
                  !strcmp(power_supply_type, "USB_HVDCP_3") ) {
-            cable_state_from_udev(CABLE_STATE_CHARGER_CONNECTED);
+            umudev_cable_state_from_udev(CABLE_STATE_CHARGER_CONNECTED);
         }
         else if( !strcmp(power_supply_type, "USB_FLOAT")) {
-            if( !cable_state_connected() )
+            if( !umudev_cable_state_connected() )
                 log_warning("connection type detection failed, assuming charger");
-            cable_state_from_udev(CABLE_STATE_CHARGER_CONNECTED);
+            umudev_cable_state_from_udev(CABLE_STATE_CHARGER_CONNECTED);
         }
         else if( !strcmp(power_supply_type, "Unknown")) {
             // nop
             log_warning("unknown connection type reported, assuming disconnected");
-            cable_state_from_udev(CABLE_STATE_DISCONNECTED);
+            umudev_cable_state_from_udev(CABLE_STATE_DISCONNECTED);
         }
         else {
             if( warnings )
                 log_warning("unhandled power supply type: %s", power_supply_type);
-            cable_state_from_udev(CABLE_STATE_DISCONNECTED);
+            umudev_cable_state_from_udev(CABLE_STATE_DISCONNECTED);
         }
     }
 
@@ -631,5 +606,5 @@ void umudev_quit(void)
     g_free(umudev_sysname),
         umudev_sysname = 0;
 
-    cable_state_stop_timer();
+    umudev_cable_state_stop_timer();
 }

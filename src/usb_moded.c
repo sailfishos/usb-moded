@@ -111,10 +111,10 @@ typedef struct usb_mode
     /** Connection status
      *
      * Access only via:
+     * - usbmoded_set_cable_state()
      * - usbmoded_get_connection_state()
-     * - usbmoded_set_connection_state()
      */
-    bool connected;
+    cable_state_t cable_state;
 
     /** Mount status, true for mounted -UNUSED atm- */
     bool mounted;
@@ -163,6 +163,9 @@ typedef struct modemapping_t
  * Prototypes
  * ========================================================================= */
 
+/* -- cable -- */
+const char *cable_state_repr(cable_state_t state);
+
 /* -- usbmoded -- */
 
 static const char *usbmoded_map_mode_to_hardware(const char *internal_mode);
@@ -181,21 +184,13 @@ static void            usbmoded_update_hardware_mode         (void);
 const char            *usbmoded_get_external_mode            (void);
 static void            usbmoded_update_external_mode         (void);
 
-// from here and there
 const char            *usbmoded_get_usb_mode                 (void);
 void                   usbmoded_set_usb_mode                 (const char *internal_mode);
+void                   usbmoded_select_usb_mode              (void);
 
-// from usbmoded_set_usb_connected()
-//      usbmoded_set_charger_connected()
+void                   usbmoded_set_cable_state              (cable_state_t cable_state);
+cable_state_t          usbmoded_get_cable_state              (void);
 bool                   usbmoded_get_connection_state         (void);
-static bool            usbmoded_set_connection_state         (bool state);
-
-// from usbmoded_set_usb_connected()
-void                   usbmoded_set_usb_connected_state      (void);
-
-// from udev cable_state_changed()
-void                   usbmoded_set_usb_connected            (bool connected);
-void                   usbmoded_set_charger_connected        (bool state);
 
 // ----------------------------------------------------------------
 // internal movements
@@ -269,7 +264,7 @@ static bool systemd_notify = false;
 int usbmoded_cable_connection_delay = CABLE_CONNECTION_DELAY_DEFAULT;
 
 static struct usb_mode current_mode = {
-    .connected     = false,
+    .cable_state   = CABLE_STATE_UNKNOWN,
     .mounted       = false,
     .internal_mode = NULL,
     .hardware_mode = NULL,
@@ -374,6 +369,17 @@ static const modemapping_t modemapping[] =
  * Functions
  * ========================================================================= */
 
+const char *cable_state_repr(cable_state_t state)
+{
+    static const char * const lut[CABLE_STATE_NUMOF] = {
+        [CABLE_STATE_UNKNOWN]           = "unknown",
+        [CABLE_STATE_DISCONNECTED]      = "disconnected",
+        [CABLE_STATE_CHARGER_CONNECTED] = "charger_connected",
+        [CABLE_STATE_PC_CONNECTED]      = "pc_connected",
+    };
+    return lut[state];
+}
+
 static const char *
 usbmoded_map_mode_to_hardware(const char *internal_mode)
 {
@@ -410,11 +416,12 @@ usbmoded_map_mode_to_external(const char *internal_mode)
 void
 usbmoded_rethink_usb_charging_fallback(void)
 {
-    /* Cable must be connected */
-    if( !usbmoded_get_connection_state() )
+    /* Cable must be connected to a pc */
+    if( usbmoded_get_cable_state() != CABLE_STATE_PC_CONNECTED )
         goto EXIT;
 
-    /* Suitable usb-mode mode selected */
+    /* Switching can happen only from MODE_UNDEFINED
+     * or MODE_CHARGING_FALLBACK */
     const char *usb_mode = usbmoded_get_usb_mode();
 
     if( strcmp(usb_mode, MODE_UNDEFINED) &&
@@ -427,7 +434,7 @@ usbmoded_rethink_usb_charging_fallback(void)
     }
 
     log_debug("attempt to leave %s", usb_mode);
-    usbmoded_set_usb_connected_state();
+    usbmoded_select_usb_mode();
 
 EXIT:
     return;
@@ -658,39 +665,12 @@ static void usbmoded_mode_switched(const char *override)
     return;
 }
 
-/** Get if the cable (pc or charger) is connected or not
- *
- * @ return true if connected, false if disconnected
- */
-bool usbmoded_get_connection_state(void)
-{
-    return current_mode.connected;
-}
-
-/** Set if the cable (pc or charger) is connected or not
- *
- * @param state true for connected, false for disconnected
- *
- * @return true if value changed, false otherwise
- */
-static bool usbmoded_set_connection_state(bool state)
-{
-    bool changed = false;
-    if( current_mode.connected != state ) {
-        log_debug("current_mode.connected: %d -> %d",
-                  current_mode.connected,  state);
-        current_mode.connected = state;
-        changed = true;
-    }
-    return changed;
-}
-
 /** set the chosen usb state
  *
  * gauge what mode to enter and then call usbmoded_set_usb_mode()
  *
  */
-void usbmoded_set_usb_connected_state(void)
+void usbmoded_select_usb_mode(void)
 {
     char *mode_to_set = 0;
 
@@ -740,43 +720,62 @@ EXIT:
 
 /** set the usb connection status
  *
- * @param connected The connection status, true for connected
- *
+ * @param cable_state CABLE_STATE_DISCONNECTED, ...
  */
-void usbmoded_set_usb_connected(bool connected)
+void usbmoded_set_cable_state(cable_state_t cable_state)
 {
-    if( !usbmoded_set_connection_state(connected) )
+    cable_state_t prev = current_mode.cable_state;
+    current_mode.cable_state = cable_state;
+
+    if( current_mode.cable_state == prev )
         goto EXIT;
 
-    if( usbmoded_get_connection_state() ) {
-        /* choose mode + call usbmoded_set_usb_mode() */
-        usbmoded_set_usb_connected_state();
-    }
-    else {
+    log_debug("current_mode.cable_state: %s -> %s",
+              cable_state_repr(prev),
+              cable_state_repr(current_mode.cable_state));
+
+    switch( current_mode.cable_state ) {
+    default:
+    case CABLE_STATE_DISCONNECTED:
         usbmoded_set_usb_mode(MODE_UNDEFINED);
+        break;
+    case CABLE_STATE_CHARGER_CONNECTED:
+        usbmoded_set_usb_mode(MODE_CHARGER);
+        break;
+    case CABLE_STATE_PC_CONNECTED:
+        usbmoded_select_usb_mode();
+        break;
     }
+
 EXIT:
     return;
 }
 
-/** set and track charger state
+/** get the usb connection status
  *
+ * @return CABLE_STATE_DISCONNECTED, ...
  */
-void usbmoded_set_charger_connected(bool state)
+cable_state_t usbmoded_get_cable_state(void)
 {
-    /* check if charger is already connected
-     * to avoid spamming dbus */
-    if( !usbmoded_set_connection_state(state) )
-        goto EXIT;
+    return current_mode.cable_state;
+}
 
-    if( usbmoded_get_connection_state() ) {
-        usbmoded_set_usb_mode(MODE_CHARGER);
+/** Get if the cable (pc or charger) is connected or not
+ *
+ * @ return true if connected, false if disconnected
+ */
+bool usbmoded_get_connection_state(void)
+{
+    bool connected = false;
+    switch( usbmoded_get_cable_state() ) {
+    case CABLE_STATE_CHARGER_CONNECTED:
+    case CABLE_STATE_PC_CONNECTED:
+        connected = true;
+        break;
+    default:
+        break;
     }
-    else {
-        usbmoded_set_usb_mode(MODE_UNDEFINED);
-    }
-EXIT:
-    return;
+    return connected;
 }
 
 /** Helper for setting allowed cable detection delay
@@ -1261,7 +1260,7 @@ static void usbmoded_handle_signal(int signum)
 /* set default values for usb_moded */
 static void usbmoded_init(void)
 {
-    current_mode.connected     = false;
+    current_mode.cable_state   = CABLE_STATE_UNKNOWN;
     current_mode.mounted       = false;
     current_mode.internal_mode = strdup(MODE_UNDEFINED);
     current_mode.hardware_mode = NULL;
@@ -1835,7 +1834,7 @@ int main(int argc, char* argv[])
     {
         log_warning("Forcing USB state to connected always. ASK mode non functional!\n");
         /* Since there will be no disconnect signals coming from hw the state should not change */
-        usbmoded_set_usb_connected(true);
+        usbmoded_set_cable_state(CABLE_STATE_PC_CONNECTED);
     }
 
     /* - - - - - - - - - - - - - - - - - - - *
