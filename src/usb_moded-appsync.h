@@ -37,8 +37,8 @@
 # define APP_INFO_MODE_KEY      "mode"
 # define APP_INFO_NAME_KEY      "name"
 # define APP_INFO_LAUNCH_KEY    "launch"
-# define APP_INFO_SYSTEMD_KEY   "systemd"
-# define APP_INFO_POST          "post"
+# define APP_INFO_SYSTEMD_KEY   "systemd"  // integer
+# define APP_INFO_POST          "post"     // integer
 
 /* ========================================================================= *
  * Types

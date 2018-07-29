@@ -144,36 +144,43 @@ static struct mode_list_elem *dynconfig_read_mode_file(const gchar *filename)
         return(NULL);
     }
     list_item = malloc(sizeof(struct mode_list_elem));
-    list_item->mode_name = g_key_file_get_string(settingsfile, MODE_ENTRY, MODE_NAME_KEY, NULL);
+
+    // [MODE_ENTRY = "mode"]
+    list_item->mode_name         = g_key_file_get_string(settingsfile, MODE_ENTRY, MODE_NAME_KEY, NULL);
+    list_item->mode_module       = g_key_file_get_string(settingsfile, MODE_ENTRY, MODE_MODULE_KEY, NULL);
+
     log_debug("Dynamic mode name = %s\n", list_item->mode_name);
-    list_item->mode_module = g_key_file_get_string(settingsfile, MODE_ENTRY, MODE_MODULE_KEY, NULL);
     log_debug("Dynamic mode module = %s\n", list_item->mode_module);
-    list_item->appsync = g_key_file_get_integer(settingsfile, MODE_ENTRY, MODE_NEEDS_APPSYNC_KEY, NULL);
-    list_item->mass_storage = g_key_file_get_integer(settingsfile, MODE_ENTRY, MODE_MASS_STORAGE, NULL);
-    list_item->network = g_key_file_get_integer(settingsfile, MODE_ENTRY, MODE_NETWORK_KEY, NULL);
+
+    list_item->appsync           = g_key_file_get_integer(settingsfile, MODE_ENTRY, MODE_NEEDS_APPSYNC_KEY, NULL);
+    list_item->mass_storage      = g_key_file_get_integer(settingsfile, MODE_ENTRY, MODE_MASS_STORAGE_KEY, NULL);
+    list_item->network           = g_key_file_get_integer(settingsfile, MODE_ENTRY, MODE_NETWORK_KEY, NULL);
     list_item->network_interface = g_key_file_get_string(settingsfile, MODE_ENTRY, MODE_NETWORK_INTERFACE_KEY, NULL);
-    list_item->sysfs_path = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_SYSFS_PATH, NULL);
-    //log_debug("Dynamic mode sysfs path = %s\n", list_item->sysfs_path);
-    list_item->sysfs_value = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_SYSFS_VALUE, NULL);
-    //log_debug("Dynamic mode sysfs value = %s\n", list_item->sysfs_value);
-    list_item->sysfs_reset_value = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_SYSFS_RESET_VALUE, NULL);
-    list_item->android_extra_sysfs_path = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_PATH, NULL);
-    list_item->android_extra_sysfs_path2 = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_PATH2, NULL);
-    list_item->android_extra_sysfs_path3 = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_PATH3, NULL);
-    list_item->android_extra_sysfs_path4 = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_PATH4, NULL);
-    //log_debug("Android extra mode sysfs path2 = %s\n", list_item->android_extra_sysfs_path2);
-    list_item->android_extra_sysfs_value = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_VALUE, NULL);
+
+    // [MODE_OPTIONS_ENTRY = "options"]
+    list_item->sysfs_path                 = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_SYSFS_PATH, NULL);
+    list_item->sysfs_value                = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_SYSFS_VALUE, NULL);
+    list_item->sysfs_reset_value          = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_SYSFS_RESET_VALUE, NULL);
+    list_item->android_extra_sysfs_path   = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_PATH, NULL);
+    list_item->android_extra_sysfs_path2  = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_PATH2, NULL);
+    list_item->android_extra_sysfs_path3  = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_PATH3, NULL);
+    list_item->android_extra_sysfs_path4  = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_PATH4, NULL);
+    list_item->android_extra_sysfs_value  = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_VALUE, NULL);
     list_item->android_extra_sysfs_value2 = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_VALUE2, NULL);
     list_item->android_extra_sysfs_value3 = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_VALUE3, NULL);
     list_item->android_extra_sysfs_value4 = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_VALUE4, NULL);
-    //log_debug("Android extra value2 = %s\n", list_item->android_extra_sysfs_value2);
-    list_item->idProduct = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_IDPRODUCT, NULL);
-    list_item->idVendorOverride = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_IDVENDOROVERRIDE, NULL);
-    list_item->nat = g_key_file_get_integer(settingsfile, MODE_OPTIONS_ENTRY, MODE_HAS_NAT, NULL);
-    list_item->dhcp_server = g_key_file_get_integer(settingsfile, MODE_OPTIONS_ENTRY, MODE_HAS_DHCP_SERVER, NULL);
+    list_item->idProduct                  = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_IDPRODUCT, NULL);
+    list_item->idVendorOverride           = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_IDVENDOROVERRIDE, NULL);
+    list_item->nat                        = g_key_file_get_integer(settingsfile, MODE_OPTIONS_ENTRY, MODE_HAS_NAT, NULL);
+    list_item->dhcp_server                = g_key_file_get_integer(settingsfile, MODE_OPTIONS_ENTRY, MODE_HAS_DHCP_SERVER, NULL);
 #ifdef CONNMAN
-    list_item->connman_tethering = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_CONNMAN_TETHERING, NULL);
+    list_item->connman_tethering          = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_CONNMAN_TETHERING, NULL);
 #endif
+
+    //log_debug("Dynamic mode sysfs path = %s\n", list_item->sysfs_path);
+    //log_debug("Dynamic mode sysfs value = %s\n", list_item->sysfs_value);
+    //log_debug("Android extra mode sysfs path2 = %s\n", list_item->android_extra_sysfs_path2);
+    //log_debug("Android extra value2 = %s\n", list_item->android_extra_sysfs_value2);
 
     g_key_file_free(settingsfile);
     if(list_item->mode_name == NULL || list_item->mode_module == NULL)

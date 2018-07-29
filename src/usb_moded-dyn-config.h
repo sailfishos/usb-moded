@@ -37,13 +37,22 @@
 # define MODE_DIR_PATH  "/etc/usb-moded/dyn-modes"
 # define DIAG_DIR_PATH  "/etc/usb-moded/diag"
 
+/* - - - - - - - - - - - - - - - - - - - *
+ * [mode] ini-file block
+ * - - - - - - - - - - - - - - - - - - - */
+
 # define MODE_ENTRY                      "mode"
 # define MODE_NAME_KEY                   "name"
 # define MODE_MODULE_KEY                 "module"
-# define MODE_NEEDS_APPSYNC_KEY          "appsync"
-# define MODE_NETWORK_KEY                "network"
-# define MODE_MASS_STORAGE               "mass_storage"
+# define MODE_NEEDS_APPSYNC_KEY          "appsync"       // integer
+# define MODE_NETWORK_KEY                "network"       // integer
+# define MODE_MASS_STORAGE_KEY           "mass_storage"  // integer
 # define MODE_NETWORK_INTERFACE_KEY      "network_interface"
+
+/* - - - - - - - - - - - - - - - - - - - *
+ * [options] ini-file block
+ * - - - - - - - - - - - - - - - - - - - */
+
 # define MODE_OPTIONS_ENTRY              "options"
 # define MODE_SYSFS_PATH                 "sysfs_path"
 
@@ -68,8 +77,8 @@
 /* For windows different modes/usb profiles need their own idProduct */
 # define MODE_IDPRODUCT                  "idProduct"
 # define MODE_IDVENDOROVERRIDE           "idVendorOverride"
-# define MODE_HAS_NAT                    "nat"
-# define MODE_HAS_DHCP_SERVER            "dhcp_server"
+# define MODE_HAS_NAT                    "nat"           // integer
+# define MODE_HAS_DHCP_SERVER            "dhcp_server"   // integer
 
 # ifdef CONNMAN
 #  define MODE_CONNMAN_TETHERING         "connman_tethering"
