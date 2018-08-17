@@ -31,6 +31,8 @@
 
 # include "usb_moded-dyn-config.h"
 
+# include <stdbool.h>
+
 /* ========================================================================= *
  * Prototypes
  * ========================================================================= */
@@ -39,8 +41,8 @@
 
 void modesetting_verify_values     (void);
 int  modesetting_write_to_file_real(const char *file, int line, const char *func, const char *path, const char *text);
-int  modesetting_set_dynamic_mode  (void);
-int  modesetting_cleanup           (const char *module);
+bool modesetting_set_dynamic_mode  (void);
+void modesetting_unset_dynamic_mode(void);
 void modesetting_init              (void);
 void modesetting_quit              (void);
 

@@ -591,7 +591,6 @@ set_config_result_t config_set_mode_whitelist(const char *whitelist)
         else if (strcmp(current_mode, MODE_CHARGING_FALLBACK) && strcmp(current_mode, MODE_ASK) && usbmoded_valid_mode(current_mode)) {
             /* Invalid mode that is not MODE_ASK or MODE_CHARGING_FALLBACK
              * -> switch to MODE_CHARGING_FALLBACK */
-            modesetting_cleanup(usbmoded_get_usb_module());
             usbmoded_set_usb_mode(MODE_CHARGING_FALLBACK);
         }
 

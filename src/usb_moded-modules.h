@@ -53,8 +53,5 @@ bool        modules_init              (void);
 void        modules_quit              (void);
 int         modules_load_module       (const char *module);
 int         modules_unload_module     (const char *module);
-const char *modules_get_loaded_module (void);
-int         modules_cleanup_module    (const char *module);
-void        modules_check_module_state(const char *module_name);
 
 #endif /* USB_MODED_MODULES_H_ */

@@ -118,7 +118,7 @@ void                   usbmoded_set_charger_connected        (bool state);
 int                    usbmoded_valid_mode                   (const char *mode);
 gchar                 *usbmoded_get_mode_list                (mode_list_type_t type);
 const char            *usbmoded_get_usb_module               (void);
-void                   usbmoded_set_usb_module               (const char *module);
+bool                   usbmoded_set_usb_module               (const char *module);
 struct mode_list_elem *usbmoded_get_usb_mode_data            (void);
 void                   usbmoded_set_usb_mode_data            (struct mode_list_elem *data);
 void                   usbmoded_send_supported_modes_signal  (void);

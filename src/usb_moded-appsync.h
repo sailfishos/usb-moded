@@ -80,5 +80,6 @@ int  appsync_activate_sync     (const char *mode);
 int  appsync_activate_sync_post(const char *mode);
 int  appsync_mark_active       (const gchar *name, int post);
 int  appsync_stop              (gboolean force);
+void appsync_stop_apps         (int post);
 
 #endif /* USB_MODED_APPSYNC_H_ */

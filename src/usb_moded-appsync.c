@@ -62,7 +62,7 @@ static gboolean          appsync_enumerate_usb_cb          (gpointer data);
 static void              appsync_start_enumerate_usb_timer (void);
 static void              appsync_cancel_enumerate_usb_timer(void);
 static void              appsync_enumerate_usb             (void);
-static void              appsync_stop_apps                 (int post);
+void                     appsync_stop_apps                 (int post);
 int                      appsync_stop                      (gboolean force);
 
 /* ========================================================================= *
@@ -456,7 +456,7 @@ static void appsync_enumerate_usb(void)
 #endif /* APP_SYNC_DBUS */
 }
 
-static void appsync_stop_apps(int post)
+void appsync_stop_apps(int post)
 {
     GList *iter = 0;
 

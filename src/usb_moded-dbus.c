@@ -283,7 +283,6 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
                 /* do not change mode if the mode requested is the one already set */
                 if(strcmp(use, usbmoded_get_usb_mode()) != 0)
                 {
-                    modesetting_cleanup(usbmoded_get_usb_module());
                     usbmoded_set_usb_mode(use);
                 }
                 if((reply = dbus_message_new_method_return(msg)))

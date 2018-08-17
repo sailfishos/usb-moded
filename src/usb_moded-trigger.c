@@ -235,7 +235,6 @@ static void trigger_parse_udev_properties(struct udev_device *dev)
 #endif /* MEEGOLOCK */
                     if(strcmp(config_get_trigger_mode(), usbmoded_get_usb_mode()) != 0)
                     {
-                        modesetting_cleanup(usbmoded_get_usb_module());
                         usbmoded_set_usb_mode(config_get_trigger_mode());
                     }
                 free(trigger);
@@ -254,7 +253,6 @@ static void trigger_parse_udev_properties(struct udev_device *dev)
 #endif /* MEEGOLOCK */
                 if(strcmp(config_get_trigger_mode(), usbmoded_get_usb_mode()) != 0)
                 {
-                    modesetting_cleanup(usbmoded_get_usb_module());
                     usbmoded_set_usb_mode(config_get_trigger_mode());
                 }
         }

@@ -119,9 +119,6 @@ typedef struct usb_mode
     /** Mount status, true for mounted -UNUSED atm- */
     bool mounted;
 
-    /** Used to keep an active gadget for broken Android kernels */
-    bool android_usb_broken;
-
     /** The logical mode name
      *
      * Full set of valid modes can occur here
@@ -193,8 +190,6 @@ bool                   usbmoded_get_connection_state         (void);
 static bool            usbmoded_set_connection_state         (bool state);
 
 // from usbmoded_set_usb_connected()
-static void            usbmoded_set_usb_disconnected_state_silent(void);
-static void            usbmoded_set_usb_disconnected_state   (void);
 void                   usbmoded_set_usb_connected_state      (void);
 
 // from udev cable_state_changed()
@@ -211,7 +206,7 @@ int                    usbmoded_valid_mode                   (const char *mode);
 gchar                 *usbmoded_get_mode_list                (mode_list_type_t type);
 
 const char            *usbmoded_get_usb_module               (void);
-void                   usbmoded_set_usb_module               (const char *module);
+bool                   usbmoded_set_usb_module               (const char *module);
 
 struct mode_list_elem *usbmoded_get_usb_mode_data            (void);
 void                   usbmoded_set_usb_mode_data            (struct mode_list_elem *data);
@@ -263,9 +258,6 @@ static GMainLoop *usb_moded_mainloop = NULL;
 bool usbmoded_rescue_mode = false;
 static bool diag_mode = false;
 static bool hw_fallback = false;
-static bool android_broken_usb = false;
-static bool android_ignore_udev_events = false;
-static bool android_ignore_next_udev_disconnect_event = false;
 #ifdef SYSTEMD
 static bool systemd_notify = false;
 #endif
@@ -277,7 +269,6 @@ int usbmoded_cable_connection_delay = CABLE_CONNECTION_DELAY_DEFAULT;
 static struct usb_mode current_mode = {
     .connected = false,
     .mounted = false,
-    .android_usb_broken = false,
     .internal_mode = NULL,
     .hardware_mode = NULL,
     .external_mode = NULL,
@@ -456,33 +447,17 @@ static bool usbmoded_switch_to_charging(void)
 {
     bool ack = true;
 
-    modules_check_module_state(MODULE_MASS_STORAGE);
-
-    /* for charging we use a fake file_storage
-     * (blame USB certification for this insanity */
-
-    usbmoded_set_usb_module(MODULE_MASS_STORAGE);
-
-    /* MODULE_CHARGING has all the parameters defined,
-     * so it will not match the g_file_storage rule in
-     * modules_load_module */
-
-    if( modules_load_module(MODULE_CHARGING) == 0 )
-        goto SUCCESS;
-
-    /* if charging mode setting did not succeed we
-     * might be dealing with android */
-
-    if (android_ignore_udev_events)
-        android_ignore_next_udev_disconnect_event = true;
-
-    usbmoded_set_usb_module(MODULE_NONE);
-
     if( android_set_charging_mode() )
         goto SUCCESS;
 
     if( configfs_set_charging_mode() )
         goto SUCCESS;
+
+    if( modules_in_use() ) {
+        if( usbmoded_set_usb_module(MODULE_MASS_STORAGE) )
+            goto SUCCESS;
+        usbmoded_set_usb_module(MODULE_NONE);
+    }
 
     log_err("switch to charging mode failed");
 
@@ -494,7 +469,13 @@ SUCCESS:
 static void usbmoded_switch_to_mode(const char *mode)
 {
     /* set return to 1 to be sure to error out if no matching mode is found either */
-    int ret=1;
+
+    log_debug("Cleaning up previous mode");
+
+    if( usbmoded_get_usb_mode_data() ) {
+        modesetting_unset_dynamic_mode();
+        usbmoded_set_usb_mode_data(NULL);
+    }
 
     log_debug("Setting %s\n", mode);
 
@@ -532,26 +513,22 @@ static void usbmoded_switch_to_mode(const char *mode)
             continue;
 
         log_debug("Matching mode %s found.\n", mode);
-        modules_check_module_state(data->mode_module);
-        usbmoded_set_usb_module(data->mode_module);
-        ret = modules_load_module(data->mode_module);
 
         /* set data before calling any of the dynamic mode functions
          * as they will use the usbmoded_get_usb_mode_data function */
         usbmoded_set_usb_mode_data(data);
 
-        /* check if modules are ok before continuing */
-        if( ret == 0 ) {
-            if (android_ignore_udev_events) {
-                android_ignore_next_udev_disconnect_event = true;
-            }
-            ret = modesetting_set_dynamic_mode();
-            if( ret == 0 )
-                goto SUCCESS;
-        }
+        if( !usbmoded_set_usb_module(data->mode_module) )
+            break;
+
+        if( !modesetting_set_dynamic_mode() )
+            break;
+
+        goto SUCCESS;
     }
 
     log_warning("mode setting failed, fall back to charging");
+    usbmoded_set_usb_mode_data(NULL);
 
 CHARGE:
     if( usbmoded_switch_to_charging() )
@@ -567,7 +544,6 @@ CHARGE:
 
     usbmoded_set_usb_module(MODULE_NONE);
     mode = MODE_UNDEFINED;
-    usbmoded_set_usb_mode_data(NULL);
     log_debug("mode setting failed or device disconnected, mode to set was = %s\n", mode);
 
 SUCCESS:
@@ -643,18 +619,17 @@ const char * usbmoded_get_usb_mode(void)
 /** set the usb mode
  *
  * @param mode The requested USB mode
- *
  */
-void usbmoded_set_usb_mode(const char *internal_mode)
+void usbmoded_set_usb_mode(const char *mode)
 {
     gchar *previous = current_mode.internal_mode;
-    if( !g_strcmp0(previous, internal_mode) )
+    if( !g_strcmp0(previous, mode) )
         goto EXIT;
 
     log_debug("internal_mode: %s -> %s",
-              previous, internal_mode);
+              previous, mode);
 
-    current_mode.internal_mode = g_strdup(internal_mode);
+    current_mode.internal_mode = g_strdup(mode);
     g_free(previous);
 
     // PROPAGATE DOWN TO USB
@@ -694,38 +669,9 @@ static bool usbmoded_set_connection_state(bool state)
     return changed;
 }
 
-/* set disconnected without sending signals. */
-static void usbmoded_set_usb_disconnected_state_silent(void)
-{
-    if(!usbmoded_get_connection_state())
-    {
-        log_debug("Resetting connection data after HUP\n");
-        /* unload modules and general cleanup if not charging */
-        if(strcmp(usbmoded_get_usb_mode(), MODE_CHARGING) ||
-           strcmp(usbmoded_get_usb_mode(), MODE_CHARGING_FALLBACK))
-            modesetting_cleanup(usbmoded_get_usb_module());
-        /* Nothing else as we do not need to do anything for cleaning up charging mode */
-        modules_cleanup_module(usbmoded_get_usb_module());
-        usbmoded_set_usb_mode(MODE_UNDEFINED);
-    }
-}
-
-static void usbmoded_set_usb_disconnected_state(void)
-{
-    /* signal usb disconnected */
-    umdbus_send_state_signal(USB_DISCONNECTED);
-
-    /* unload modules and general cleanup if not charging */
-    if( strcmp(usbmoded_get_usb_mode(), MODE_CHARGING) &&
-        strcmp(usbmoded_get_usb_mode(), MODE_CHARGING_FALLBACK))
-        modesetting_cleanup(usbmoded_get_usb_module());
-
-    /* Nothing else as we do not need to do anything for cleaning up charging mode */
-    modules_cleanup_module(usbmoded_get_usb_module());
-    usbmoded_set_usb_mode(MODE_UNDEFINED);
-}
-
 /** set the chosen usb state
+ *
+ * gauge what mode to enter and then call usbmoded_set_usb_mode()
  *
  */
 void usbmoded_set_usb_connected_state(void)
@@ -817,16 +763,6 @@ EXIT:
  */
 void usbmoded_set_usb_connected(bool connected)
 {
-    if( !connected && android_ignore_next_udev_disconnect_event ) {
-        /* FIXME: udev event processing is changed so that
-         *        disconnect notifications are not repeated
-         *        so whatever this is supposed to do - it is
-         *        broken.
-         */
-        android_ignore_next_udev_disconnect_event = false;
-        goto EXIT;
-    }
-
     /* Do not go through the routine if already connected to avoid
      * spurious load/unloads due to faulty signalling
      * NOKIA: careful with devicelock
@@ -839,22 +775,15 @@ void usbmoded_set_usb_connected(bool connected)
 
         /* signal usb connected */
         umdbus_send_state_signal(USB_CONNECTED);
+
+        /* choose mode, then call  usbmoded_set_usb_mode(chosen_mode)
+         */
         usbmoded_set_usb_connected_state();
     }
     else {
         log_debug("usb disconnected\n");
-        usbmoded_set_usb_disconnected_state();
-        /* Some android kernels check for an active gadget to enable charging and
-         * cable detection, meaning USB is completely dead unless we keep the gadget
-         * active
-         */
-        if(current_mode.android_usb_broken) {
-            android_set_charging_mode();
-            configfs_set_charging_mode();
-        }
-        if (android_ignore_udev_events) {
-            android_ignore_next_udev_disconnect_event = true;
-        }
+        umdbus_send_state_signal(USB_DISCONNECTED);
+        usbmoded_set_usb_mode(MODE_UNDEFINED);
     }
 EXIT:
     return;
@@ -1038,7 +967,7 @@ gchar *usbmoded_get_mode_list(mode_list_type_t type)
  */
 const char * usbmoded_get_usb_module(void)
 {
-    return current_mode.module;
+    return current_mode.module ?: MODULE_NONE;
 }
 
 /** set the loaded module
@@ -1046,11 +975,35 @@ const char * usbmoded_get_usb_module(void)
  * @param module The module name for the requested mode
  *
  */
-void usbmoded_set_usb_module(const char *module)
+bool usbmoded_set_usb_module(const char *module)
 {
-    char *old = current_mode.module;
-    current_mode.module = strdup(module);
-    free(old);
+    bool ack = false;
+
+    if( !module )
+        module = MODULE_NONE;
+
+    const char *current = usbmoded_get_usb_module();
+
+    log_debug("current module: %s -> %s", current, module);
+
+    if( !g_strcmp0(current, module) )
+        goto SUCCESS;
+
+    if( modules_unload_module(current) != 0 )
+        goto EXIT;
+
+    free(current_mode.module), current_mode.module = 0;
+
+    if( modules_load_module(module) != 0 )
+        goto EXIT;
+
+    if( g_strcmp0(module, MODULE_NONE) )
+        current_mode.module = strdup(module);
+
+SUCCESS:
+    ack = true;
+EXIT:
+    return ack;
 }
 
 /** get the usb mode data
@@ -1299,12 +1252,6 @@ static void usbmoded_handle_signal(int signum)
     }
     else if( signum == SIGHUP )
     {
-        /* clean up current mode */
-        usbmoded_set_usb_disconnected_state_silent();
-
-        /* clear existing data to be sure */
-        usbmoded_set_usb_mode_data(NULL);
-
         /* free and read in modelist again */
         dynconfig_free_mode_list(modelist);
 
@@ -1312,6 +1259,8 @@ static void usbmoded_handle_signal(int signum)
 
         usbmoded_send_supported_modes_signal();
         usbmoded_send_available_modes_signal();
+
+        // FIXME invalidate current mode
     }
     else
     {
@@ -1322,15 +1271,12 @@ static void usbmoded_handle_signal(int signum)
 /* set default values for usb_moded */
 static void usbmoded_init(void)
 {
-    current_mode.connected = false;
-    current_mode.mounted  = false;
+    current_mode.connected     = false;
+    current_mode.mounted       = false;
     current_mode.internal_mode = strdup(MODE_UNDEFINED);
     current_mode.hardware_mode = NULL;
     current_mode.external_mode = NULL;
-    current_mode.module = strdup(MODULE_NONE);
-
-    if(android_broken_usb)
-        current_mode.android_usb_broken = true;
+    current_mode.module        = NULL;
 
     /* check config, merge or create if outdated */
     if(config_merge_conf_file() != 0)
@@ -1711,10 +1657,10 @@ int main(int argc, char* argv[])
         switch (opt)
         {
         case 'a':
-            android_broken_usb = true;
+            log_warning("Deprecated option: --android_usb_broken");
             break;
         case 'i':
-            android_ignore_udev_events = true;
+            log_warning("Deprecated option: --android_usb_broken_udev_events");
             break;
         case 'f':
             hw_fallback = true;

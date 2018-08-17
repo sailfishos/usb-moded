@@ -61,13 +61,12 @@ void             modesetting_verify_values              (void);
 static char     *modesetting_strip                      (char *str);
 static char     *modesetting_read_from_file             (const char *path, size_t maxsize);
 int              modesetting_write_to_file_real         (const char *file, int line, const char *func, const char *path, const char *text);
-static gboolean  modesetting_network_retry              (gpointer data);
+static gboolean  modesetting_network_retry_cb              (gpointer data);
 static int       modesetting_set_mass_storage_mode      (struct mode_list_elem *data);
 static int       modesetting_unset_mass_storage_mode    (struct mode_list_elem *data);
 static void      modesetting_report_mass_storage_blocker(const char *mountpoint, int try);
-int              modesetting_set_dynamic_mode           (void);
-static void      modesetting_unset_dynamic_mode         (void);
-int              modesetting_cleanup                    (const char *module);
+bool             modesetting_set_dynamic_mode           (void);
+void             modesetting_unset_dynamic_mode         (void);
 void             modesetting_init                       (void);
 void             modesetting_quit                       (void);
 
@@ -76,7 +75,7 @@ void             modesetting_quit                       (void);
  * ========================================================================= */
 
 static GHashTable *tracked_values = 0;
-static guint delayed_network = 0;
+static guint modesetting_network_retry_id = 0;
 
 /* ========================================================================= *
  * Functions
@@ -265,9 +264,9 @@ cleanup:
     return err;
 }
 
-static gboolean modesetting_network_retry(gpointer data)
+static gboolean modesetting_network_retry_cb(gpointer data)
 {
-    delayed_network = 0;
+    modesetting_network_retry_id = 0;
     network_up(data);
     return(FALSE);
 }
@@ -368,11 +367,11 @@ umount:                 command = g_strconcat("mount | grep ", mountpath, NULL);
             }
             else
             {
-                write_to_file(ANDROID0_ENABLE, "0");
+                android_set_enabled(false);
                 write_to_file(ANDROID0_FUNCTIONS, "mass_storage");
                 //write_to_file("/sys/class/android_usb/f_mass_storage/lun/nofua", fua);
                 write_to_file("/sys/class/android_usb/f_mass_storage/lun/file", mount);
-                write_to_file(ANDROID0_ENABLE, "1");
+                android_set_enabled(true);
 
             }
         }
@@ -445,7 +444,7 @@ static int modesetting_unset_mass_storage_mode(struct mode_list_elem *data)
                 {
                     log_debug("Disable android mass storage\n");
                     write_to_file("/sys/class/android_usb/f_mass_storage/lun/file", "0");
-                    write_to_file(ANDROID0_ENABLE, "0");
+                    android_set_enabled(false);
                 }
             }
             else
@@ -499,81 +498,98 @@ static void modesetting_report_mass_storage_blocker(const char *mountpoint, int 
 
 }
 
-int modesetting_set_dynamic_mode(void)
+bool modesetting_set_dynamic_mode(void)
 {
+    bool ack = false;
+
     struct mode_list_elem *data;
-    int ret = 1;
     int network = 1;
 
-    data = usbmoded_get_usb_mode_data();
+    log_debug("DYNAMIC MODE: SETUP");
 
-    if(!data)
-        return(ret);
+    /* - - - - - - - - - - - - - - - - - - - *
+     * Is a dynamic mode?
+     * - - - - - - - - - - - - - - - - - - - */
 
-    if(data->mass_storage)
-    {
-        return modesetting_set_mass_storage_mode(data);
+    if( !(data = usbmoded_get_usb_mode_data()) ) {
+        log_debug("No dynamic mode data to setup");
+        goto EXIT;
     }
 
+    log_debug("data->mass_storage = %d", data->mass_storage);
+    log_debug("data->connman_tethering = %d", data->connman_tethering);
+    log_debug("data->appsync = %d", data->appsync);
+    log_debug("data->network = %d", data->network);
+
+    /* - - - - - - - - - - - - - - - - - - - *
+     * Is a mass storage dynamic mode?
+     * - - - - - - - - - - - - - - - - - - - */
+
+    if( data->mass_storage ) {
+        log_debug("Dynamic mode is mass storage");
+        ack = modesetting_set_mass_storage_mode(data) == 0;
+        goto EXIT;
+    }
+
+    /* - - - - - - - - - - - - - - - - - - - *
+     * Start pre-enum app sync
+     * - - - - - - - - - - - - - - - - - - - */
+
 #ifdef APP_SYNC
-    if(data->appsync)
-        if(appsync_activate_sync(data->mode_name)) /* returns 1 on error */
-        {
+    if( data->appsync ) {
+        log_debug("Dynamic mode is appsync: do pre actions");
+        if( appsync_activate_sync(data->mode_name) != 0 ) {
             log_debug("Appsync failure");
-            return(ret);
+            goto EXIT;
         }
+    }
 #endif
+
+    /* - - - - - - - - - - - - - - - - - - - *
+     * Configure gadget
+     * - - - - - - - - - - - - - - - - - - - */
+
     if( configfs_in_use() ) {
         /* Configfs based gadget configuration */
-        char *id = config_get_android_vendor_id();
-        configfs_set_udc(false);
-        configfs_set_productid(data->idProduct);
-        configfs_set_vendorid(data->idVendorOverride ?: id);
         configfs_set_function(data->sysfs_value);
-        ret = configfs_set_udc(true) ? 0 : -1;
+        configfs_set_productid(data->idProduct);
+        char *id = config_get_android_vendor_id();
+        configfs_set_vendorid(data->idVendorOverride ?: id);
         free(id);
+        if( !configfs_set_udc(true) )
+            goto EXIT;
     }
     else if( android_in_use() ) {
         /* Android USB based gadget configuration */
-
-        /* make sure things are disabled before changing functionality */
-        write_to_file(data->softconnect_path, data->softconnect_disconnect);
-
-        /* set functionality first, then enable */
-        if(data->android_extra_sysfs_value)
-            ret = write_to_file(data->android_extra_sysfs_path, data->android_extra_sysfs_value);
-        else
-            ret = 0;
-
-        /* ??? */
-        write_to_file(data->android_extra_sysfs_path2, data->android_extra_sysfs_value2);
-
-        /* only works for android since the idProduct is a module parameter */
+        android_set_function(data->sysfs_value);
         android_set_productid(data->idProduct);
-
-        /* only works for android since the idProduct is a module parameter */
-        android_set_vendorid(data->idVendorOverride);
-
-        write_to_file(data->sysfs_path, data->sysfs_value);
-
-        /* enable the device */
-        if( ret == 0 )
-            ret = write_to_file(data->softconnect_path, data->softconnect);
+        char *id = config_get_android_vendor_id();
+        android_set_vendorid(data->idVendorOverride ?: id);
+        free(id);
+        write_to_file(data->android_extra_sysfs_path, data->android_extra_sysfs_value);
+        write_to_file(data->android_extra_sysfs_path2, data->android_extra_sysfs_value2);
+        if( !android_set_enabled(true) )
+            goto EXIT;
     }
     else if( modules_in_use() ) {
         /* Assume relevant module has already been successfully loaded
          * from somewhere else.
          */
-        ret = 0;
+        // nop
     }
     else {
         log_crit("no backend is selected, can't set dynamic mode");
-        ret = 1;
+        goto EXIT;
     }
+
+    /* - - - - - - - - - - - - - - - - - - - *
+     * Setup network
+     * - - - - - - - - - - - - - - - - - - - */
 
     /* functionality should be enabled, so we can enable the network now */
     if(data->network)
     {
+        log_debug("Dynamic mode is network");
 #ifdef DEBIAN
         char command[256];
 
@@ -590,9 +606,9 @@ int modesetting_set_dynamic_mode(void)
     if(network != 0 && data->network)
     {
         log_debug("Retry setting up the network later\n");
-        if(delayed_network)
-            g_source_remove(delayed_network);
-        delayed_network = g_timeout_add_seconds(3, modesetting_network_retry, data);
+        if(modesetting_network_retry_id)
+            g_source_remove(modesetting_network_retry_id);
+        modesetting_network_retry_id = g_timeout_add_seconds(3, modesetting_network_retry_cb, data);
     }
 
     /* Needs to be called before application post synching so
@@ -600,55 +616,112 @@ int modesetting_set_dynamic_mode(void)
     if(data->nat || data->dhcp_server)
         network_set_up_dhcpd(data);
 
+    /* - - - - - - - - - - - - - - - - - - - *
+     * Start post-enum app sync
+     * - - - - - - - - - - - - - - - - - - - */
+
     /* no need to execute the post sync if there was an error setting the mode */
-    if(data->appsync && !ret)
+    if(data->appsync )
     {
+        log_debug("Dynamic mode is appsync: do post actions");
         /* let's sleep for a bit (350ms) to allow interfaces to settle before running postsync */
         usbmoded_msleep(350);
         appsync_activate_sync_post(data->mode_name);
     }
 
+    /* - - - - - - - - - - - - - - - - - - - *
+     * Start tethering
+     * - - - - - - - - - - - - - - - - - - - */
+
 #ifdef CONNMAN
-    if(data->connman_tethering)
+    if( data->connman_tethering ) {
+        log_debug("Dynamic mode is tethering");
         connman_set_tethering(data->connman_tethering, TRUE);
+    }
 #endif
 
-    if(ret)
+    ack = true;
+
+EXIT:
+    if( !ack )
         umdbus_send_error_signal(MODE_SETTING_FAILED);
-    return(ret);
+    return ack;
 }
 
-static void modesetting_unset_dynamic_mode(void)
+void modesetting_unset_dynamic_mode(void)
 {
+    log_debug("DYNAMIC MODE: CLEANUP");
+
     struct mode_list_elem *data;
 
     data = usbmoded_get_usb_mode_data();
 
-    if(delayed_network)
+    /* - - - - - - - - - - - - - - - - - - - *
+     * Do not leave timers behind
+     * - - - - - - - - - - - - - - - - - - - */
+
+    if(modesetting_network_retry_id)
     {
-        g_source_remove(delayed_network);
-        delayed_network = 0;
+        g_source_remove(modesetting_network_retry_id);
+        modesetting_network_retry_id = 0;
     }
 
-    /* the modelist could be empty */
-    if(!data)
-        return;
+    /* - - - - - - - - - - - - - - - - - - - *
+     * Is a dynamic mode?
+     * - - - - - - - - - - - - - - - - - - - */
+    if( !data ) {
+        log_debug("No dynamic mode data to cleanup");
+        goto EXIT;
+    }
 
-    if(!strcmp(data->mode_name, MODE_MASS_STORAGE))
-    {
+    log_debug("data->mass_storage = %d", data->mass_storage);
+    log_debug("data->connman_tethering = %d", data->connman_tethering);
+    log_debug("data->appsync = %d", data->appsync);
+    log_debug("data->network = %d", data->network);
+
+    /* - - - - - - - - - - - - - - - - - - - *
+     * Is a mass storage dynamic mode?
+     * - - - - - - - - - - - - - - - - - - - */
+
+    if( data->mass_storage ) {
+        log_debug("Dynamic mode is mass storage");
         modesetting_unset_mass_storage_mode(data);
-        return;
+        goto EXIT;
     }
+
+    /* - - - - - - - - - - - - - - - - - - - *
+     * Stop tethering
+     * - - - - - - - - - - - - - - - - - - - */
 
 #ifdef CONNMAN
-    if(data->connman_tethering)
+    if( data->connman_tethering ) {
+        log_debug("Dynamic mode was tethering");
         connman_set_tethering(data->connman_tethering, FALSE);
+    }
 #endif
 
-    if(data->network)
-    {
+    /* - - - - - - - - - - - - - - - - - - - *
+     * Stop post-enum app sync
+     * - - - - - - - - - - - - - - - - - - - */
+
+    if(data->appsync ) {
+        log_debug("Dynamic mode was appsync: undo post actions");
+        /* Just stop post enum appsync apps */
+        appsync_stop_apps(1);
+    }
+
+    /* - - - - - - - - - - - - - - - - - - - *
+     * Teardown network
+     * - - - - - - - - - - - - - - - - - - - */
+
+    if( data->network ) {
+        log_debug("Dynamic mode was network");
         network_down(data);
     }
+
+    /* - - - - - - - - - - - - - - - - - - - *
+     * Configure gadget
+     * - - - - - - - - - - - - - - - - - - - */
 
     if( configfs_in_use() ) {
         /* Leave as is. We will reprogram wnen mode is
@@ -656,20 +729,9 @@ static void modesetting_unset_dynamic_mode(void)
          */
     }
     else if( android_in_use() ) {
-        /* disconnect before changing functionality */
-        write_to_file(data->softconnect_path, data->softconnect_disconnect);
-        write_to_file(data->sysfs_path, data->sysfs_reset_value);
-
-        /* restore vendorid if the mode had an override */
-        if(data->idVendorOverride)
-        {
-            char *id = config_get_android_vendor_id();
-            android_set_vendorid(id);
-            g_free(id);
-        }
-
-        /* enable after the changes have been made */
-        write_to_file(data->softconnect_path, data->softconnect);
+        /* Leave as is. We will reprogram wnen mode is
+         * set, not when it is unset.
+         */
     }
     else if( modules_in_use() ) {
         /* Assume unloading happens somewhere else */
@@ -677,42 +739,21 @@ static void modesetting_unset_dynamic_mode(void)
     else {
         log_crit("no backend is selected, can't unset dynamic mode");
     }
-}
 
-/** clean up mode changes or extra actions to perform after a mode change
- * @param module Name of module currently in use
- * @return 0 on success, non-zero on failure
- *
- */
-int modesetting_cleanup(const char *module)
-{
-
-    log_debug("Cleaning up mode\n");
-
-    if(!module)
-    {
-        log_warning("No module found to unload. Skipping cleanup\n");
-        return 0;
-    }
+    /* - - - - - - - - - - - - - - - - - - - *
+     * Stop pre-enum app sync
+     * - - - - - - - - - - - - - - - - - - - */
 
 #ifdef APP_SYNC
-    /* Stop applications started due to entering this mode */
-    appsync_stop(FALSE);
-#endif /* APP_SYNC */
-
-    if(!strcmp(module, MODULE_MASS_STORAGE)|| !strcmp(module, MODULE_FILE_STORAGE))
-    {
-        /* no clean-up needs to be done when we come from charging mode. We need
-         * to check since we use fake mass-storage for charging */
-        if(!strcmp(MODE_CHARGING, usbmoded_get_usb_mode()) || !strcmp(MODE_CHARGING_FALLBACK, usbmoded_get_usb_mode()))
-            return 0;
-        modesetting_unset_mass_storage_mode(NULL);
+    if( data->appsync ) {
+        log_debug("Dynamic mode was appsync: undo all actions");
+        /* Do full appsync cleanup */
+        appsync_stop(false);
     }
+#endif
 
-    else if(usbmoded_get_usb_mode_data())
-        modesetting_unset_dynamic_mode();
-
-    return(0);
+EXIT:
+    return;
 }
 
 /** Allocate modesetting related dynamic resouces
