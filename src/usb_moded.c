@@ -600,6 +600,12 @@ static void usbmoded_update_external_mode(void)
 
     // DO THE DBUS BROADCAST
 
+    if( !strcmp(current_mode.external_mode, MODE_ASK) ) {
+        /* send signal, mode will be set when the dialog service calls
+         * the set_mode method call. */
+        umdbus_send_state_signal(USB_CONNECTED_DIALOG_SHOW);
+    }
+
     umdbus_send_state_signal(current_mode.external_mode);
 
 EXIT:
@@ -679,18 +685,16 @@ void usbmoded_set_usb_connected_state(void)
     char *mode_to_set = 0;
     bool can_export = true;
 
-    if(usbmoded_rescue_mode)
-    {
+    if( usbmoded_rescue_mode ) {
         log_debug("Entering rescue mode!\n");
         usbmoded_set_usb_mode(MODE_DEVELOPER);
         goto EXIT;
     }
 
-    if(diag_mode)
-    {
+    if( diag_mode ) {
         log_debug("Entering diagnostic mode!\n");
-        if(modelist)
-        {
+        if( modelist ) {
+            /* XXX 1st entry is just assumed to be diag mode??? */
             GList *iter = modelist;
             struct mode_list_elem *data = iter->data;
             usbmoded_set_usb_mode(data->mode_name);
@@ -709,43 +713,22 @@ void usbmoded_set_usb_connected_state(void)
                   && dsme_in_user_state());
 #endif
 
-    if( mode_to_set && can_export )
-    {
-        /* This is safe to do here as the starting condition is
-         * MODE_UNDEFINED, and having a devicelock being activated when
-         * a mode is set will not interrupt it */
-        if(!strcmp(mode_to_set, usbmoded_get_usb_mode()))
-            goto EXIT;
-
-        if (!strcmp(MODE_ASK, mode_to_set))
-        {
-            /* If charging mode is the only available selection, don't ask
-             * just select it */
+    if( mode_to_set && can_export ) {
+        /* If charging mode is the only available selection,
+         * don't ask just select it */
+        if( !strcmp(MODE_ASK, mode_to_set) ) {
             gchar *available_modes = usbmoded_get_mode_list(AVAILABLE_MODES_LIST);
-            if (!strcmp(MODE_CHARGING, available_modes)) {
-                gchar *temp = mode_to_set;
+            if( !g_strcmp0(available_modes, MODE_CHARGING) ) {
+                // FIXME free() vs g_free() conflict
+                free(mode_to_set);
                 mode_to_set = available_modes;
-                available_modes = temp;
+                available_modes = 0;
             }
-            g_free(available_modes);
         }
 
-        if(!strcmp(MODE_ASK, mode_to_set))
-        {
-            /* send signal, mode will be set when the dialog service calls
-             * the set_mode method call.
-             */
-            umdbus_send_state_signal(USB_CONNECTED_DIALOG_SHOW);
-
-            /* in case there was nobody listening for the UI, they will know
-             * that the UI is needed by requesting the current mode */
-            usbmoded_set_usb_mode(MODE_ASK);
-        }
-        else
-            usbmoded_set_usb_mode(mode_to_set);
+        usbmoded_set_usb_mode(mode_to_set);
     }
-    else
-    {
+    else {
         /* config is corrupted or we do not have a mode configured, fallback to charging
          * We also fall back here in case the device is locked and we do not
          * export the system contents. Or if we are in acting dead mode.
