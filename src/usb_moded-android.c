@@ -41,11 +41,13 @@
 
 /* -- android -- */
 
-bool         android_in_use                (void);
+bool         android_in_use           (void);
 static bool  android_probe            (void);
 gchar       *android_get_serial       (void);
 bool         android_init_values      (void);
+bool         android_set_enabled      (bool enable);
 bool         android_set_charging_mode(void);
+bool         android_set_function     (const char *function);
 bool         android_set_productid    (const char *id);
 bool         android_set_vendorid     (const char *id);
 
@@ -59,7 +61,8 @@ static int android_probed = -1;
  * Functions
  * ========================================================================= */
 
-bool android_in_use(void)
+bool
+android_in_use(void)
 {
     if( android_probed < 0 )
         log_debug("android_in_use() called before android_probe()");
@@ -67,7 +70,8 @@ bool android_in_use(void)
     return android_probed > 0;
 }
 
-static bool android_probe(void)
+static bool
+android_probe(void)
 {
     if( android_probed <= 0 ) {
         android_probed = access(ANDROID0_ENABLE, F_OK) == 0;
@@ -128,7 +132,8 @@ EXIT:
 
 /** initialize the basic android values
  */
-bool android_init_values(void)
+bool
+android_init_values(void)
 {
     gchar *text;
 
@@ -136,7 +141,7 @@ bool android_init_values(void)
         goto EXIT;
 
     /* Disable */
-    write_to_file(ANDROID0_ENABLE, "0");
+    android_set_enabled(false);
 
     /* Configure */
     if( (text = android_get_serial()) )
@@ -154,7 +159,7 @@ bool android_init_values(void)
     text = config_get_android_vendor_id();
     if(text)
     {
-        write_to_file(ANDROID0_ID_VENDOR, text);
+        android_set_vendorid(text);
         g_free(text);
     }
     text = config_get_android_product();
@@ -166,7 +171,7 @@ bool android_init_values(void)
     text = config_get_android_product_id();
     if(text)
     {
-        write_to_file(ANDROID0_ID_PRODUCT, text);
+        android_set_productid(text);
         g_free(text);
     }
     text = mac_read_mac();
@@ -182,32 +187,87 @@ EXIT:
     return android_in_use();
 }
 
-/* Set a charging mode for the android gadget
- *
- * @return 0 if successful, 1 on failure
- */
-bool android_set_charging_mode(void)
+bool
+android_set_enabled(bool enable)
 {
     bool ack = false;
     if( android_in_use() ) {
-        /* disable, set functions to "mass_storage", re-enable */
-        write_to_file(ANDROID0_ENABLE, "0");
-        write_to_file(ANDROID0_ID_PRODUCT, "0AFE"); /* TODO: make configurable */
-        write_to_file(ANDROID0_FUNCTIONS, "mass_storage");
-        ack = write_to_file(ANDROID0_ENABLE, "1") != -1;
+        const char *val = enable ? "1" : "0";
+        ack = write_to_file(ANDROID0_ENABLE, val) != -1;
     }
+    log_debug("ANDROID %s(%d) -> %d", __func__, enable, ack);
+    return ack;
+}
+
+/* Set a charging mode for the android gadget
+ *
+ * @return true if successful, false on failure
+ */
+bool
+android_set_charging_mode(void)
+{
+    bool ack = false;
+
+    if( !android_in_use() )
+        goto EXIT;
+
+    if( !android_set_function("mass_storage") )
+        goto EXIT;
+
+     /* TODO: make configurable */
+    if( !android_set_productid("0AFE") )
+        goto EXIT;
+
+    if( !android_set_enabled(true) )
+        goto EXIT;
+
+    ack = true;
+
+EXIT:
     log_debug("ANDROID %s() -> %d", __func__, ack);
+    return ack;
+}
+
+/* Set a function for the android gadget
+ *
+ * @return true if successful, false on failure
+ */
+bool
+android_set_function(const char *function)
+{
+    bool ack = false;
+
+    if( !function )
+        goto EXIT;
+
+    if( !android_in_use() )
+        goto EXIT;
+
+    if( !android_set_enabled(false) )
+        goto EXIT;
+
+    if( write_to_file(ANDROID0_FUNCTIONS, function) == -1 )
+        goto EXIT;
+
+    /* Leave disabled, so that caller can adjust attributes
+     * etc before enabling */
+
+    ack = true;
+EXIT:
+
+    log_debug("ANDROID %s(%s) -> %d", __func__, function, ack);
     return ack;
 }
 
 /* Set a product id for the android gadget
  *
- * @return 0 if successful, 1 on failure
+ * @return true if successful, false on failure
  */
-bool android_set_productid(const char *id)
+bool
+android_set_productid(const char *id)
 {
     bool ack = false;
-    if( android_in_use() ) {
+    if( id && android_in_use() ) {
         ack = write_to_file(ANDROID0_ID_PRODUCT, id) != -1;
     }
     log_debug("ANDROID %s(%s) -> %d", __func__, id, ack);
@@ -216,12 +276,13 @@ bool android_set_productid(const char *id)
 
 /* Set a vendor id for the android gadget
  *
- * @return 0 if successful, 1 on failure
+ * @return true if successful, false on failure
  */
-bool android_set_vendorid(const char *id)
+bool
+android_set_vendorid(const char *id)
 {
     bool ack = false;
-    if( android_in_use() ) {
+    if( id && android_in_use() ) {
         ack = write_to_file(ANDROID0_ID_VENDOR, id) != -1;
     }
     log_debug("ANDROID %s(%s) -> %d", __func__, id, ack);

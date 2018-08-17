@@ -45,10 +45,12 @@
 
 /* -- android -- */
 
+bool   android_in_use           (void);
 gchar *android_get_serial       (void);
 bool   android_init_values      (void);
-bool   android_in_use           (void);
+bool   android_set_enabled      (bool enable);
 bool   android_set_charging_mode(void);
+bool   android_set_function     (const char *function);
 bool   android_set_productid    (const char *id);
 bool   android_set_vendorid     (const char *id);
 
