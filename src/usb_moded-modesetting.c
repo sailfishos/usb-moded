@@ -58,15 +58,20 @@
 
 static void      modesetting_track_value                (const char *path, const char *text);
 void             modesetting_verify_values              (void);
+
 static char     *modesetting_strip                      (char *str);
 static char     *modesetting_read_from_file             (const char *path, size_t maxsize);
 int              modesetting_write_to_file_real         (const char *file, int line, const char *func, const char *path, const char *text);
-static gboolean  modesetting_network_retry_cb              (gpointer data);
-static int       modesetting_set_mass_storage_mode      (struct mode_list_elem *data);
-static int       modesetting_unset_mass_storage_mode    (struct mode_list_elem *data);
+
+static gboolean  modesetting_network_retry_cb           (gpointer data);
+
+static bool      modesetting_enter_mass_storage_mode    (struct mode_list_elem *data);
+static int       modesetting_leave_mass_storage_mode    (struct mode_list_elem *data);
 static void      modesetting_report_mass_storage_blocker(const char *mountpoint, int try);
-bool             modesetting_set_dynamic_mode           (void);
-void             modesetting_unset_dynamic_mode         (void);
+
+bool             modesetting_enter_dynamic_mode         (void);
+void             modesetting_leave_dynamic_mode         (void);
+
 void             modesetting_init                       (void);
 void             modesetting_quit                       (void);
 
@@ -271,197 +276,343 @@ static gboolean modesetting_network_retry_cb(gpointer data)
     return(FALSE);
 }
 
-static int modesetting_set_mass_storage_mode(struct mode_list_elem *data)
+#include <mntent.h>
+
+typedef struct storage_info_t
 {
-    gchar *command;
-    char command2[256], *real_path = NULL, *mountpath;
-    char *mount;
-    gchar **mounts;
-    int ret = 0, i = 0, mountpoints = 0, fua = 0, try = 0;
+    gchar *si_mountpoint;
+    gchar *si_mountdevice;;
+} storage_info_t;
+
+static void modesetting_free_storage_info(storage_info_t *info);
+static storage_info_t * modesetting_get_storage_info(size_t *pcount);
+
+bool  modesetting_is_mounted(const char *mountpoint);
+bool  modesetting_mount(const char *mountpoint);
+bool  modesetting_unmount(const char *mountpoint);
+char *modesetting_mountdev(const char *mountpoint);
+
+bool modesetting_is_mounted(const char *mountpoint)
+{
+    char cmd[256];
+    snprintf(cmd, sizeof cmd, "/bin/mountpoint -q '%s'", mountpoint);
+    return usbmoded_system(cmd) == 0;
+}
+
+bool modesetting_mount(const char *mountpoint)
+{
+    char cmd[256];
+    snprintf(cmd, sizeof cmd, "/bin/mount '%s'", mountpoint);
+    return usbmoded_system(cmd) == 0;
+}
+
+bool modesetting_unmount(const char *mountpoint)
+{
+    char cmd[256];
+    snprintf(cmd, sizeof cmd, "/bin/umount '%s'", mountpoint);
+    return usbmoded_system(cmd) == 0;
+}
+
+gchar *modesetting_mountdev(const char *mountpoint)
+{
+    char *res = 0;
+    FILE *fh  = 0;
+    struct mntent *me;
+
+    if( !(fh = setmntent("/etc/fstab", "r")) )
+        goto EXIT;
+
+    while( (me = getmntent(fh)) ) {
+        if( !strcmp(me->mnt_dir, mountpoint) ) {
+            res = g_strdup(me->mnt_fsname);
+            break;
+        }
+    }
+
+EXIT:
+    if( fh )
+        endmntent(fh);
+
+    log_debug("%s -> %s", mountpoint, res);
+
+    return res;
+}
+
+static void
+modesetting_free_storage_info(storage_info_t *info)
+{
+    if( info ) {
+        for( size_t i = 0; info[i].si_mountpoint; ++i ) {
+            g_free(info[i].si_mountpoint);
+            g_free(info[i].si_mountdevice);
+        }
+        g_free(info);
+    }
+}
+
+static storage_info_t *
+modesetting_get_storage_info(size_t *pcount)
+{
+    bool             ack     = false;
+    storage_info_t  *info    = 0;
+    size_t           count   = 0;
+    char            *setting = 0;
+    gchar          **array   = 0;
+
+    /* Get comma separated mountpoint list from config */
+    if( !(setting = config_find_mounts()) ) {
+        log_warning("no mount points configuration");
+        goto EXIT;
+    }
+
+    /* Split mountpoint list to array and count number of items */
+    array = g_strsplit(setting, ",", 0);
+    while( array[count] )
+        ++count;
+
+    if( count < 1 ) {
+        log_warning("no mount points configured");
+        goto EXIT;
+    }
+
+    /* Convert into array of storage_info_t objects */
+    info = g_new0(storage_info_t, count + 1);
+
+    for( size_t i = 0; i < count; ++i ) {
+        const gchar *mountpnt = info[i].si_mountpoint = g_strdup(array[i]);
+
+        if( access(mountpnt, F_OK) == -1 ) {
+            log_warning("mountpoint %s does not exist", mountpnt);
+            goto EXIT;
+        }
+
+        const gchar *mountdev = info[i].si_mountdevice = modesetting_mountdev(mountpnt);
+
+        if( !mountdev ) {
+            log_warning("can't find device for %s", mountpnt);
+            goto EXIT;
+        }
+
+        if( access(mountdev, F_OK) == -1 ) {
+            log_warning("mount device %s does not exist", mountdev);
+            goto EXIT;
+        }
+    }
+
+    ack = true;
+
+EXIT:
+    if( !ack )
+        modesetting_free_storage_info(info), info = 0, count = 0;
+
+    g_strfreev(array);
+    g_free(setting);
+
+    return *pcount = count, info;
+}
+
+static bool modesetting_enter_mass_storage_mode(struct mode_list_elem *data)
+{
+    bool            ack   = false;
+    size_t          count = 0;
+    storage_info_t *info  = 0;
+    int             nofua = 0;
+
+    char tmp[256];
+
+    /* Get mountpoint info */
+    if( !(info = modesetting_get_storage_info(&count)) )
+        goto EXIT;
 
     /* send unmount signal so applications can release their grasp on the fs, do this here so they have time to act */
     umdbus_send_state_signal(USB_PRE_UNMOUNT);
-    fua = config_find_sync();
-    mount = config_find_mounts();
-    if(mount)
-    {
-        mounts = g_strsplit(mount, ",", 0);
-        /* check amount of mountpoints */
-        for(i=0 ; mounts[i] != NULL; i++)
-        {
-            mountpoints++;
-        }
 
-        if(strcmp(data->mode_module, MODULE_NONE))
-        {
-            /* check if the file storage module has been loaded with sufficient luns in the parameter,
-             * if not, unload and reload or load it. Since  mountpoints start at 0 the amount of them is one more than their id */
-            sprintf(command2, "/sys/devices/platform/musb_hdrc/gadget/gadget-lun%d/file", (mountpoints - 1) );
-            if(access(command2, R_OK) == -1)
-            {
-                log_debug("%s does not exist, unloading and reloading mass_storage\n", command2);
-                modules_unload_module(MODULE_MASS_STORAGE);
-                sprintf(command2, "modprobe %s luns=%d \n", MODULE_MASS_STORAGE, mountpoints);
-                log_debug("usb-load command = %s \n", command2);
-                ret = usbmoded_system(command2);
-                if(ret)
-                    return(ret);
+    /* Get "No Force Unit Access" from config */
+    nofua = config_find_sync();
+
+    /* Android usb mass-storage is expected to support only onle lun */
+    if( android_in_use()&& count > 1 ) {
+        log_warning("ignoring excess mountpoints");
+        count = 1;
+    }
+
+    /* Umount filesystems */
+    for( size_t i = 0 ; i < count; ++i )
+    {
+        const gchar *mountpnt = info[i].si_mountpoint;
+        for( int tries = 0; ; ) {
+
+            if( !modesetting_is_mounted(mountpnt) ) {
+                log_debug("%s is not mounted", mountpnt);
+                break;
             }
+
+            if( modesetting_unmount(mountpnt) ) {
+                log_debug("unmounted %s", mountpnt);
+                break;
+            }
+
+            if( ++tries == 3 ) {
+                log_err("failed to unmount %s - giving up", mountpnt);
+                modesetting_report_mass_storage_blocker(mountpnt, 2);
+                umdbus_send_error_signal(UMOUNT_ERROR);
+                goto EXIT;
+            }
+
+            log_warning("failed to unmount %s - wait a bit", mountpnt);
+            modesetting_report_mass_storage_blocker(mountpnt, 1);
+            usbmoded_sleep(1);
         }
-        /* umount filesystems */
-        for(i=0 ; mounts[i] != NULL; i++)
+    }
+
+    /* Backend specific actions */
+    if( android_in_use() ) {
+        const gchar *mountdev = info[0].si_mountdevice;
+        android_set_enabled(false);
+        android_set_function("mass_storage");
+        write_to_file("/sys/class/android_usb/f_mass_storage/lun/nofua",
+                      nofua ? "1" : "0");
+        write_to_file("/sys/class/android_usb/f_mass_storage/lun/file", mountdev);
+        android_set_enabled(true);
+    }
+    else if( configfs_in_use() ) {
+        // TODO
+        log_err("configfs mass-storage support not implemented");
+        goto EXIT;
+    }
+    else if( modules_in_use() ) {
+        /* check if the file storage module has been loaded with sufficient luns in the parameter,
+         * if not, unload and reload or load it. Since  mountpoints start at 0 the amount of them is one more than their id */
+
+        snprintf(tmp, sizeof tmp,
+                 "/sys/devices/platform/musb_hdrc/gadget/gadget-lun%zd/file",
+                 count - 1);
+
+        if( access(tmp, R_OK) == -1 )
         {
-            /* check if filesystem is mounted or not, if ret = 1 it is already unmounted */
-            real_path = realpath(mounts[i], NULL);
-            if(real_path)
-                mountpath = real_path;
-            else
-                mountpath = mounts[i];
-umount:                 command = g_strconcat("mount | grep ", mountpath, NULL);
-            ret = usbmoded_system(command);
-            g_free(command);
-            if(!ret)
-            {
-                /* no check for / needed as that will fail to umount anyway */
-                command = g_strconcat("umount ", mountpath, NULL);
-                log_debug("unmount command = %s\n", command);
-                ret = usbmoded_system(command);
-                g_free(command);
-                if(ret != 0)
-                {
-                    if(try != 3)
-                    {
-                        try++;
-                        usbmoded_sleep(1);
-                        log_err("Umount failed. Retrying\n");
-                        modesetting_report_mass_storage_blocker(mount, 1);
-                        goto umount;
-                    }
-                    else
-                    {
-                        log_err("Unmounting %s failed\n", mount);
-                        modesetting_report_mass_storage_blocker(mount, 2);
-                        umdbus_send_error_signal(UMOUNT_ERROR);
-                        return(ret);
-                    }
-                }
-            }
-            else
-                /* already unmounted. Set return value to 0 since there is no error */
-                ret = 0;
+            log_debug("%s does not exist, unloading and reloading mass_storage\n", tmp);
+            modules_unload_module(MODULE_MASS_STORAGE);
+            snprintf(tmp, sizeof tmp, "modprobe %s luns=%zd \n", MODULE_MASS_STORAGE, count);
+            log_debug("usb-load command = %s \n", tmp);
+            if( usbmoded_system(tmp) != 0 )
+                goto EXIT;
         }
 
         /* activate mounts after sleeping 1s to be sure enumeration happened and autoplay will work in windows*/
         usbmoded_sleep(1);
-        for(i=0 ; mounts[i] != NULL; i++)
-        {
 
-            if(strcmp(data->mode_module, MODULE_NONE))
-            {
-                sprintf(command2, "echo %i  > /sys/devices/platform/musb_hdrc/gadget/gadget-lun%d/nofua", fua, i);
-                log_debug("usb lun = %s active\n", command2);
-                usbmoded_system(command2);
-                sprintf(command2, "/sys/devices/platform/musb_hdrc/gadget/gadget-lun%d/file", i);
-                log_debug("usb lun = %s active\n", command2);
-                write_to_file(command2, mounts[i]);
-            }
-            else
-            {
-                android_set_enabled(false);
-                write_to_file(ANDROID0_FUNCTIONS, "mass_storage");
-                //write_to_file("/sys/class/android_usb/f_mass_storage/lun/nofua", fua);
-                write_to_file("/sys/class/android_usb/f_mass_storage/lun/file", mount);
-                android_set_enabled(true);
+        for( size_t i = 0 ; i < count; ++i ) {
+            const gchar *mountdev = info[i].si_mountdevice;
 
-            }
+            snprintf(tmp, sizeof tmp, "/sys/devices/platform/musb_hdrc/gadget/gadget-lun%zd/nofua", i);
+            write_to_file(tmp, nofua ? "1" : "0");
+
+            snprintf(tmp, sizeof tmp, "/sys/devices/platform/musb_hdrc/gadget/gadget-lun%zd/file", i);
+            write_to_file(tmp, mountdev);
+            log_debug("usb lun = %s active\n", mountdev);
         }
-        g_strfreev(mounts);
-        g_free(mount);
-        if(real_path)
-            free(real_path);
+    }
+    else {
+        log_err("no suitable backend for mass-storage mode");
+        goto EXIT;
     }
 
-    /* only send data in use signal in case we actually succeed */
-    if(!ret)
+    /* Success */
+    ack = true;
+
+EXIT:
+
+    modesetting_free_storage_info(info);
+
+    if( ack ) {
+        /* only send data in use signal in case we actually succeed */
         umdbus_send_state_signal(DATA_IN_USE);
+    }
+    else {
+        /* Try to undo any unmounts we might have managed to make */
+        modesetting_leave_mass_storage_mode(data);
+    }
 
-    return(ret);
-
+    return ack;
 }
 
-static int modesetting_unset_mass_storage_mode(struct mode_list_elem *data)
+static int modesetting_leave_mass_storage_mode(struct mode_list_elem *data)
 {
-    gchar *command;
-    char command2[256], *real_path = NULL, *mountpath;
-    char *mount;
-    gchar **mounts;
-    int ret = 1, i = 0;
+    bool            ack      = false;
+    size_t          count    = 0;
+    storage_info_t *info     = 0;
+    gchar          *alt_path = 0;
 
-    mount = config_find_mounts();
-    if(mount)
-    {
-        mounts = g_strsplit(mount, ",", 0);
-        for(i=0 ; mounts[i] != NULL; i++)
-        {
-            /* check if it is still or already mounted, if so (ret==0) skip mounting */
-            real_path = realpath(mounts[i], NULL);
-            if(real_path)
-                mountpath = real_path;
-            else
-                mountpath = mounts[i];
-            command = g_strconcat("mount | grep ", mountpath, NULL);
-            ret = usbmoded_system(command);
-            g_free(command);
-            if(ret)
-            {
-                command = g_strconcat("mount ", mountpath, NULL);
-                log_debug("mount command = %s\n",command);
-                ret = usbmoded_system(command);
-                g_free(command);
-                /* mount returns 0 if success */
-                if(ret != 0 )
-                {
-                    log_err("Mounting %s failed\n", mount);
-                    if(ret)
-                    {
-                        g_free(mount);
-                        mount = config_find_alt_mount();
-                        if(mount)
-                        {
-                            command = g_strconcat("mount -t tmpfs tmpfs -o ro --size=512K ", mount, NULL);
-                            log_debug("Total failure, mount ro tmpfs as fallback\n");
-                            ret = usbmoded_system(command);
-                            g_free(command);
-                        }
-                        umdbus_send_error_signal(RE_MOUNT_FAILED);
-                    }
+    char tmp[256];
 
-                }
-            }
-            if(data != NULL)
-            {
-                if(!strcmp(data->mode_module, MODULE_NONE))
-                {
-                    log_debug("Disable android mass storage\n");
-                    write_to_file("/sys/class/android_usb/f_mass_storage/lun/file", "0");
-                    android_set_enabled(false);
-                }
-            }
-            else
-            {
-                sprintf(command2, "echo \"\"  > /sys/devices/platform/musb_hdrc/gadget/gadget-lun%d/file", i);
-                log_debug("usb lun = %s inactive\n", command2);
-                usbmoded_system(command2);
-            }
+    /* Get mountpoint info */
+    if( !(info = modesetting_get_storage_info(&count)) )
+        goto EXIT;
+
+    /* Backend specific actions */
+    if( android_in_use() ) {
+        log_debug("Disable android mass storage\n");
+        android_set_enabled(false);
+        write_to_file("/sys/class/android_usb/f_mass_storage/lun/file", "");
+    }
+    else if( configfs_in_use() ) {
+        // TODO
+        log_err("configfs mass-storage support not implemented");
+    }
+    else if( modules_in_use() ) {
+        for( size_t i = 0 ; i < count; ++i ) {
+            snprintf(tmp, sizeof tmp, "/sys/devices/platform/musb_hdrc/gadget/gadget-lun%zd/file", i);
+            write_to_file(tmp, "");
+            log_debug("usb lun = %s inactive\n", tmp);
         }
-        g_strfreev(mounts);
-        g_free(mount);
-        if(real_path)
-            free(real_path);
+    }
+    else {
+        log_err("no suitable backend for mass-storage mode");
     }
 
-    return(ret);
+    /* Assume success i.e. all the mountpoints that could have been
+     * unmounted due to mass-storage mode are mounted again. */
+    ack = true;
 
+    /* Remount filesystems */
+
+    /* TODO FIXME list of mountpoints, but singular alt mountpoint? */
+    alt_path = config_find_alt_mount();
+
+    for( size_t i = 0 ; i < count; ++i ) {
+        const char *mountpnt = info[i].si_mountpoint;
+
+        if( modesetting_is_mounted(mountpnt) ) {
+            log_debug("%s is already mounted", mountpnt);
+            continue;
+        }
+
+        if( modesetting_mount(mountpnt) ) {
+            log_debug("mounted %s", mountpnt);
+            continue;
+        }
+
+        /* At least one mountpoint could not be restored = failure */
+        ack = false;
+
+        if( !alt_path ) {
+            log_err("failed to mount %s - no alt mountpoint defined", mountpnt);
+        }
+        else {
+            // TODO what is the point of this all???
+            log_err("failed to mount %s - trying ro tmpfs as %s", mountpnt, alt_path);
+            snprintf(tmp, sizeof tmp, "mount -t tmpfs tmpfs -o ro --size=512K %s", alt_path);
+        }
+    }
+
+EXIT:
+    modesetting_free_storage_info(info);
+    free(alt_path);
+
+    if( !ack )
+        umdbus_send_error_signal(RE_MOUNT_FAILED);
+
+    return ack;
 }
 
 static void modesetting_report_mass_storage_blocker(const char *mountpoint, int try)
@@ -499,7 +650,7 @@ static void modesetting_report_mass_storage_blocker(const char *mountpoint, int 
 
 }
 
-bool modesetting_set_dynamic_mode(void)
+bool modesetting_enter_dynamic_mode(void)
 {
     bool ack = false;
 
@@ -528,7 +679,7 @@ bool modesetting_set_dynamic_mode(void)
 
     if( data->mass_storage ) {
         log_debug("Dynamic mode is mass storage");
-        ack = modesetting_set_mass_storage_mode(data) == 0;
+        ack = modesetting_enter_mass_storage_mode(data);
         goto EXIT;
     }
 
@@ -649,7 +800,7 @@ EXIT:
     return ack;
 }
 
-void modesetting_unset_dynamic_mode(void)
+void modesetting_leave_dynamic_mode(void)
 {
     log_debug("DYNAMIC MODE: CLEANUP");
 
@@ -686,7 +837,7 @@ void modesetting_unset_dynamic_mode(void)
 
     if( data->mass_storage ) {
         log_debug("Dynamic mode is mass storage");
-        modesetting_unset_mass_storage_mode(data);
+        modesetting_leave_mass_storage_mode(data);
         goto EXIT;
     }
 

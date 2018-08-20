@@ -472,7 +472,7 @@ static void usbmoded_switch_to_mode(const char *mode)
     log_debug("Cleaning up previous mode");
 
     if( usbmoded_get_usb_mode_data() ) {
-        modesetting_unset_dynamic_mode();
+        modesetting_leave_dynamic_mode();
         usbmoded_set_usb_mode_data(NULL);
     }
 
@@ -510,7 +510,7 @@ static void usbmoded_switch_to_mode(const char *mode)
         if( !usbmoded_set_usb_module(data->mode_module) )
             break;
 
-        if( !modesetting_set_dynamic_mode() )
+        if( !modesetting_enter_dynamic_mode() )
             break;
 
         goto SUCCESS;
