@@ -491,6 +491,7 @@ static void modesetting_report_mass_storage_blocker(const char *mountpoint, int 
             count++;
         }
         pclose(stream);
+        free(text);
     }
     g_free(lsof_command);
     if(try == 2)
