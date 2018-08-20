@@ -237,8 +237,7 @@ Those files will be read on start and usb_moded will keep a list of apps to laun
 for a certain mode. This also means that if you change the files or add/remove some
 you need to restart usb_moded. Later when the mode is activated, usb_moded will start 
 each of them after the module has been loaded and keep track if they have been started.
-It will warn you if that failed. This works together with an optional softconnect option
-that will need kernel support.
+It will warn you if that failed.
 
 These services will start before the whole setup for the usb is done. In case the application
 only works after everything has been set up, you can start the application at the end by adding
@@ -264,9 +263,6 @@ network_interface = usb0
 sysfs_path = /* in case you need to echo parameters somewhere in a sysfs path */
 sysfs_value = /* the values */
 sysfs_reset_value = /* in case a reset value needs to be written */
-softconnect_path = /* a path in case the module needs activation with a softconnect option */
-softconnect = /* value to be written to enable */
-softconnect_disconnect = /* value to be written for disable */
 
 Only the mode name and module are mandatory. In case you do not use modules, use none as the value 
 for module (as for the android gadget for example. See the android section for more info)
@@ -330,9 +326,6 @@ network_interface = rndis0
 sysfs_path = /sys/class/android_usb/android0/functions
 sysfs_value = rndis
 sysfs_reset_value = none
-softconnect_path = /sys/class/android_usb/android0/enable
-softconnect = 1
-softconnec_disconnect = 0
 idProduct = 0002
 
 

@@ -61,9 +61,6 @@ void dynconfig_free_list_item(mode_list_elem *list_item)
     free(list_item->sysfs_path);
     free(list_item->sysfs_value);
     free(list_item->sysfs_reset_value);
-    free(list_item->softconnect);
-    free(list_item->softconnect_disconnect);
-    free(list_item->softconnect_path);
     free(list_item->android_extra_sysfs_path);
     free(list_item->android_extra_sysfs_value);
     free(list_item->android_extra_sysfs_path2);
@@ -160,9 +157,6 @@ static struct mode_list_elem *dynconfig_read_mode_file(const gchar *filename)
     list_item->sysfs_value = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_SYSFS_VALUE, NULL);
     //log_debug("Dynamic mode sysfs value = %s\n", list_item->sysfs_value);
     list_item->sysfs_reset_value = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_SYSFS_RESET_VALUE, NULL);
-    list_item->softconnect = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_SOFTCONNECT, NULL);
-    list_item->softconnect_disconnect = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_SOFTCONNECT_DISCONNECT, NULL);
-    list_item->softconnect_path = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_SOFTCONNECT_PATH, NULL);
     list_item->android_extra_sysfs_path = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_PATH, NULL);
     list_item->android_extra_sysfs_path2 = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_PATH2, NULL);
     list_item->android_extra_sysfs_path3 = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_PATH3, NULL);
@@ -195,12 +189,6 @@ static struct mode_list_elem *dynconfig_read_mode_file(const gchar *filename)
         return NULL;
     }
     if(list_item->sysfs_path && list_item->sysfs_value == NULL)
-    {
-        /* free list_item as it will not be used */
-        dynconfig_free_list_item(list_item);
-        return NULL;
-    }
-    if(list_item->softconnect &&  list_item->softconnect_path == NULL)
     {
         /* free list_item as it will not be used */
         dynconfig_free_list_item(list_item);

@@ -46,15 +46,17 @@
 # define MODE_NETWORK_INTERFACE_KEY      "network_interface"
 # define MODE_OPTIONS_ENTRY              "options"
 # define MODE_SYSFS_PATH                 "sysfs_path"
+
+/* This is list of gadget functions, except for
+ * host-mode config ... */
 # define MODE_SYSFS_VALUE                "sysfs_value"
 # define MODE_SYSFS_RESET_VALUE          "sysfs_reset_value"
-# define MODE_SOFTCONNECT                "softconnect"
-# define MODE_SOFTCONNECT_DISCONNECT     "softconnect_disconnect"
-# define MODE_SOFTCONNECT_PATH           "softconnect_path"
+
 /* Instead of hard-coding values that never change or have only one option,
  android engineers prefered to have sysfs entries... go figure... */
 # define MODE_ANDROID_EXTRA_SYSFS_PATH   "android_extra_sysfs_path"
 # define MODE_ANDROID_EXTRA_SYSFS_VALUE  "android_extra_sysfs_value"
+
 /* in combined android gadgets we sometime need more than one extra sysfs path or value */
 # define MODE_ANDROID_EXTRA_SYSFS_PATH2  "android_extra_sysfs_path2"
 # define MODE_ANDROID_EXTRA_SYSFS_VALUE2 "android_extra_sysfs_value2"
@@ -62,11 +64,13 @@
 # define MODE_ANDROID_EXTRA_SYSFS_VALUE3 "android_extra_sysfs_value3"
 # define MODE_ANDROID_EXTRA_SYSFS_PATH4  "android_extra_sysfs_path4"
 # define MODE_ANDROID_EXTRA_SYSFS_VALUE4 "android_extra_sysfs_value4"
+
 /* For windows different modes/usb profiles need their own idProduct */
 # define MODE_IDPRODUCT                  "idProduct"
 # define MODE_IDVENDOROVERRIDE           "idVendorOverride"
 # define MODE_HAS_NAT                    "nat"
 # define MODE_HAS_DHCP_SERVER            "dhcp_server"
+
 # ifdef CONNMAN
 #  define MODE_CONNMAN_TETHERING         "connman_tethering"
 # endif
@@ -89,9 +93,6 @@ typedef struct mode_list_elem
     char *sysfs_path;                     /**< Path to set sysfs options */
     char *sysfs_value;                    /**< Option name/value to write to sysfs */
     char *sysfs_reset_value;              /**< Value to reset the the sysfs to default */
-    char *softconnect;                    /**< Value to be written to softconnect interface */
-    char *softconnect_disconnect;         /**< Value to set on the softconnect interface to disable after disconnect */
-    char *softconnect_path;               /**< Path for the softconnect */
     char *android_extra_sysfs_path;       /**< Path for static value that never changes that needs to be set by sysfs :( */
     char *android_extra_sysfs_value;      /**< Static value that never changes that needs to be set by sysfs :( */
     char *android_extra_sysfs_path2;      /**< Path for static value that never changes that needs to be set by sysfs :( */
