@@ -55,26 +55,28 @@ static struct mode_list_elem *dynconfig_read_mode_file(const gchar *filename);
 
 void dynconfig_free_list_item(mode_list_elem *list_item)
 {
-    free(list_item->mode_name);
-    free(list_item->mode_module);
-    free(list_item->network_interface);
-    free(list_item->sysfs_path);
-    free(list_item->sysfs_value);
-    free(list_item->sysfs_reset_value);
-    free(list_item->android_extra_sysfs_path);
-    free(list_item->android_extra_sysfs_value);
-    free(list_item->android_extra_sysfs_path2);
-    free(list_item->android_extra_sysfs_value2);
-    free(list_item->android_extra_sysfs_path3);
-    free(list_item->android_extra_sysfs_value3);
-    free(list_item->android_extra_sysfs_path4);
-    free(list_item->android_extra_sysfs_value4);
-    free(list_item->idProduct);
-    free(list_item->idVendorOverride);
+    if( list_item ) {
+        free(list_item->mode_name);
+        free(list_item->mode_module);
+        free(list_item->network_interface);
+        free(list_item->sysfs_path);
+        free(list_item->sysfs_value);
+        free(list_item->sysfs_reset_value);
+        free(list_item->android_extra_sysfs_path);
+        free(list_item->android_extra_sysfs_value);
+        free(list_item->android_extra_sysfs_path2);
+        free(list_item->android_extra_sysfs_value2);
+        free(list_item->android_extra_sysfs_path3);
+        free(list_item->android_extra_sysfs_value3);
+        free(list_item->android_extra_sysfs_path4);
+        free(list_item->android_extra_sysfs_value4);
+        free(list_item->idProduct);
+        free(list_item->idVendorOverride);
 #ifdef CONNMAN
-    free(list_item->connman_tethering);
+        free(list_item->connman_tethering);
 #endif
-    free(list_item);
+        free(list_item);
+    }
 }
 
 void dynconfig_free_mode_list(GList *modelist)
@@ -133,17 +135,16 @@ GList *dynconfig_read_mode_list(int diag)
 
 static struct mode_list_elem *dynconfig_read_mode_file(const gchar *filename)
 {
-    GKeyFile *settingsfile;
-    gboolean test = FALSE;
+    bool success = false;
+    GKeyFile *settingsfile = g_key_file_new();
     struct mode_list_elem *list_item = NULL;
 
-    settingsfile = g_key_file_new();
-    test = g_key_file_load_from_file(settingsfile, filename, G_KEY_FILE_NONE, NULL);
-    if(!test)
-    {
-        return(NULL);
+    if( !g_key_file_load_from_file(settingsfile, filename, G_KEY_FILE_NONE, NULL) ) {
+        log_err("%s: can't read mode configuration file", filename);
+        goto EXIT;
     }
-    list_item = malloc(sizeof(struct mode_list_elem));
+
+    list_item = calloc(1, sizeof *list_item);
 
     // [MODE_ENTRY = "mode"]
     list_item->mode_name         = g_key_file_get_string(settingsfile, MODE_ENTRY, MODE_NAME_KEY, NULL);
@@ -161,6 +162,7 @@ static struct mode_list_elem *dynconfig_read_mode_file(const gchar *filename)
     list_item->sysfs_path                 = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_SYSFS_PATH, NULL);
     list_item->sysfs_value                = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_SYSFS_VALUE, NULL);
     list_item->sysfs_reset_value          = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_SYSFS_RESET_VALUE, NULL);
+
     list_item->android_extra_sysfs_path   = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_PATH, NULL);
     list_item->android_extra_sysfs_path2  = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_PATH2, NULL);
     list_item->android_extra_sysfs_path3  = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_PATH3, NULL);
@@ -169,6 +171,7 @@ static struct mode_list_elem *dynconfig_read_mode_file(const gchar *filename)
     list_item->android_extra_sysfs_value2 = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_VALUE2, NULL);
     list_item->android_extra_sysfs_value3 = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_VALUE3, NULL);
     list_item->android_extra_sysfs_value4 = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_ANDROID_EXTRA_SYSFS_VALUE4, NULL);
+
     list_item->idProduct                  = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_IDPRODUCT, NULL);
     list_item->idVendorOverride           = g_key_file_get_string(settingsfile, MODE_OPTIONS_ENTRY, MODE_IDVENDOROVERRIDE, NULL);
     list_item->nat                        = g_key_file_get_integer(settingsfile, MODE_OPTIONS_ENTRY, MODE_HAS_NAT, NULL);
@@ -182,24 +185,40 @@ static struct mode_list_elem *dynconfig_read_mode_file(const gchar *filename)
     //log_debug("Android extra mode sysfs path2 = %s\n", list_item->android_extra_sysfs_path2);
     //log_debug("Android extra value2 = %s\n", list_item->android_extra_sysfs_value2);
 
+    if( list_item->mode_name == NULL || list_item->mode_module == NULL ) {
+        log_err("%s: mode_name or mode_module not defined", filename);
+        goto EXIT;
+    }
+
+    if( list_item->network && list_item->network_interface == NULL) {
+        log_err("%s: network not fully defined", filename);
+        goto EXIT;
+    }
+
+    if( (list_item->sysfs_path && !list_item->sysfs_value) ||
+        (list_item->sysfs_reset_value && !list_item->sysfs_path) ) {
+        /* In theory all of this is optional.
+         *
+         * In most cases 'sysfs_value' holds a list of functions to enable,
+         * and 'sysfs_path' or 'sysfs_reset_value' values are simply ignored.
+         *
+         * However, for the benefit of existing special configuration files
+         * like the one for host mode:
+         * - having sysfs_path implies that sysfs_value should be set too
+         * - having sysfs_reset_value implies that sysfs_path should be set
+         */
+        log_err("%s: sysfs_value not fully defined", filename);
+        goto EXIT;
+    }
+
+    log_debug("%s: successfully loaded", filename);
+    success = true;
+
+EXIT:
     g_key_file_free(settingsfile);
-    if(list_item->mode_name == NULL || list_item->mode_module == NULL)
-    {
-        /* free list_item as it will not be used */
-        dynconfig_free_list_item(list_item);
-        return NULL;
-    }
-    if(list_item->network && list_item->network_interface == NULL)
-    {
-        /* free list_item as it will not be used */
-        dynconfig_free_list_item(list_item);
-        return NULL;
-    }
-    if(list_item->sysfs_path && list_item->sysfs_value == NULL)
-    {
-        /* free list_item as it will not be used */
-        dynconfig_free_list_item(list_item);
-        return NULL;
-    }
-    return(list_item);
+
+    if( !success )
+        dynconfig_free_list_item(list_item), list_item = 0;
+
+    return list_item;
 }
