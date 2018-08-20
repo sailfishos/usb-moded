@@ -53,5 +53,6 @@ bool   android_set_charging_mode(void);
 bool   android_set_function     (const char *function);
 bool   android_set_productid    (const char *id);
 bool   android_set_vendorid     (const char *id);
+bool   android_set_attr         (const char *function, const char *attr, const char *value);
 
 #endif /* USB_MODED_ANDROID_H_ */

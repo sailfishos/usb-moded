@@ -201,11 +201,12 @@ int modesetting_write_to_file_real(const char *file, int line, const char *func,
     size_t todo = 0;
     char *prev = 0;
     bool  clear = false;
+    gchar *repr = 0;
 
     /* if either path or the text to be written are not there
      * we return an error */
     if(!text || !path)
-        return err;
+        goto cleanup;
 
     /* When attempting to clear ffs function list, writing an
      * empty string is ignored and accomplishes nothing - while
@@ -225,14 +226,17 @@ int modesetting_write_to_file_real(const char *file, int line, const char *func,
         }
     }
 
+    repr = g_strdup(text);
+    modesetting_strip(repr);
+
     /* If the file can be read, it also means we can later check that
      * the file retains the value we are about to write here. */
     if( (prev = modesetting_read_from_file(path, 0x1000)) )
-        modesetting_track_value(path, clear ? "" : text);
+        modesetting_track_value(path, clear ? "" : repr);
 
     log_debug("%s:%d: %s(): WRITE '%s' : '%s' --> '%s'",
               file, line, func,
-              path, prev ?: "???", text);
+              path, prev ?: "???", repr);
 
     todo  = strlen(text);
 
@@ -265,6 +269,7 @@ cleanup:
     if( fd != -1 ) TEMP_FAILURE_RETRY(close(fd));
 
     free(prev);
+    free(repr);
 
     return err;
 }
@@ -470,9 +475,8 @@ static bool modesetting_enter_mass_storage_mode(struct mode_list_elem *data)
         const gchar *mountdev = info[0].si_mountdevice;
         android_set_enabled(false);
         android_set_function("mass_storage");
-        write_to_file("/sys/class/android_usb/f_mass_storage/lun/nofua",
-                      nofua ? "1" : "0");
-        write_to_file("/sys/class/android_usb/f_mass_storage/lun/file", mountdev);
+        android_set_attr("f_mass_storage", "lun/nofua", nofua ? "1" : "0");
+        android_set_attr("f_mass_storage", "lun/file", mountdev);
         android_set_enabled(true);
     }
     else if( configfs_in_use() ) {
@@ -553,7 +557,7 @@ static int modesetting_leave_mass_storage_mode(struct mode_list_elem *data)
     if( android_in_use() ) {
         log_debug("Disable android mass storage\n");
         android_set_enabled(false);
-        write_to_file("/sys/class/android_usb/f_mass_storage/lun/file", "");
+        android_set_attr("f_mass_storage", "lun/file", "");
     }
     else if( configfs_in_use() ) {
         // TODO

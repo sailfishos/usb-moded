@@ -50,6 +50,7 @@ bool         android_set_charging_mode(void);
 bool         android_set_function     (const char *function);
 bool         android_set_productid    (const char *id);
 bool         android_set_vendorid     (const char *id);
+bool         android_set_attr         (const char *function, const char *attr, const char *value);
 
 /* ========================================================================= *
  * Data
@@ -60,6 +61,29 @@ static int android_probed = -1;
 /* ========================================================================= *
  * Functions
  * ========================================================================= */
+
+static bool
+android_write_file(const char *path, const char *text)
+{
+    bool ack = false;
+
+    if( !path || !text )
+        goto EXIT;
+
+    log_debug("WRITE %s '%s'", path, text);
+
+    char buff[64];
+    snprintf(buff, sizeof buff, "%s\n", text);
+
+    if( write_to_file(path, buff) == -1 )
+        goto EXIT;
+
+    ack = true;
+
+EXIT:
+
+    return ack;
+}
 
 bool
 android_in_use(void)
@@ -146,14 +170,14 @@ android_init_values(void)
     /* Configure */
     if( (text = android_get_serial()) )
     {
-        write_to_file(ANDROID0_SERIAL, text);
+        android_write_file(ANDROID0_SERIAL, text);
         g_free(text);
     }
 
     text = config_get_android_manufacturer();
     if(text)
     {
-        write_to_file(ANDROID0_MANUFACTURER, text);
+        android_write_file(ANDROID0_MANUFACTURER, text);
         g_free(text);
     }
     text = config_get_android_vendor_id();
@@ -165,7 +189,7 @@ android_init_values(void)
     text = config_get_android_product();
     if(text)
     {
-        write_to_file(ANDROID0_PRODUCT, text);
+        android_write_file(ANDROID0_PRODUCT, text);
         g_free(text);
     }
     text = config_get_android_product_id();
@@ -177,11 +201,16 @@ android_init_values(void)
     text = mac_read_mac();
     if(text)
     {
-        write_to_file("/sys/class/android_usb/f_rndis/ethaddr", text);
+        android_set_attr("f_rndis", "ethaddr", text);
         g_free(text);
     }
     /* For rndis to be discovered correctly in M$ Windows (vista and later) */
-    write_to_file("/sys/class/android_usb/f_rndis/wceis", "1");
+    android_set_attr("f_rndis", "wceis", "1");
+
+    /* Make sure remnants off mass-storage mode do not cause
+     * issues for charging_fallback & co */
+    android_set_attr("f_mass_storage", "lun/nofua", "0");
+    android_set_attr("f_mass_storage", "lun/file", "");
 
 EXIT:
     return android_in_use();
@@ -193,7 +222,7 @@ android_set_enabled(bool enable)
     bool ack = false;
     if( android_in_use() ) {
         const char *val = enable ? "1" : "0";
-        ack = write_to_file(ANDROID0_ENABLE, val) != -1;
+        ack = android_write_file(ANDROID0_ENABLE, val) != -1;
     }
     log_debug("ANDROID %s(%d) -> %d", __func__, enable, ack);
     return ack;
@@ -246,7 +275,7 @@ android_set_function(const char *function)
     if( !android_set_enabled(false) )
         goto EXIT;
 
-    if( write_to_file(ANDROID0_FUNCTIONS, function) == -1 )
+    if( android_write_file(ANDROID0_FUNCTIONS, function) == -1 )
         goto EXIT;
 
     /* Leave disabled, so that caller can adjust attributes
@@ -276,7 +305,7 @@ android_set_productid(const char *id)
             snprintf(str, sizeof str, "%04x", num);
             id = str;
         }
-        ack = write_to_file(ANDROID0_ID_PRODUCT, id) != -1;
+        ack = android_write_file(ANDROID0_ID_PRODUCT, id) != -1;
     }
     log_debug("ANDROID %s(%s) -> %d", __func__, id, ack);
     return ack;
@@ -298,8 +327,28 @@ android_set_vendorid(const char *id)
             snprintf(str, sizeof str, "%04x", num);
             id = str;
         }
-        ack = write_to_file(ANDROID0_ID_VENDOR, id) != -1;
+        ack = android_write_file(ANDROID0_ID_VENDOR, id) != -1;
     }
     log_debug("ANDROID %s(%s) -> %d", __func__, id, ack);
+    return ack;
+}
+
+/** Set function attribute
+ *
+ * @return true if successful, false on failure
+ */
+bool
+android_set_attr(const char *function, const char *attr, const char *value)
+{
+    bool ack = false;
+
+    if( function && attr && value && android_in_use() ) {
+        char path[256];
+        snprintf(path, sizeof path, "%s/%s/%s",
+                 ANDROID0_DIRECTORY, function, attr);
+        ack = android_write_file(path, value);
+    }
+    log_debug("ANDROID %s(%s, %s, %s) -> %d", __func__,
+              function, attr, value, ack);
     return ack;
 }
