@@ -71,7 +71,7 @@ usb networking.
 %package mtp-mode
 Summary:  USB mode controller - mtp mode config
 Group:  Config
-Requires: buteo-mtp
+Requires: buteo-mtp-qt5
 
 %description mtp-mode
 Usb_moded is a daemon to control the USB states. For this
