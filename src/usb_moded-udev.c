@@ -54,7 +54,7 @@
 
 static gboolean      umudev_cable_state_timer_cb   (gpointer aptr);
 static void          umudev_cable_state_stop_timer (void);
-static void          umudev_cable_state_start_timer(void);
+static void          umudev_cable_state_start_timer(gint delay);
 static bool          umudev_cable_state_connected  (void);
 static cable_state_t umudev_cable_state_get        (void);
 static void          umudev_cable_state_set        (cable_state_t state);
@@ -90,6 +90,7 @@ static cable_state_t umudev_cable_state_previous = CABLE_STATE_UNKNOWN;
 
 /** Timer id for delaying: reported by udev -> active in usb-moded */
 static guint umudev_cable_state_timer_id = 0;
+static gint  umudev_cable_state_timer_delay = -1;
 
 /* ========================================================================= *
  * cable state
@@ -99,6 +100,7 @@ static gboolean umudev_cable_state_timer_cb(gpointer aptr)
 {
     (void)aptr;
     umudev_cable_state_timer_id = 0;
+    umudev_cable_state_timer_delay = -1;
 
     log_debug("trigger delayed transfer to: %s",
               cable_state_repr(umudev_cable_state_current));
@@ -113,17 +115,23 @@ static void umudev_cable_state_stop_timer(void)
                   cable_state_repr(umudev_cable_state_current));
         g_source_remove(umudev_cable_state_timer_id),
             umudev_cable_state_timer_id = 0;
+        umudev_cable_state_timer_delay = -1;
     }
 }
 
-static void umudev_cable_state_start_timer(void)
+static void umudev_cable_state_start_timer(gint delay)
 {
+    if( umudev_cable_state_timer_delay != delay ) {
+        umudev_cable_state_stop_timer();
+    }
+
     if( !umudev_cable_state_timer_id ) {
         log_debug("schedule delayed transfer to: %s",
                   cable_state_repr(umudev_cable_state_current));
         umudev_cable_state_timer_id =
-            g_timeout_add(usbmoded_cable_connection_delay,
+            g_timeout_add(delay,
                           umudev_cable_state_timer_cb, 0);
+        umudev_cable_state_timer_delay = delay;
     }
 }
 
@@ -222,10 +230,33 @@ static void umudev_cable_state_from_udev(cable_state_t curr)
               cable_state_repr(prev),
               cable_state_repr(curr));
 
-    if( curr == CABLE_STATE_PC_CONNECTED && prev != CABLE_STATE_UNKNOWN )
-        umudev_cable_state_start_timer();
-    else
+    /* Because mode transitions are handled synchronously and can thus
+     * block the usb-moded mainloop, we might end up receiving a bursts
+     * of stale udev events after returning from mode switch - including
+     * multiple cable connect / disconnect events due to user replugging
+     * the cable in frustration of things taking too long.
+     */
+
+    if( curr == CABLE_STATE_DISCONNECTED ) {
+        /* If we see any disconnect events, those must be acted on
+         * immediately to get the 1st disconnect handled.
+         */
         umudev_cable_state_set(curr);
+    }
+    else {
+        /* All other transitions are handled with at least 100 ms delay.
+         * This should compress multiple stale disconnect + connect
+         * pairs into single action.
+         */
+        gint delay = 100;
+
+        if( curr == CABLE_STATE_PC_CONNECTED && prev != CABLE_STATE_UNKNOWN ) {
+            if( delay < usbmoded_cable_connection_delay )
+                delay = usbmoded_cable_connection_delay;
+        }
+
+        umudev_cable_state_start_timer(delay);
+    }
 
 EXIT:
     return;
