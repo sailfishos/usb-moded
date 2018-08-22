@@ -597,7 +597,7 @@ static void usbmoded_switch_to_mode(const char *mode)
 
     if( !usbmoded_can_export() ) {
         log_warning("Policy does not allow mode: %s", mode);
-        goto CHARGE;
+        goto FAILED;
     }
 
     /* go through all the dynamic modes if the modelist exists*/
@@ -617,18 +617,20 @@ static void usbmoded_switch_to_mode(const char *mode)
             usbmoded_start_mtpd();
 
         if( !usbmoded_set_usb_module(data->mode_module) )
-            break;
+            goto FAILED;
 
         if( !modesetting_enter_dynamic_mode() )
-            break;
+            goto FAILED;
 
         goto SUCCESS;
     }
 
-    log_warning("mode setting failed, fall back to charging");
-    usbmoded_set_usb_mode_data(NULL);
+    log_warning("Matching mode %s was not found.", mode);
 
-    override = MODE_CHARGING_FALLBACK;
+FAILED:
+    override = MODE_CHARGING;
+    log_warning("mode setting failed, try %s", override);
+    usbmoded_set_usb_mode_data(NULL);
 
 CHARGE:
     if( usbmoded_switch_to_charging() )
@@ -643,10 +645,8 @@ CHARGE:
      */
 
     override = MODE_UNDEFINED;
-
+    log_warning("mode setting failed, fallback to %s", override);
     usbmoded_set_usb_module(MODULE_NONE);
-    mode = MODE_UNDEFINED;
-    log_debug("mode setting failed or device disconnected, mode to set was = %s\n", mode);
 
 SUCCESS:
     /* TODO: WORKER -> MAIN THREAD BARRIER */
@@ -766,9 +766,17 @@ static void usbmoded_mode_switched(const char *override)
     if( override ) {
         /* Requested usb mode could not be activated at
          * gadget control level. Update state info, but
-         * leave lower level as-is.
+         * do not retrigger lower levels
          */
-        log_debug("internal_mode: %s -> %s (override)",
+
+        log_debug("hardware_mode: %s -> %s (OVERRIDE)",
+                  current_mode.hardware_mode,
+                  override);
+
+        g_free(current_mode.hardware_mode),
+            current_mode.hardware_mode = g_strdup(override);
+
+        log_debug("internal_mode: %s -> %s (OVERRIDE)",
                   current_mode.internal_mode,
                   override);
 
