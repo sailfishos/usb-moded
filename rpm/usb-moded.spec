@@ -24,6 +24,9 @@ Requires: busybox-symlinks-dhcp
 Requires(post): systemd
 Requires(postun): systemd
 Conflicts: dsme < 0.79.0
+Conflicts: buteo-mtp-qt5-sync-plugin
+Conflicts: buteo-mtp-qt5 < 0.5.0
+Recommends: buteo-mtp-qt5
 
 %description
 Usb_moded is a daemon to control the USB states. For this

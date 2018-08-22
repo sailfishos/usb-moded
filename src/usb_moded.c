@@ -369,6 +369,108 @@ static const modemapping_t modemapping[] =
  * Functions
  * ========================================================================= */
 
+static bool usbmoded_mode_is_mtp_mode(const char *mode)
+{
+    return mode && !strcmp(mode, "mtp_mode");
+}
+
+static bool usbmoded_is_mtpd_running(void)
+{
+    /* ep0 becomes available when /dev/mtp is mounted.
+     *
+     * ep1, ep2, ep3 exist while mtp daemon is running,
+     * has ep0 opened and has written config data to it.
+     */
+    static const char * const lut[] = {
+        "/dev/mtp/ep0",
+        "/dev/mtp/ep1",
+        "/dev/mtp/ep2",
+        "/dev/mtp/ep3",
+        0
+    };
+
+    bool ack = true;
+
+    for( size_t i = 0; lut[i]; ++i ) {
+        if( access(lut[i], F_OK) == -1 ) {
+            ack = false;
+            break;
+        }
+    }
+
+    return ack;
+}
+
+static bool
+usbmoded_stop_mtpd(void)
+{
+    bool ack = !usbmoded_is_mtpd_running();
+
+    if( ack ) {
+        log_debug("mtp daemon is not running");
+        goto EXIT;
+    }
+
+    int rc = usbmoded_system("systemctl-user stop buteo-mtp.service");
+    if( rc != 0 ) {
+        log_warning("failed to stop mtp daemon; exit code = %d", rc);
+        goto EXIT;
+    }
+
+    for( int attempts = 3; ; ) {
+        if( (ack = !usbmoded_is_mtpd_running()) ) {
+            log_debug("mtp daemon has stopped");
+            break;
+        }
+
+        if( --attempts <= 0) {
+            log_warning("failed to stop mtp daemon; giving up");
+            break;
+        }
+
+        log_debug("waiting for mtp daemon to stop");
+        usbmoded_msleep(2000);
+    }
+EXIT:
+
+    return ack;
+}
+
+static bool
+usbmoded_start_mtpd(void)
+{
+    bool ack = usbmoded_is_mtpd_running();
+
+    if( ack ) {
+        log_debug("mtp daemon is not running");
+        goto EXIT;
+    }
+
+    int rc = usbmoded_system("systemctl-user start buteo-mtp.service");
+    if( rc != 0 ) {
+        log_warning("failed to start mtp daemon; exit code = %d", rc);
+        goto EXIT;
+    }
+
+    for( int attempts = 15; ; ) {
+        if( (ack = usbmoded_is_mtpd_running()) ) {
+            log_debug("mtp daemon has started");
+            break;
+        }
+
+        if( --attempts <= 0) {
+            log_warning("failed to start mtp daemon; giving up");
+            break;
+        }
+
+        log_debug("waiting for mtp daemon to start");
+        usbmoded_msleep(2000);
+    }
+EXIT:
+
+    return ack;
+}
+
 const char *cable_state_repr(cable_state_t state)
 {
     static const char * const lut[CABLE_STATE_NUMOF] = {
@@ -471,6 +573,9 @@ static void usbmoded_switch_to_mode(const char *mode)
 
     log_debug("Cleaning up previous mode");
 
+    if( !usbmoded_mode_is_mtp_mode(mode) )
+        usbmoded_stop_mtpd();
+
     if( usbmoded_get_usb_mode_data() ) {
         modesetting_leave_dynamic_mode();
         usbmoded_set_usb_mode_data(NULL);
@@ -506,6 +611,9 @@ static void usbmoded_switch_to_mode(const char *mode)
         /* set data before calling any of the dynamic mode functions
          * as they will use the usbmoded_get_usb_mode_data function */
         usbmoded_set_usb_mode_data(data);
+
+        if( usbmoded_mode_is_mtp_mode(mode) )
+            usbmoded_start_mtpd();
 
         if( !usbmoded_set_usb_module(data->mode_module) )
             break;

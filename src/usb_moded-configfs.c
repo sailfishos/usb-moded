@@ -635,14 +635,6 @@ configfs_set_function(const char *func)
      */
     func = configfs_map_function(func);
 
-    /* HACK: Stop mtp daemon when enabling any other function
-     *       after bootup is finished (assumption being it
-     *       can't be started before init done and we do not
-     *       want to spam bootup journal with warnings.
-     */
-    if( strcmp(func, FUNCTION_MTP) && usbmoded_init_done_p() )
-        usbmoded_system("systemctl-user stop buteo-mtp.service");
-
     if( !configfs_set_udc(false) )
         goto EXIT;
 
@@ -651,16 +643,6 @@ configfs_set_function(const char *func)
 
     if( !configfs_enable_function(func) )
         goto EXIT;
-
-    /* HACK: Start mtp daemon when enabling mtp function.
-     *       Then wait "a bit" since udc can't be enabled
-     *       before mtpd has written suitable configuration
-     *       to control endpoint.
-     */
-    if( !strcmp(func, FUNCTION_MTP) ) {
-        usbmoded_system("systemctl-user start buteo-mtp.service");
-        usbmoded_msleep(1500);
-    }
 
     /* Leave disabled, so that caller can adjust attributes
      * etc before enabling */
