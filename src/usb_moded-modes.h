@@ -47,6 +47,7 @@
 # define MODE_ADB                "adb_mode"
 # define MODE_PC_SUITE           "pc_suite"
 # define MODE_CHARGING           "charging_only"
+# define MODE_BUSY               "busy"
 
 /**
  *

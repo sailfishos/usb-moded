@@ -182,6 +182,7 @@ const char            *usbmoded_get_hardware_mode            (void);
 static void            usbmoded_update_hardware_mode         (void);
 
 const char            *usbmoded_get_external_mode            (void);
+static void            usbmoded_set_external_mode            (const char *mode);
 static void            usbmoded_update_external_mode         (void);
 
 const char            *usbmoded_get_usb_mode                 (void);
@@ -690,19 +691,16 @@ const char *usbmoded_get_external_mode(void)
     return current_mode.external_mode ?: MODE_UNDEFINED;
 }
 
-static void usbmoded_update_external_mode(void)
+static void usbmoded_set_external_mode(const char *mode)
 {
-    const char *internal_mode = usbmoded_get_usb_mode();
-    const char *external_mode = usbmoded_map_mode_to_external(internal_mode);
-
     gchar *previous = current_mode.external_mode;
-    if( !g_strcmp0(previous, external_mode) )
+    if( !g_strcmp0(previous, mode) )
         goto EXIT;
 
     log_debug("external_mode: %s -> %s",
-              previous, external_mode);
+              previous, mode);
 
-    current_mode.external_mode = g_strdup(external_mode);
+    current_mode.external_mode = g_strdup(mode);
     g_free(previous);
 
     // DO THE DBUS BROADCAST
@@ -717,6 +715,14 @@ static void usbmoded_update_external_mode(void)
 
 EXIT:
     return;
+}
+
+static void usbmoded_update_external_mode(void)
+{
+    const char *internal_mode = usbmoded_get_usb_mode();
+    const char *external_mode = usbmoded_map_mode_to_external(internal_mode);
+
+    usbmoded_set_external_mode(external_mode);
 }
 
 /** get the usb mode
@@ -744,6 +750,9 @@ void usbmoded_set_usb_mode(const char *mode)
 
     current_mode.internal_mode = g_strdup(mode);
     g_free(previous);
+
+    /* Invalidate current mode for the duration of mode transition */
+    usbmoded_set_external_mode(MODE_BUSY);
 
     // PROPAGATE DOWN TO GADGET CONFIG
     usbmoded_update_hardware_mode();
