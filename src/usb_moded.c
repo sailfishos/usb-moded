@@ -613,8 +613,10 @@ static void usbmoded_switch_to_mode(const char *mode)
          * as they will use the usbmoded_get_usb_mode_data function */
         usbmoded_set_usb_mode_data(data);
 
-        if( usbmoded_mode_is_mtp_mode(mode) )
-            usbmoded_start_mtpd();
+        if( usbmoded_mode_is_mtp_mode(mode) ) {
+            if( !usbmoded_start_mtpd() )
+                goto FAILED;
+        }
 
         if( !usbmoded_set_usb_module(data->mode_module) )
             goto FAILED;
