@@ -50,6 +50,9 @@
 #include "usb_moded-modes.h"
 #include "usb_moded-modesetting.h"
 #include "usb_moded-dbus-private.h"
+#include "usb_moded-worker.h"
+#include "usb_moded-control.h"
+#include "usb_moded-common.h"
 
 #ifdef USE_MER_SSU
 # include "usb_moded-ssu.h"
@@ -463,7 +466,7 @@ set_config_result_t config_set_config_setting(const char *entry, const char *key
 
 set_config_result_t config_set_mode_setting(const char *mode)
 {
-    if (strcmp(mode, MODE_ASK) && usbmoded_valid_mode(mode))
+    if (strcmp(mode, MODE_ASK) && common_valid_mode(mode))
         return SET_CONFIG_ERROR;
     return (config_set_config_setting(MODE_SETTING_ENTRY, MODE_SETTING_KEY, mode));
 }
@@ -540,9 +543,9 @@ set_config_result_t config_set_hide_mode_setting(const char *mode)
     }
 
     if(ret == SET_CONFIG_UPDATED) {
-        usbmoded_send_hidden_modes_signal();
-        usbmoded_send_supported_modes_signal();
-        usbmoded_send_available_modes_signal();
+        common_send_hidden_modes_signal();
+        common_send_supported_modes_signal();
+        common_send_available_modes_signal();
     }
 
     g_free(hidden_modes);
@@ -561,9 +564,9 @@ set_config_result_t config_set_unhide_mode_setting(const char *mode)
     }
 
     if(ret == SET_CONFIG_UPDATED) {
-        usbmoded_send_hidden_modes_signal();
-        usbmoded_send_supported_modes_signal();
-        usbmoded_send_available_modes_signal();
+        common_send_hidden_modes_signal();
+        common_send_supported_modes_signal();
+        common_send_available_modes_signal();
     }
 
     g_free(hidden_modes);
@@ -580,22 +583,22 @@ set_config_result_t config_set_mode_whitelist(const char *whitelist)
         const char *current_mode;
 
         mode_setting = config_get_mode_setting();
-        if (strcmp(mode_setting, MODE_ASK) && usbmoded_valid_mode(mode_setting))
+        if (strcmp(mode_setting, MODE_ASK) && common_valid_mode(mode_setting))
             config_set_mode_setting(MODE_ASK);
         g_free(mode_setting);
 
-        current_mode = usbmoded_get_usb_mode();
+        current_mode = control_get_usb_mode();
         if (!strcmp(current_mode, MODE_UNDEFINED)) {
             /* Disconnected -> do nothing */
         }
-        else if (strcmp(current_mode, MODE_CHARGING_FALLBACK) && strcmp(current_mode, MODE_ASK) && usbmoded_valid_mode(current_mode)) {
+        else if (strcmp(current_mode, MODE_CHARGING_FALLBACK) && strcmp(current_mode, MODE_ASK) && common_valid_mode(current_mode)) {
             /* Invalid mode that is not MODE_ASK or MODE_CHARGING_FALLBACK
              * -> switch to MODE_CHARGING_FALLBACK */
-            usbmoded_set_usb_mode(MODE_CHARGING_FALLBACK);
+            control_set_usb_mode(MODE_CHARGING_FALLBACK);
         }
 
         umdbus_send_whitelisted_modes_signal(whitelist);
-        usbmoded_send_available_modes_signal();
+        common_send_available_modes_signal();
     }
 
     return ret;
@@ -690,7 +693,7 @@ char * config_get_network_setting(const char *config)
             goto end;
         /* no interface override specified, let's use the one
          * from the mode config */
-        data = usbmoded_get_usb_mode_data();
+        data = worker_get_usb_mode_data();
         if(data)
         {
             if(data->network_interface)

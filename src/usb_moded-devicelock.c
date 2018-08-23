@@ -42,6 +42,7 @@
 #include "usb_moded.h"
 #include "usb_moded-modes.h"
 #include "usb_moded-dbus-private.h"
+#include "usb_moded-control.h"
 
 /* ========================================================================= *
  * Types
@@ -147,7 +148,7 @@ static void devicelock_state_changed(devicelock_state_t state)
               devicelock_state_repr(state));
     device_lock_state = state;
 
-    usbmoded_rethink_usb_charging_fallback();
+    control_rethink_usb_charging_fallback();
 
 EXIT:
     return;

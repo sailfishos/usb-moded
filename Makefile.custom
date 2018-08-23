@@ -169,10 +169,13 @@ LDLIBS   += $(PKG_LDLIBS)
 # ----------------------------------------------------------------------------
 
 usb_moded-OBJS += src/usb_moded.o
+
 usb_moded-OBJS += src/usb_moded-android.o
 usb_moded-OBJS += src/usb_moded-appsync.o
+usb_moded-OBJS += src/usb_moded-common.o
 usb_moded-OBJS += src/usb_moded-config.o
 usb_moded-OBJS += src/usb_moded-configfs.o
+usb_moded-OBJS += src/usb_moded-control.o
 usb_moded-OBJS += src/usb_moded-dbus.o
 usb_moded-OBJS += src/usb_moded-devicelock.o
 usb_moded-OBJS += src/usb_moded-dsme.o
@@ -182,10 +185,12 @@ usb_moded-OBJS += src/usb_moded-mac.o
 usb_moded-OBJS += src/usb_moded-modesetting.o
 usb_moded-OBJS += src/usb_moded-modules.o
 usb_moded-OBJS += src/usb_moded-network.o
+usb_moded-OBJS += src/usb_moded-sigpipe.o
 usb_moded-OBJS += src/usb_moded-ssu.o
 usb_moded-OBJS += src/usb_moded-systemd.o
 usb_moded-OBJS += src/usb_moded-trigger.o
 usb_moded-OBJS += src/usb_moded-udev.o
+usb_moded-OBJS += src/usb_moded-worker.o
 
 usb_moded : $(usb_moded-OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS) $(LDLIBS)
@@ -217,8 +222,10 @@ usb_moded_util : $(usb_moded_util-OBJS)
 CLEAN_SOURCES += src/usb_moded-android.c
 CLEAN_SOURCES += src/usb_moded-appsync-dbus.c
 CLEAN_SOURCES += src/usb_moded-appsync.c
+CLEAN_SOURCES += src/usb_moded-common.c
 CLEAN_SOURCES += src/usb_moded-config.c
 CLEAN_SOURCES += src/usb_moded-configfs.c
+CLEAN_SOURCES += src/usb_moded-control.c
 CLEAN_SOURCES += src/usb_moded-dbus.c
 CLEAN_SOURCES += src/usb_moded-devicelock.c
 CLEAN_SOURCES += src/usb_moded-dsme.c
@@ -228,11 +235,13 @@ CLEAN_SOURCES += src/usb_moded-mac.c
 CLEAN_SOURCES += src/usb_moded-modesetting.c
 CLEAN_SOURCES += src/usb_moded-modules.c
 CLEAN_SOURCES += src/usb_moded-network.c
+CLEAN_SOURCES += src/usb_moded-sigpipe.c
 CLEAN_SOURCES += src/usb_moded-ssu.c
 CLEAN_SOURCES += src/usb_moded-systemd.c
 CLEAN_SOURCES += src/usb_moded-trigger.c
 CLEAN_SOURCES += src/usb_moded-udev.c
 CLEAN_SOURCES += src/usb_moded-util.c
+CLEAN_SOURCES += src/usb_moded-worker.c
 CLEAN_SOURCES += src/usb_moded.c
 CLEAN_SOURCES += utils/udev-search.c
 
@@ -241,8 +250,10 @@ CLEAN_HEADERS += src/usb_moded-appsync-dbus-private.h
 CLEAN_HEADERS += src/usb_moded-appsync-dbus.h
 CLEAN_HEADERS += src/usb_moded-appsync.h
 CLEAN_HEADERS += src/usb_moded-config-private.h
+CLEAN_HEADERS += src/usb_moded-common.h
 CLEAN_HEADERS += src/usb_moded-config.h
 CLEAN_HEADERS += src/usb_moded-configfs.h
+CLEAN_HEADERS += src/usb_moded-control.h
 CLEAN_HEADERS += src/usb_moded-dbus-private.h
 CLEAN_HEADERS += src/usb_moded-dbus.h
 CLEAN_HEADERS += src/usb_moded-devicelock.h
@@ -254,10 +265,12 @@ CLEAN_HEADERS += src/usb_moded-modes.h
 CLEAN_HEADERS += src/usb_moded-modesetting.h
 CLEAN_HEADERS += src/usb_moded-modules.h
 CLEAN_HEADERS += src/usb_moded-network.h
+CLEAN_HEADERS += src/usb_moded-sigpipe.h
 CLEAN_HEADERS += src/usb_moded-ssu.h
 CLEAN_HEADERS += src/usb_moded-systemd.h
 CLEAN_HEADERS += src/usb_moded-trigger.h
 CLEAN_HEADERS += src/usb_moded-udev.h
+CLEAN_HEADERS += src/usb_moded-worker.h
 CLEAN_HEADERS += src/usb_moded.h
 
 # Files with whitespace issues

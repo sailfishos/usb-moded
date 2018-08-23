@@ -36,6 +36,7 @@
 #include "usb_moded-modesetting.h"
 #include "usb_moded-config-private.h"
 #include "usb_moded-mac.h"
+#include "usb_moded-common.h"
 
 /* ========================================================================= *
  * Constants
@@ -598,7 +599,7 @@ configfs_init_values(void)
     /* Prep: mtp_mode */
     configfs_register_function(FUNCTION_MTP);
     if( access("/dev/mtp/ep0", F_OK) == -1 ) {
-        usbmoded_system("/bin/mount -o uid=100000,gid=100000 -t functionfs mtp /dev/mtp");
+        common_system("/bin/mount -o uid=100000,gid=100000 -t functionfs mtp /dev/mtp");
     }
 
     /* Prep: developer_mode */

@@ -49,6 +49,8 @@
 #include "usb_moded-network.h"
 #include "usb_moded-android.h"
 #include "usb_moded-configfs.h"
+#include "usb_moded-worker.h"
+#include "usb_moded-common.h"
 
 /* ========================================================================= *
  * Prototypes
@@ -301,21 +303,21 @@ bool modesetting_is_mounted(const char *mountpoint)
 {
     char cmd[256];
     snprintf(cmd, sizeof cmd, "/bin/mountpoint -q '%s'", mountpoint);
-    return usbmoded_system(cmd) == 0;
+    return common_system(cmd) == 0;
 }
 
 bool modesetting_mount(const char *mountpoint)
 {
     char cmd[256];
     snprintf(cmd, sizeof cmd, "/bin/mount '%s'", mountpoint);
-    return usbmoded_system(cmd) == 0;
+    return common_system(cmd) == 0;
 }
 
 bool modesetting_unmount(const char *mountpoint)
 {
     char cmd[256];
     snprintf(cmd, sizeof cmd, "/bin/umount '%s'", mountpoint);
-    return usbmoded_system(cmd) == 0;
+    return common_system(cmd) == 0;
 }
 
 gchar *modesetting_mountdev(const char *mountpoint)
@@ -466,7 +468,7 @@ static bool modesetting_enter_mass_storage_mode(struct mode_list_elem *data)
 
             log_warning("failed to unmount %s - wait a bit", mountpnt);
             modesetting_report_mass_storage_blocker(mountpnt, 1);
-            usbmoded_sleep(1);
+            common_sleep(1);
         }
     }
 
@@ -510,12 +512,12 @@ static bool modesetting_enter_mass_storage_mode(struct mode_list_elem *data)
             modules_unload_module(MODULE_MASS_STORAGE);
             snprintf(tmp, sizeof tmp, "modprobe %s luns=%zd \n", MODULE_MASS_STORAGE, count);
             log_debug("usb-load command = %s \n", tmp);
-            if( usbmoded_system(tmp) != 0 )
+            if( common_system(tmp) != 0 )
                 goto EXIT;
         }
 
         /* activate mounts after sleeping 1s to be sure enumeration happened and autoplay will work in windows*/
-        usbmoded_sleep(1);
+        common_sleep(1);
 
         for( size_t i = 0 ; i < count; ++i ) {
             const gchar *mountdev = info[i].si_mountdevice;
@@ -653,7 +655,7 @@ static void modesetting_report_mass_storage_blocker(const char *mountpoint, int 
 
     lsof_command = g_strconcat("lsof ", mountpoint, NULL);
 
-    if( (stream = usbmoded_popen(lsof_command, "r")) )
+    if( (stream = common_popen(lsof_command, "r")) )
     {
         char *text = 0;
         size_t size = 0;
@@ -693,7 +695,7 @@ bool modesetting_enter_dynamic_mode(void)
      * Is a dynamic mode?
      * - - - - - - - - - - - - - - - - - - - */
 
-    if( !(data = usbmoded_get_usb_mode_data()) ) {
+    if( !(data = worker_get_usb_mode_data()) ) {
         log_debug("No dynamic mode data to setup");
         goto EXIT;
     }
@@ -776,7 +778,7 @@ bool modesetting_enter_dynamic_mode(void)
         char command[256];
 
         g_snprintf(command, 256, "ifdown %s ; ifup %s", data->network_interface, data->network_interface);
-        usbmoded_system(command);
+        common_system(command);
 #else
         network_down(data);
         network = network_up(data);
@@ -807,7 +809,7 @@ bool modesetting_enter_dynamic_mode(void)
     {
         log_debug("Dynamic mode is appsync: do post actions");
         /* let's sleep for a bit (350ms) to allow interfaces to settle before running postsync */
-        usbmoded_msleep(350);
+        common_msleep(350);
         appsync_activate_sync_post(data->mode_name);
     }
 
@@ -836,7 +838,7 @@ void modesetting_leave_dynamic_mode(void)
 
     struct mode_list_elem *data;
 
-    data = usbmoded_get_usb_mode_data();
+    data = worker_get_usb_mode_data();
 
     /* - - - - - - - - - - - - - - - - - - - *
      * Do not leave timers behind

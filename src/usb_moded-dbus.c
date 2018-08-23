@@ -46,6 +46,8 @@
 #include "usb_moded-config-private.h"
 #include "usb_moded-network.h"
 #include "usb_moded-log.h"
+#include "usb_moded-control.h"
+#include "usb_moded-common.h"
 
 /* ========================================================================= *
  * Constants
@@ -254,7 +256,7 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
 
         if(!strcmp(member, USB_MODE_STATE_REQUEST))
         {
-            const char *mode = usbmoded_get_external_mode();
+            const char *mode = control_get_external_mode();
 
             /* To the outside we want to keep CHARGING and CHARGING_FALLBACK the same */
             if(!strcmp(MODE_CHARGING_FALLBACK, mode))
@@ -272,17 +274,17 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
             else
             {
                 /* check if usb is connected, since it makes no sense to change mode if it isn't */
-                if( usbmoded_get_cable_state() != CABLE_STATE_PC_CONNECTED ) {
+                if( control_get_cable_state() != CABLE_STATE_PC_CONNECTED ) {
                     log_warning("USB not connected, not changing mode!\n");
                     goto error_reply;
                 }
                 /* check if the mode exists */
-                if(usbmoded_valid_mode(use))
+                if(common_valid_mode(use))
                     goto error_reply;
                 /* do not change mode if the mode requested is the one already set */
-                if(strcmp(use, usbmoded_get_usb_mode()) != 0)
+                if(strcmp(use, control_get_usb_mode()) != 0)
                 {
-                    usbmoded_set_usb_mode(use);
+                    control_set_usb_mode(use);
                 }
                 if((reply = dbus_message_new_method_return(msg)))
                     dbus_message_append_args (reply, DBUS_TYPE_STRING, &use, DBUS_TYPE_INVALID);
@@ -434,7 +436,7 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
         }
         else if(!strcmp(member, USB_MODE_LIST))
         {
-            gchar *mode_list = usbmoded_get_mode_list(SUPPORTED_MODES_LIST);
+            gchar *mode_list = common_get_mode_list(SUPPORTED_MODES_LIST);
 
             if((reply = dbus_message_new_method_return(msg)))
                 dbus_message_append_args (reply, DBUS_TYPE_STRING, (const char *) &mode_list, DBUS_TYPE_INVALID);
@@ -442,7 +444,7 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
         }
         else if(!strcmp(member, USB_MODE_AVAILABLE_MODES_GET))
         {
-            gchar *mode_list = usbmoded_get_mode_list(AVAILABLE_MODES_LIST);
+            gchar *mode_list = common_get_mode_list(AVAILABLE_MODES_LIST);
 
             if((reply = dbus_message_new_method_return(msg)))
                 dbus_message_append_args (reply, DBUS_TYPE_STRING, (const char *) &mode_list, DBUS_TYPE_INVALID);

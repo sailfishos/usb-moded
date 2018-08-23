@@ -42,6 +42,7 @@
 #include "usb_moded-udev.h"
 #include "usb_moded-modesetting.h"
 #include "usb_moded-trigger.h"
+#include "usb_moded-control.h"
 #if defined MEEGOLOCK
 # include "usb_moded-devicelock.h"
 #endif /* MEEGOLOCK */
@@ -257,7 +258,7 @@ static void trigger_parse_udev_properties(struct udev_device *dev)
             goto EXIT;
     }
 
-    usbmoded_set_usb_mode(trigger_mode);
+    control_set_usb_mode(trigger_mode);
 
 EXIT:
     free(trigger_value);

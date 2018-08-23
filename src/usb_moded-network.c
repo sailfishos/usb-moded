@@ -43,6 +43,9 @@
 #include "usb_moded-config-private.h"
 #include "usb_moded-log.h"
 #include "usb_moded-modesetting.h"
+#include "usb_moded-worker.h"
+#include "usb_moded-control.h"
+#include "usb_moded-common.h"
 
 #if CONNMAN || OFONO
 # include <dbus/dbus.h>
@@ -202,13 +205,13 @@ static int network_set_usb_ip_forward(struct mode_list_elem *data, struct ipforw
     }
     write_to_file("/proc/sys/net/ipv4/ip_forward", "1");
     snprintf(command, 128, "/sbin/iptables -t nat -A POSTROUTING -o %s -j MASQUERADE", nat_interface);
-    usbmoded_system(command);
+    common_system(command);
 
     snprintf(command, 128, "/sbin/iptables -A FORWARD -i %s -o %s  -m state  --state RELATED,ESTABLISHED -j ACCEPT", nat_interface, interface);
-    usbmoded_system(command);
+    common_system(command);
 
     snprintf(command, 128, "/sbin/iptables -A FORWARD -i %s -o %s -j ACCEPT", interface, nat_interface);
-    usbmoded_system(command);
+    common_system(command);
 
     free(interface);
     free(nat_interface);
@@ -225,7 +228,7 @@ static void network_clean_usb_ip_forward(void)
     connman_reset_state();
 #endif
     write_to_file("/proc/sys/net/ipv4/ip_forward", "0");
-    usbmoded_system("/sbin/iptables -F FORWARD");
+    common_system("/sbin/iptables -F FORWARD");
 }
 
 #ifdef OFONO
@@ -537,7 +540,7 @@ gboolean connman_set_tethering(const char *path, gboolean on)
         {
             if (i>0)
             {
-                usbmoded_msleep(200);
+                common_msleep(200);
             }
             if (connman_try_set_tethering(connection, path, on))
             {
@@ -754,7 +757,7 @@ static int connman_set_cellular_online(DBusConnection *dbus_conn_connman, const 
         /* we don't care for the reply, which is empty anyway if all goes well */
         ret = !dbus_connection_send(dbus_conn_connman, msg, NULL);
         /* sleep for the connection to come up */
-        usbmoded_sleep(5);
+        common_sleep(5);
         /* make sure the message is sent before cleaning up and closing the connection */
         dbus_connection_flush(dbus_conn_connman);
         dbus_message_unref(msg);
@@ -825,10 +828,10 @@ static int connman_wifi_power_control(DBusConnection *dbus_conn_connman, int on)
 
     /*  /net/connman/technology/wifi net.connman.Technology.SetProperty string:Powered variant:boolean:false */
     if(wifistatus && !on)
-        usbmoded_system("/bin/dbus-send --print-reply --type=method_call --system --dest=net.connman /net/connman/technology/wifi net.connman.Technology.SetProperty string:Powered variant:boolean:false");
+        common_system("/bin/dbus-send --print-reply --type=method_call --system --dest=net.connman /net/connman/technology/wifi net.connman.Technology.SetProperty string:Powered variant:boolean:false");
     if(wifistatus && on)
         /* turn on wifi after tethering is over and wifi was on before */
-        usbmoded_system("/bin/dbus-send --print-reply --type=method_call --system --dest=net.connman /net/connman/technology/wifi net.connman.Technology.SetProperty string:Powered variant:boolean:true");
+        common_system("/bin/dbus-send --print-reply --type=method_call --system --dest=net.connman /net/connman/technology/wifi net.connman.Technology.SetProperty string:Powered variant:boolean:true");
 
     return(0);
 }
@@ -1015,11 +1018,11 @@ int network_up(struct mode_list_elem *data)
     const char *service = NULL;
 
     /* make sure connman will recognize the gadget interface NEEDED? */
-    //usbmoded_system("/bin/dbus-send --print-reply --type=method_call --system --dest=net.connman /net/connman/technology/gadget net.connman.Technology.SetProperty string:Powered variant:boolean:true");
-    //usbmoded_system("/sbin/ifconfig rndis0 up");
+    //common_system("/bin/dbus-send --print-reply --type=method_call --system --dest=net.connman /net/connman/technology/gadget net.connman.Technology.SetProperty string:Powered variant:boolean:true");
+    //common_system("/sbin/ifconfig rndis0 up");
 
     log_debug("waiting for connman to pick up interface\n");
-    usbmoded_sleep(1);
+    common_sleep(1);
     dbus_error_init(&error);
 
     if( (dbus_conn_connman = dbus_bus_get(DBUS_BUS_SYSTEM, &error)) == 0 )
@@ -1132,25 +1135,25 @@ int network_up(struct mode_list_elem *data)
     if(!strcmp(ip, "dhcp"))
     {
         sprintf(command, "dhclient -d %s\n", interface);
-        ret = usbmoded_system(command);
+        ret = common_system(command);
         if(ret != 0)
         {
             sprintf(command, "udhcpc -i %s\n", interface);
-            usbmoded_system(command);
+            common_system(command);
         }
 
     }
     else
     {
         sprintf(command, "ifconfig %s %s %s\n", interface, ip, netmask);
-        usbmoded_system(command);
+        common_system(command);
     }
 
     /* TODO: Check first if there is a gateway set */
     if(gateway)
     {
         sprintf(command, "route add default gw %s\n", gateway);
-        usbmoded_system(command);
+        common_system(command);
     }
 
     free(interface);
@@ -1222,7 +1225,7 @@ int network_down(struct mode_list_elem *data)
         return(0);
 
     sprintf(command, "ifconfig %s down\n", interface);
-    usbmoded_system(command);
+    common_system(command);
 
     /* dhcp client shutdown happens on disconnect automatically */
     if(data->nat)
@@ -1240,8 +1243,8 @@ int network_down(struct mode_list_elem *data)
  */
 int network_update(void)
 {
-    if( usbmoded_get_cable_state() == CABLE_STATE_PC_CONNECTED ) {
-        struct mode_list_elem *data = usbmoded_get_usb_mode_data();
+    if( control_get_cable_state() == CABLE_STATE_PC_CONNECTED ) {
+        struct mode_list_elem *data = worker_get_usb_mode_data();
         if( data && data->network ) {
             network_down(data);
             network_up(data);
