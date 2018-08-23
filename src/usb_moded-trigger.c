@@ -211,51 +211,33 @@ void trigger_stop(void)
 
 static void trigger_parse_udev_properties(struct udev_device *dev)
 {
-    const char *tmp = 0;
-    char *trigger = 0;
+    char *trigger_property = 0;
+    char *trigger_value = 0;
+    char *trigger_mode = 0;
 
-    trigger = config_get_trigger_property();
-    tmp = udev_device_get_property_value(dev, trigger);
-    if(!tmp)
-    {
-        /* do nothing and return */
-        free(trigger);
-        return;
+    const char *value = 0;
+
+    if( !usbmoded_can_export() )
+        goto EXIT;
+
+    if( !(trigger_mode = config_get_trigger_mode()) )
+        goto EXIT;
+
+    if( !(trigger_property = config_get_trigger_property()) )
+        goto EXIT;
+
+    if( !(value = udev_device_get_property_value(dev, trigger_property)) )
+        goto EXIT;
+
+    if( (trigger_value = config_get_trigger_value()) ) {
+        if( strcmp(trigger_value, value) )
+            goto EXIT;
     }
-    else
-    {
-        free(trigger);
-        trigger = config_get_trigger_value();
-        if(trigger)
-        {
-            if(!strcmp(tmp, trigger))
-            {
-#if defined MEEGOLOCK
-                if(devicelock_have_export_permission())
-#endif /* MEEGOLOCK */
-                    if(strcmp(config_get_trigger_mode(), usbmoded_get_usb_mode()) != 0)
-                    {
-                        usbmoded_set_usb_mode(config_get_trigger_mode());
-                    }
-                free(trigger);
-            }
-            else
-            {
-                free(trigger);
-                return;
-            }
-        }
-        else
-            /* for triggers without trigger value */
-        {
-#if defined MEEGOLOCK
-            if(devicelock_have_export_permission())
-#endif /* MEEGOLOCK */
-                if(strcmp(config_get_trigger_mode(), usbmoded_get_usb_mode()) != 0)
-                {
-                    usbmoded_set_usb_mode(config_get_trigger_mode());
-                }
-        }
-        return;
-    }
+
+    usbmoded_set_usb_mode(trigger_mode);
+
+EXIT:
+    free(trigger_value);
+    free(trigger_property);
+    free(trigger_mode);
 }

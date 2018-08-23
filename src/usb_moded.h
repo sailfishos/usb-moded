@@ -129,6 +129,7 @@ void                   usbmoded_acquire_wakelock             (const char *wakelo
 void                   usbmoded_release_wakelock             (const char *wakelock_name);
 void                   usbmoded_allow_suspend                (void);
 void                   usbmoded_delay_suspend                (void);
+bool                   usbmoded_can_export                  (void);
 bool                   usbmoded_init_done_p                  (void);
 void                   usbmoded_set_init_done                (bool reached);
 void                   usbmoded_probe_init_done              (void);

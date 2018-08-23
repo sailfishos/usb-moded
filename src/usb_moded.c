@@ -224,6 +224,7 @@ static gboolean        usbmoded_allow_suspend_timer_cb       (gpointer aptr);
 void                   usbmoded_allow_suspend                (void);
 void                   usbmoded_delay_suspend                (void);
 
+bool                   usbmoded_can_export                  (void);
 bool                   usbmoded_init_done_p                  (void);
 void                   usbmoded_set_init_done                (bool reached);
 void                   usbmoded_probe_init_done              (void);
@@ -419,22 +420,10 @@ usbmoded_rethink_usb_charging_fallback(void)
         strcmp(usb_mode, MODE_CHARGING_FALLBACK) )
         goto EXIT;
 
-#ifdef MEEGOLOCK
-    /* If device locking is supported, the device must be in
-     * unlocked state (or rescue mode must be active).
-     */
-    if( !devicelock_have_export_permission() && !usbmoded_rescue_mode ) {
-        log_notice("device is locked; stay in %s", usb_mode);
+    if( !usbmoded_can_export() ) {
+        log_notice("exporting data not allowed; stay in %s", usb_mode);
         goto EXIT;
     }
-
-    /* Device must be in USER state or in rescue mode
-     */
-    if( !dsme_in_user_state() && !usbmoded_rescue_mode ) {
-        log_notice("device is not in USER mode; stay in %s", usb_mode);
-        goto EXIT;
-    }
-#endif
 
     log_debug("attempt to leave %s", usb_mode);
     usbmoded_set_usb_connected_state();
@@ -490,20 +479,10 @@ static void usbmoded_switch_to_mode(const char *mode)
         goto CHARGE;
     }
 
-#ifdef MEEGOLOCK
-    /* Potentially data exposing modes are allowed only when
-     * device has been booted to user mode and unlocked.
-     *
-     * Except if rescue mode is still active.
-     */
-    bool can_export = (dsme_in_user_state() &&
-                       devicelock_have_export_permission());
-
-    if( !can_export && !usbmoded_rescue_mode ) {
+    if( !usbmoded_can_export() ) {
         log_warning("Policy does not allow mode: %s", mode);
         goto CHARGE;
     }
-#endif
 
     /* go through all the dynamic modes if the modelist exists*/
     for( GList *iter = modelist; iter; iter = g_list_next(iter) )
@@ -683,7 +662,6 @@ static bool usbmoded_set_connection_state(bool state)
 void usbmoded_set_usb_connected_state(void)
 {
     char *mode_to_set = 0;
-    bool can_export = true;
 
     if( usbmoded_rescue_mode ) {
         log_debug("Entering rescue mode!\n");
@@ -704,28 +682,18 @@ void usbmoded_set_usb_connected_state(void)
 
     mode_to_set = config_get_mode_setting();
 
-#ifdef MEEGOLOCK
-    /* Check if we are allowed to export system contents 0 is unlocked.
-     * We check also if the device is in user state or not.
-     * If not we do not export anything. We presume ACT_DEAD charging
-     */
-    can_export = (devicelock_have_export_permission()
-                  && dsme_in_user_state());
-#endif
-
-    if( mode_to_set && can_export ) {
-        /* If charging mode is the only available selection,
-         * don't ask just select it */
-        if( !strcmp(MODE_ASK, mode_to_set) ) {
-            gchar *available_modes = usbmoded_get_mode_list(AVAILABLE_MODES_LIST);
-            if( !g_strcmp0(available_modes, MODE_CHARGING) ) {
-                // FIXME free() vs g_free() conflict
-                free(mode_to_set);
-                mode_to_set = available_modes;
-                available_modes = 0;
-            }
+    /* If there is only one allowed mode, use it without
+     * going through ask-mode */
+    if( !strcmp(MODE_ASK, mode_to_set) ) {
+        // FIXME free() vs g_free() conflict
+        gchar *available = usbmoded_get_mode_list(AVAILABLE_MODES_LIST);
+        if( *available && !strchr(available, ',') ) {
+            free(mode_to_set), mode_to_set = available, available = 0;
         }
+        g_free(available);
+    }
 
+    if( mode_to_set && usbmoded_can_export() ) {
         usbmoded_set_usb_mode(mode_to_set);
     }
     else {
@@ -1162,6 +1130,28 @@ void usbmoded_delay_suspend(void)
     allow_suspend_timer_id =
         g_timeout_add(USB_MODED_SUSPEND_DELAY_DEFAULT_MS,
                       usbmoded_allow_suspend_timer_cb, 0);
+}
+
+/** Check if exposing device data is currently allowed
+ *
+ * @return true exposing data is ok, or false otherwise
+ */
+bool usbmoded_can_export(void)
+{
+  bool can_export = true;
+
+#ifdef MEEGOLOCK
+    /* Modes that potentially expose data are allowed only when
+     * device is running in user mode and device is unlocked */
+    can_export = (dsme_in_user_state() &&
+                  devicelock_have_export_permission());
+
+    /* Having bootup rescue mode active is an exception */
+    if( usbmoded_rescue_mode )
+        can_export = true;
+#endif
+
+    return can_export;
 }
 
 /** Check if system has already been successfully booted up
