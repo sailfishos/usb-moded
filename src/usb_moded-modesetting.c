@@ -480,9 +480,21 @@ static bool modesetting_enter_mass_storage_mode(struct mode_list_elem *data)
         android_set_enabled(true);
     }
     else if( configfs_in_use() ) {
-        // TODO
-        log_err("configfs mass-storage support not implemented");
-        goto EXIT;
+        configfs_set_udc(false);
+        configfs_set_function(0);
+
+        for( size_t i = 0 ; i < count; ++i ) {
+            const gchar *mountdev = info[i].si_mountdevice;
+            if( configfs_add_mass_storage_lun(i) ) {
+                configfs_set_mass_storage_attr(i, "cdrom", "0");
+                configfs_set_mass_storage_attr(i, "nofua", nofua ? "1" : "0");
+                configfs_set_mass_storage_attr(i, "removable", "1");
+                configfs_set_mass_storage_attr(i, "ro", "0");
+                configfs_set_mass_storage_attr(i, "file", mountdev);
+            }
+        }
+        configfs_set_function("mass_storage");
+        configfs_set_udc(true);
     }
     else if( modules_in_use() ) {
         /* check if the file storage module has been loaded with sufficient luns in the parameter,
@@ -560,8 +572,22 @@ static int modesetting_leave_mass_storage_mode(struct mode_list_elem *data)
         android_set_attr("f_mass_storage", "lun/file", "");
     }
     else if( configfs_in_use() ) {
-        // TODO
-        log_err("configfs mass-storage support not implemented");
+        log_debug("Disable configfs mass storage\n");
+        configfs_set_udc(false);
+        configfs_set_function(0);
+
+        // reset lun0, remove the rest altogether
+        for( size_t i = 0 ; i < count; ++i ) {
+            // reset
+            configfs_set_mass_storage_attr(i, "cdrom", "0");
+            configfs_set_mass_storage_attr(i, "nofua", "0");
+            configfs_set_mass_storage_attr(i, "removable", "1");
+            configfs_set_mass_storage_attr(i, "ro", "0");
+            configfs_set_mass_storage_attr(i, "file", "");
+            // remove
+            if( i > 0 )
+                configfs_remove_mass_storage_lun(i);
+        }
     }
     else if( modules_in_use() ) {
         for( size_t i = 0 ; i < count; ++i ) {

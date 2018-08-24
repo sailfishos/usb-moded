@@ -55,8 +55,8 @@
 #define CONFIGFS_PRODUCT       CONFIGFS_GADGET"/strings/0x409/product"
 #define CONFIGFS_SERIAL        CONFIGFS_GADGET"/strings/0x409/serialnumber"
 
-#define CONFIGFS_RNDIS_WCEIS   CONFIGFS_FUNCTIONS"/rndis_bam.rndis/wceis"
-#define CONFIGFS_RNDIS_ETHADDR CONFIGFS_FUNCTIONS"/rndis_bam.rndis/ethaddr"
+#define CONFIGFS_RNDIS_WCEIS   CONFIGFS_FUNCTIONS"/"FUNCTION_RNDIS"/wceis"
+#define CONFIGFS_RNDIS_ETHADDR CONFIGFS_FUNCTIONS"/"FUNCTION_RNDIS"/ethaddr"
 
 /* ========================================================================= *
  * Prototypes
@@ -64,31 +64,41 @@
 
 /* -- configfs -- */
 
-static int         configfs_file_type            (const char *path);
-static const char *configfs_function_path        (char *buff, size_t size, const char *func);
-static const char *configfs_config_path          (char *buff, size_t size, const char *func);
-static const char *configfs_register_function    (const char *function);
+static int         configfs_file_type              (const char *path);
+static const char *configfs_function_path          (char *buff, size_t size, const char *func, ...);
+static const char *configfs_unit_path              (char *buff, size_t size, const char *func, const char *unit);
+static const char *configfs_config_path            (char *buff, size_t size, const char *func);
+static bool        configfs_mkdir                  (const char *path);
+static bool        configfs_rmdir                  (const char *path);
+static const char *configfs_register_function      (const char *function);
 #ifdef DEAD_CODE
-static bool        configfs_unregister_function  (const char *function);
+static bool        configfs_unregister_function    (const char *function);
 #endif
-static bool        configfs_enable_function      (const char *function);
-static bool        configfs_disable_function     (const char *function);
-static bool        configfs_disable_all_functions(void);
-static char       *configfs_strip                (char *str);
-bool               configfs_in_use               (void);
-static bool        configfs_probe                (void);
-static const char *configfs_udc_enable_value     (void);
-static bool        configfs_write_file           (const char *path, const char *text);
-static bool        configfs_read_file            (const char *path, char *buff, size_t size);
+static const char *configfs_add_unit               (const char *function, const char *unit);
+static bool        configfs_remove_unit            (const char *function, const char *unit);
+static bool        configfs_enable_function        (const char *function);
+static bool        configfs_disable_function       (const char *function);
+static bool        configfs_disable_all_functions  (void);
+static char       *configfs_strip                  (char *str);
+bool               configfs_in_use                 (void);
+static bool        configfs_probe                  (void);
+static const char *configfs_udc_enable_value       (void);
+static bool        configfs_write_file             (const char *path, const char *text);
+static bool        configfs_read_file              (const char *path, char *buff, size_t size);
+static bool        configfs_write_udc              (const char *text);
 #ifdef DEAD_CODE
-static bool        configfs_read_udc             (char *buff, size_t size);
+static bool        configfs_read_udc               (char *buff, size_t size);
 #endif
-static bool        configfs_write_udc            (const char *text);
-bool               configfs_set_udc              (bool enable);
-bool               configfs_init_values          (void);
-bool               configfs_set_charging_mode    (void);
-bool               configfs_set_productid        (const char *id);
-bool               configfs_set_vendorid         (const char *id);
+bool               configfs_set_udc                (bool enable);
+bool               configfs_init_values            (void);
+bool               configfs_set_charging_mode      (void);
+bool               configfs_set_productid          (const char *id);
+bool               configfs_set_vendorid           (const char *id);
+static const char *configfs_map_function           (const char *func);
+bool               configfs_set_function           (const char *func);
+bool               configfs_add_mass_storage_lun   (int lun);
+bool               configfs_remove_mass_storage_lun(int lun);
+bool               configfs_set_mass_storage_attr  (int lun, const char *attr, const char *value);
 
 /* ========================================================================= *
  * Data
@@ -118,10 +128,29 @@ EXIT:
 }
 
 static const char *
-configfs_function_path(char *buff, size_t size, const char *func)
+configfs_function_path(char *buff, size_t size, const char *func, ...)
 {
-    snprintf(buff, size, "%s/%s", CONFIGFS_FUNCTIONS, func);
+    char *pos = buff;
+    char *end = buff + size;
+
+    snprintf(pos, end-pos, "%s", CONFIGFS_FUNCTIONS);
+
+    va_list va;
+    va_start(va, func);
+    while( func ) {
+        pos = strchr(pos, 0);
+        snprintf(pos, end-pos, "/%s", func);
+        func = va_arg(va, char *);
+    }
+    va_end(va);
+
     return buff;
+}
+
+static const char *
+configfs_unit_path(char *buff, size_t size, const char *func, const char *unit)
+{
+    return configfs_function_path(buff, size, func, unit, NULL);
 }
 
 static const char *
@@ -131,23 +160,53 @@ configfs_config_path(char *buff, size_t size, const char *func)
     return buff;
 }
 
+static bool
+configfs_mkdir(const char *path)
+{
+    bool ack = false;
+
+    if( mkdir(path, 0775) == -1 && errno != EEXIST ) {
+        log_err("%s: mkdir failed: %m", path);
+        goto EXIT;
+    }
+
+    if( configfs_file_type(path) != S_IFDIR ) {
+        log_err("%s: is not a directory", path);
+        goto EXIT;
+    }
+
+    ack = true;
+
+EXIT:
+    return ack;
+}
+
+static bool
+configfs_rmdir(const char *path)
+{
+    bool ack = false;
+
+    if( rmdir(path) == -1 && errno != ENOENT ) {
+        log_err("%s: rmdir failed: %m", path);
+        goto EXIT;
+    }
+
+    ack = true;
+
+EXIT:
+    return ack;
+}
+
 static const char *
 configfs_register_function(const char *function)
 {
     const char *res = 0;
 
     static char fpath[256];
-    configfs_function_path(fpath, sizeof fpath, function);
+    configfs_function_path(fpath, sizeof fpath, function, NULL);
 
-    if( mkdir(fpath, 0775) == -1 && errno != EEXIST ) {
-        log_err("%s: mkdir failed: %m", fpath);
+    if( !configfs_mkdir(fpath) )
         goto EXIT;
-    }
-
-    if( configfs_file_type(fpath) != S_IFDIR ) {
-        log_err("%s: is not a directory", fpath);
-        goto EXIT;
-    }
 
     log_debug("function %s is registered", function);
 
@@ -164,12 +223,10 @@ configfs_unregister_function(const char *function)
     bool ack = false;
 
     char fpath[256];
-    configfs_function_path(fpath, sizeof fpath, function);
+    configfs_function_path(fpath, sizeof fpath, function, NULL);
 
-    if( rmdir(fpath) == -1 && errno != ENOENT ) {
-        log_err("%s: rmdir failed: %m", fpath);
+    if( !configfs_rmdir(fpath) )
         goto EXIT;
-    }
 
     log_debug("function %s is unregistered", function);
     ack = true;
@@ -178,6 +235,44 @@ EXIT:
     return ack;
 }
 #endif
+
+static const char *
+configfs_add_unit(const char *function, const char *unit)
+{
+    const char *res = 0;
+
+    static char upath[256];
+    configfs_unit_path(upath, sizeof upath, function, unit);
+
+    if( !configfs_mkdir(upath) )
+        goto EXIT;
+
+    log_debug("function %s unit %s added", function, unit);
+
+    res = upath;
+
+EXIT:
+    return res;
+}
+
+static bool
+configfs_remove_unit(const char *function, const char *unit)
+{
+    bool ack = false;
+
+    static char upath[256];
+    configfs_unit_path(upath, sizeof upath, function, unit);
+
+    if( !configfs_rmdir(upath) )
+        goto EXIT;
+
+    log_debug("function %s unit %s removed", function, unit);
+
+    ack = true;
+
+EXIT:
+    return ack;
+}
 
 static bool
 configfs_enable_function(const char *function)
@@ -604,7 +699,9 @@ configfs_set_vendorid(const char *id)
 static const char *
 configfs_map_function(const char *func)
 {
-    if( !strcmp(func, "mass_storage") )
+    if( func == 0 )
+        ;
+    else if( !strcmp(func, "mass_storage") )
         func = FUNCTION_MASS_STORAGE;
     else if( !strcmp(func, "rndis") )
         func = FUNCTION_RNDIS;
@@ -617,15 +714,14 @@ configfs_map_function(const char *func)
 
 /* Set a function
  *
+ * @param func Mame of function to enable, or NULL to disable all
+ *
  * @return true if successful, false on failure
  */
 bool
 configfs_set_function(const char *func)
 {
     bool ack = false;
-
-    if( !func )
-        goto EXIT;
 
     if( !configfs_in_use() )
         goto EXIT;
@@ -641,7 +737,7 @@ configfs_set_function(const char *func)
     if( !configfs_disable_all_functions() )
         goto EXIT;
 
-    if( !configfs_enable_function(func) )
+    if( func && !configfs_enable_function(func) )
         goto EXIT;
 
     /* Leave disabled, so that caller can adjust attributes
@@ -651,5 +747,56 @@ configfs_set_function(const char *func)
 
 EXIT:
     log_debug("CONFIGFS %s(%s) -> %d", __func__, func, ack);
+    return ack;
+}
+
+bool
+configfs_add_mass_storage_lun(int lun)
+{
+    bool ack = false;
+
+    if( !configfs_in_use() )
+        goto EXIT;
+
+    char unit[32];
+    snprintf(unit, sizeof unit, "lun.%d", lun);
+    ack = configfs_add_unit(FUNCTION_MASS_STORAGE, unit) != 0;
+
+EXIT:
+    return ack;
+}
+
+bool
+configfs_remove_mass_storage_lun(int lun)
+{
+    bool ack = false;
+
+    if( !configfs_in_use() )
+        goto EXIT;
+
+    char unit[32];
+    snprintf(unit, sizeof unit, "lun.%d", lun);
+    ack = configfs_remove_unit(FUNCTION_MASS_STORAGE, unit);
+
+EXIT:
+    return ack;
+}
+
+bool
+configfs_set_mass_storage_attr(int lun, const char *attr, const char *value)
+{
+    bool ack = false;
+
+    if( !configfs_in_use() )
+        goto EXIT;
+
+    char unit[32];
+    snprintf(unit, sizeof unit, "lun.%d", lun);
+    char path[256];
+    configfs_function_path(path, sizeof path, FUNCTION_MASS_STORAGE,
+                           unit, attr, NULL);
+    ack = configfs_write_file(path, value);
+
+EXIT:
     return ack;
 }
