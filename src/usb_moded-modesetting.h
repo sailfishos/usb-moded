@@ -29,8 +29,6 @@
 #ifndef  USB_MODED_MODESETTING_H_
 # define USB_MODED_MODESETTING_H_
 
-# include "usb_moded-dyn-config.h"
-
 # include <stdbool.h>
 
 /* ========================================================================= *

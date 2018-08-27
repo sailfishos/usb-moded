@@ -23,14 +23,12 @@
  * 02110-1301 USA
  */
 
+#include "usb_moded-dbus-private.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
-#include <unistd.h>
 #include <string.h>
-#include <dbus/dbus.h>
-
-#include "usb_moded-dbus-private.h"
 
 /* ========================================================================= *
  * Prototypes

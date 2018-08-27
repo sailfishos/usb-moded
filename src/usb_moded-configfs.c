@@ -22,21 +22,20 @@
 
 #include "usb_moded-configfs.h"
 
-#include <sys/types.h>
-
-#include <stdio.h>
-#include <dirent.h>
-#include <errno.h>
-
-#include <glib.h>
-
 #include "usb_moded.h"
 #include "usb_moded-android.h"
-#include "usb_moded-log.h"
-#include "usb_moded-modesetting.h"
-#include "usb_moded-config-private.h"
-#include "usb_moded-mac.h"
 #include "usb_moded-common.h"
+#include "usb_moded-config-private.h"
+#include "usb_moded-log.h"
+#include "usb_moded-mac.h"
+
+#include <sys/stat.h>
+
+#include <string.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <unistd.h>
+#include <fcntl.h>
 
 /* ========================================================================= *
  * Constants

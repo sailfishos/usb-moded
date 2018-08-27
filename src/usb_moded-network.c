@@ -28,29 +28,22 @@
 
 /*============================================================================= */
 
-#include <stdio.h>
+#include "usb_moded-network.h"
+
+#include "usb_moded-config-private.h"
+#include "usb_moded-control.h"
+#include "usb_moded-log.h"
+#include "usb_moded-modesetting.h"
+#include "usb_moded-worker.h"
+
+#include <sys/stat.h>
+
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-#include <sys/stat.h>
-#include <sys/types.h>
-
-#include <glib.h>
-
-#include "usb_moded.h"
-#include "usb_moded-network.h"
-#include "usb_moded-config-private.h"
-#include "usb_moded-log.h"
-#include "usb_moded-modesetting.h"
-#include "usb_moded-worker.h"
-#include "usb_moded-control.h"
-#include "usb_moded-common.h"
-
 #if CONNMAN || OFONO
 # include <dbus/dbus.h>
-# include <dbus/dbus-glib.h>
-# include <dbus/dbus-glib-lowlevel.h>
 #endif
 
 /* ========================================================================= *

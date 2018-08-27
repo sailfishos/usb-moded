@@ -21,9 +21,13 @@
  * 02110-1301 USA
  */
 
-#include <stdio.h>
 #include "usb_moded-mac.h"
+
 #include "usb_moded-log.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 /* ========================================================================= *
  * Prototypes

@@ -27,7 +27,7 @@
 #ifndef  USB_MODED_DBUS_PRIVATE_H_
 # define USB_MODED_DBUS_PRIVATE_H_
 
-# include "usb_moded-dbus.h"
+# include "usb_moded-dbus.h" // NOTRIM
 
 # include <dbus/dbus.h>
 # include <glib.h>

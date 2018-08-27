@@ -22,16 +22,15 @@
  * 02110-1301 USA
  */
 
-#include <stdbool.h>
-
-#include <dbus/dbus.h>
-
-#include "usb_moded.h"
 #include "usb_moded-dsme.h"
-#include "usb_moded-modesetting.h"
+
+#include "usb_moded-control.h"
 #include "usb_moded-dbus-private.h"
 #include "usb_moded-log.h"
-#include "usb_moded-control.h"
+#include "usb_moded-modesetting.h"
+
+#include <stdlib.h>
+#include <unistd.h>
 
 #include <dsme/state.h>
 #include <dsme/protocol.h>
@@ -134,7 +133,7 @@ static const struct
 } dsme_states[] =
 {
 #define DSME_STATE(NAME, VALUE) { #NAME, DSME_STATE_##NAME },
-#include <dsme/state_states.h>
+#include <dsme/state_states.h> // NOTRIM
 #undef  DSME_STATE
 };
 

@@ -21,19 +21,17 @@
  * 02110-1301 USA
  */
 
-#include <stdio.h>
-#include <glib.h>
-
-#include "usb_moded.h"
 #include "usb_moded-android.h"
-#include "usb_moded-log.h"
-#include "usb_moded-modesetting.h"
-#include "usb_moded-config-private.h"
-#include "usb_moded-mac.h"
 
-#include <sys/types.h>
-#include <sys/stat.h>
+#include "usb_moded-config-private.h"
+#include "usb_moded-log.h"
+#include "usb_moded-mac.h"
+#include "usb_moded-modesetting.h"
+
 #include <unistd.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
 /* ========================================================================= *
  * Functions

@@ -26,22 +26,15 @@
  * 02110-1301 USA
  */
 
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <stdio.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <sys/time.h>
-
-#include <glib.h>
-#include <glib/gstdio.h>
-
 #include "usb_moded-appsync.h"
-#include "usb_moded-appsync-dbus-private.h"
-#include "usb_moded-modesetting.h"
+
 #include "usb_moded-log.h"
 #include "usb_moded-systemd.h"
+
+#include <sys/time.h>
+
+#include <stdlib.h>
+#include <string.h>
 
 /* ========================================================================= *
  * Prototypes

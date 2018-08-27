@@ -23,20 +23,22 @@
 
 #include "usb_moded-worker.h"
 
-#include "usb_moded.h"
 #include "usb_moded-android.h"
 #include "usb_moded-configfs.h"
+#include "usb_moded-control.h"
+#include "usb_moded-dyn-config.h"
 #include "usb_moded-log.h"
 #include "usb_moded-modes.h"
 #include "usb_moded-modesetting.h"
 #include "usb_moded-modules.h"
-#include "usb_moded-control.h"
-#include "usb_moded-common.h"
 
 #include <sys/eventfd.h>
 
-#include <pthread.h>
-#include <stdint.h>
+#include <pthread.h> // NOTRIM
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
 
 /* ========================================================================= *
  * Prototypes

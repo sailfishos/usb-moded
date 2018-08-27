@@ -34,44 +34,38 @@
  * 02110-1301 USA
  */
 
-#include <getopt.h>
-#include <stdio.h>
-
-#include <sys/stat.h>
-#include <sys/wait.h>
-#include <signal.h>
-
-#include <libkmod.h>
-
-#ifdef SYSTEMD
-# include <systemd/sd-daemon.h>
-#endif
-
 #include "usb_moded.h"
-#include "usb_moded-modes.h"
+
+#include "usb_moded-android.h"
+#include "usb_moded-appsync.h"
+#include "usb_moded-config-private.h"
+#include "usb_moded-configfs.h"
+#include "usb_moded-control.h"
 #include "usb_moded-dbus-private.h"
-#include "usb_moded-udev.h"
-#include "usb_moded-modules.h"
-#include "usb_moded-log.h"
 #include "usb_moded-devicelock.h"
+#include "usb_moded-log.h"
+#include "usb_moded-mac.h"
 #include "usb_moded-modesetting.h"
 #include "usb_moded-modules.h"
-#include "usb_moded-appsync.h"
-#include "usb_moded-trigger.h"
-#include "usb_moded-config.h"
-#include "usb_moded-config-private.h"
 #include "usb_moded-network.h"
-#include "usb_moded-mac.h"
-#include "usb_moded-android.h"
-#include "usb_moded-configfs.h"
-#include "usb_moded-systemd.h"
-#include "usb_moded-worker.h"
-#include "usb_moded-control.h"
 #include "usb_moded-sigpipe.h"
-#include "usb_moded-common.h"
+#include "usb_moded-systemd.h"
+#include "usb_moded-trigger.h"
+#include "usb_moded-udev.h"
+#include "usb_moded-worker.h"
 
 #ifdef MEEGOLOCK
 # include "usb_moded-dsme.h"
+#endif
+
+#include <unistd.h>
+#include <getopt.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <string.h>
+
+#ifdef SYSTEMD
+# include <systemd/sd-daemon.h>
 #endif
 
 /* ========================================================================= *

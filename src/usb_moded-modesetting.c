@@ -28,29 +28,26 @@
  * 02110-1301 USA
  */
 
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <stdio.h>
-#include <stdbool.h>
-#include <sys/stat.h>
-#include <limits.h>
-
-#include <glib.h>
+#include "usb_moded-modesetting.h"
 
 #include "usb_moded.h"
-#include "usb_moded-modules.h"
-#include "usb_moded-modes.h"
-#include "usb_moded-log.h"
-#include "usb_moded-dbus-private.h"
-#include "usb_moded-appsync.h"
-#include "usb_moded-config-private.h"
-#include "usb_moded-modesetting.h"
-#include "usb_moded-network.h"
+
 #include "usb_moded-android.h"
-#include "usb_moded-configfs.h"
-#include "usb_moded-worker.h"
+#include "usb_moded-appsync.h"
 #include "usb_moded-common.h"
+#include "usb_moded-config-private.h"
+#include "usb_moded-configfs.h"
+#include "usb_moded-dbus-private.h"
+#include "usb_moded-log.h"
+#include "usb_moded-modules.h"
+#include "usb_moded-network.h"
+#include "usb_moded-worker.h"
+
+#include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
 
 /* ========================================================================= *
  * Prototypes

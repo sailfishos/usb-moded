@@ -31,32 +31,26 @@
  * 02110-1301 USA
  */
 
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <stdio.h>
-#include <fcntl.h>
-
-#include <sys/stat.h>
-#include <sys/types.h>
-
-#include <glib.h>
-#include <glob.h>
-
-#include "usb_moded.h"
-#include "usb_moded-config.h"
 #include "usb_moded-config-private.h"
+
+#include "usb_moded-control.h"
+#include "usb_moded-dbus-private.h"
+#include "usb_moded-dyn-config.h"
 #include "usb_moded-log.h"
 #include "usb_moded-modes.h"
-#include "usb_moded-modesetting.h"
-#include "usb_moded-dbus-private.h"
 #include "usb_moded-worker.h"
-#include "usb_moded-control.h"
-#include "usb_moded-common.h"
 
 #ifdef USE_MER_SSU
 # include "usb_moded-ssu.h"
 #endif
+
+#include <sys/stat.h>
+
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <fcntl.h>
+#include <glob.h>
 
 /* ========================================================================= *
  * Prototypes

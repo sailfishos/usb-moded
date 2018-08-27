@@ -27,26 +27,15 @@
 # define USB_MODED_H_
 
 # ifdef STATIC_CONFIG
-#  include "../config-static.h"
+#  include "../config-static.h" // NOTRIM
 # else
-#  include "../config.h"
+#  include "../config.h" // NOTRIM
 # endif
 
-# include <stdlib.h>
 # include <stdbool.h>
-# include <unistd.h>
 # include <stdio.h>
-# include <string.h>
-# include <errno.h>
-# include <fcntl.h>
 
-# include <sys/stat.h>
-# include <sys/wait.h>
-
-# include <glib-2.0/glib.h>
-# include <glib-object.h>
-
-# include "usb_moded-dyn-config.h"
+# include <glib.h>
 
 /* ========================================================================= *
  * Constants

@@ -22,17 +22,10 @@
  * 02110-1301 USA
  */
 
-#include <stdio.h>
-#include <string.h>
-
-#include <dbus/dbus.h>
-#include <dbus/dbus-glib.h>
-#include <dbus/dbus-glib-lowlevel.h>
+#include "usb_moded-systemd.h"
 
 #include "usb_moded-dbus-private.h"
-#include "usb_moded.h"
 #include "usb_moded-log.h"
-#include "usb_moded-systemd.h"
 
 /* ========================================================================= *
  * Constants

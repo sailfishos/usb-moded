@@ -25,6 +25,7 @@
 # define USB_MODED_ANDROID_H_
 
 # include <stdbool.h>
+# include <glib.h>
 
 /* ========================================================================= *
  * Constants

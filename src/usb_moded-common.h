@@ -1,6 +1,7 @@
 #ifndef  USB_MODED_COMMON_H_
 # define USB_MODED_COMMON_H_
 
+# include <stdio.h>
 # include <glib.h>
 
 /* ========================================================================= *

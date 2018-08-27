@@ -26,16 +26,11 @@
  * 02110-1301 USA
  */
 
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <stdio.h>
-
-#include <glib.h>
-#include <glib/gstdio.h>
-
 #include "usb_moded-dyn-config.h"
+
 #include "usb_moded-log.h"
+
+#include <stdlib.h>
 
 /* ========================================================================= *
  * Prototypes

@@ -339,3 +339,19 @@ clean::
 
 distclean::
 	$(RM) -r RPMS installroot
+
+.SUFFIXES: %.trim
+.PRECIOUS: %.trim
+
+include_trim:: include_trim_headers include_trim_sources
+
+%.trim : %
+	find_unneeded_includes.py $(CPPFLAGS) $(CFLAGS) -- $<
+	touch $@
+
+include_trim_headers: $(patsubst %,%.trim,$(ALL_HEADERS))
+
+include_trim_sources: $(patsubst %,%.trim,$(ALL_SOURCES))
+
+distclean::
+	$(RM) *.trim */*.trim

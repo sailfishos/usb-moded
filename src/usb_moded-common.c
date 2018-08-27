@@ -3,8 +3,16 @@
 #include "usb_moded.h"
 #include "usb_moded-config-private.h"
 #include "usb_moded-dbus-private.h"
+#include "usb_moded-dyn-config.h"
 #include "usb_moded-log.h"
 #include "usb_moded-modes.h"
+#include "usb_moded-worker.h"
+
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
 
 /* ========================================================================= *
  * Types

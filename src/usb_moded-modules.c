@@ -27,23 +27,16 @@
  * 02110-1301 USA
  */
 
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <stdio.h>
+#include "usb_moded-modules.h"
 
-#include <glib.h>
-#include <glib/gprintf.h>
+#include "usb_moded-log.h"
+
+#include <stdlib.h>
+#include <string.h>
 
 #include <libkmod.h>
 
-#include "usb_moded.h"
-#include "usb_moded-modules.h"
-#include "usb_moded-log.h"
-#include "usb_moded-config.h"
-#include "usb_moded-dbus-private.h"
-#include "usb_moded-modesetting.h"
-#include "usb_moded-modes.h"
+#include <glib.h>
 
 /* ========================================================================= *
  * Prototypes

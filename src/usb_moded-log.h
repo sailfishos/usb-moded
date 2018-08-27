@@ -24,10 +24,6 @@
 # define USB_MODED_LOG_H_
 
 # include <stdbool.h>
-# include <stdlib.h>
-# include <unistd.h>
-# include <stdio.h>
-# include <string.h>
 # include <stdarg.h>
 # include <syslog.h>
 
@@ -45,6 +41,12 @@ enum
 {
     LOG_TO_STDERR, // log to stderr
     LOG_TO_SYSLOG, // log to syslog
+};
+
+enum
+{
+    LOG_MIN_LEVEL = LOG_CRIT,
+    LOG_MAX_LEVEL = LOG_DEBUG,
 };
 
 /* ========================================================================= *

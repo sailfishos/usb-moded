@@ -20,10 +20,14 @@
  * 02110-1301 USA
  */
 
-#include <glib.h>
-#include <ssusysinfo.h>
 #include "usb_moded-ssu.h"
+
 #include "usb_moded-log.h"
+
+#include <stdlib.h>
+#include <string.h>
+
+#include <ssusysinfo.h>
 
 /* ========================================================================= *
  * Prototypes

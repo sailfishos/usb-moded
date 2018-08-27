@@ -32,17 +32,13 @@
  * Interacts with the devicelock to know if we can expose the system contents or not
  */
 
-#include <stdlib.h>
-#include <string.h>
-#include <dbus/dbus.h>
-#include <dbus/dbus-glib-lowlevel.h>
-
 #include "usb_moded-devicelock.h"
-#include "usb_moded-log.h"
-#include "usb_moded.h"
-#include "usb_moded-modes.h"
-#include "usb_moded-dbus-private.h"
+
 #include "usb_moded-control.h"
+#include "usb_moded-dbus-private.h"
+#include "usb_moded-log.h"
+
+#include <string.h>
 
 /* ========================================================================= *
  * Types
