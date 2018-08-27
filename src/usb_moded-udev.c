@@ -1,25 +1,31 @@
 /**
-  @file usb_moded-udev.c
- 
-  Copyright (C) 2011 Nokia Corporation. All rights reserved.
-
-  @author: Philippe De Swert <philippe.de-swert@nokia.com>
-
-  This program is free software; you can redistribute it and/or
-  modify it under the terms of the Lesser GNU General Public License 
-  version 2 as published by the Free Software Foundation. 
-
-  This program is distributed in the hope that it will be useful, but
-  WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  General Public License for more details.
- 
-  You should have received a copy of the Lesser GNU General Public License
-  along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
-  02110-1301 USA
-*/
-
+ * @file usb_moded-udev.c
+ *
+ * Copyright (C) 2011 Nokia Corporation. All rights reserved.
+ * Copyright (C) 2013-2018 Jolla Ltd.
+ *
+ * @author: Philippe De Swert <philippe.de-swert@nokia.com>
+ * @author: Philippe De Swert <phdeswer@lumi.maa>
+ * @author: Tapio Rantala <ext-tapio.rantala@nokia.com>
+ * @author: Philippe De Swert <philippedeswert@gmail.com>
+ * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
+ * @author: Jarko Poutiainen <jarko.poutiainen@jollamobile.com>
+ * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the Lesser GNU General Public License
+ * version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the Lesser GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA
+ */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,456 +40,602 @@
 #include <glib.h>
 
 #include "usb_moded-log.h"
-#include "usb_moded-config.h"
-#include "usb_moded-hw-ab.h"
+#include "usb_moded-config-private.h"
+#include "usb_moded-udev.h"
 #include "usb_moded.h"
 #include "usb_moded-modes.h"
+#include "usb_moded-dbus-private.h"
+
+/* ========================================================================= *
+ * Prototypes
+ * ========================================================================= */
+
+/* -- umudev -- */
+
+static gboolean      umudev_cable_state_timer_cb   (gpointer aptr);
+static void          umudev_cable_state_stop_timer (void);
+static void          umudev_cable_state_start_timer(gint delay);
+static bool          umudev_cable_state_connected  (void);
+static cable_state_t umudev_cable_state_get        (void);
+static void          umudev_cable_state_set        (cable_state_t state);
+static void          umudev_cable_state_changed    (void);
+static void          umudev_cable_state_from_udev  (cable_state_t state);
+
+static void     umudev_io_error_cb          (gpointer data);
+static gboolean umudev_io_input_cb          (GIOChannel *iochannel, GIOCondition cond, gpointer data);
+static void     umudev_parse_properties     (struct udev_device *dev, bool initial);
+static int      umudev_score_as_power_supply(const char *syspath);
+gboolean        umudev_init                 (void);
+void            umudev_quit                 (void);
+
+/* ========================================================================= *
+ * Data
+ * ========================================================================= */
 
 /* global variables */
-static struct udev *udev = 0;
-static struct udev_monitor *mon = 0;
-static GIOChannel *iochannel = 0;
-static guint watch_id = 0;
-static char *dev_name = 0;
-static int cleanup = 0;
-/* track cable and charger connects disconnects */
-static int cable = 0, charger = 0;
-static guint cable_connection_timeout_id = 0;
+static struct udev         *umudev_object     = 0;
+static struct udev_monitor *umudev_monitor    = 0;
+static gchar               *umudev_sysname    = 0;
+static guint                umudev_watch_id   = 0;
+static bool                 umudev_in_cleanup = false;
 
-/** Bookkeeping data for power supply locating heuristics */
-typedef struct power_device {
-        /** Device path used by udev */
-        const char *syspath;
-        /** Likelyhood of being power supply */
-        int score;
-} power_device;
+/** Cable state as evaluated from udev events */
+static cable_state_t umudev_cable_state_current  = CABLE_STATE_UNKNOWN;
 
-/* static function definitions */
-static gboolean monitor_udev(GIOChannel *iochannel G_GNUC_UNUSED, GIOCondition cond,
-                             gpointer data G_GNUC_UNUSED);
-static void udev_parse(struct udev_device *dev, bool initial);
-static void setup_cable_connection(void);
-static void setup_charger_connection(void);
-static void cancel_cable_connection_timeout(void);
-static void schedule_cable_connection_timeout(void);
-static gboolean cable_connection_timeout_cb(gpointer data);
+/** Cable state considered active by usb-moded */
+static cable_state_t umudev_cable_state_active   = CABLE_STATE_UNKNOWN;
 
-static void notify_issue (gpointer data)
+/** Previously active cable state */
+static cable_state_t umudev_cable_state_previous = CABLE_STATE_UNKNOWN;
+
+/** Timer id for delaying: reported by udev -> active in usb-moded */
+static guint umudev_cable_state_timer_id = 0;
+static gint  umudev_cable_state_timer_delay = -1;
+
+/* ========================================================================= *
+ * cable state
+ * ========================================================================= */
+
+static gboolean umudev_cable_state_timer_cb(gpointer aptr)
 {
-	(void)data;
+    (void)aptr;
+    umudev_cable_state_timer_id = 0;
+    umudev_cable_state_timer_delay = -1;
 
-	/* we do not want to restart when we try to clean up */
-	if(cleanup)
-		return;
+    log_debug("trigger delayed transfer to: %s",
+              cable_state_repr(umudev_cable_state_current));
+    umudev_cable_state_set(umudev_cable_state_current);
+    return FALSE;
+}
+
+static void umudev_cable_state_stop_timer(void)
+{
+    if( umudev_cable_state_timer_id ) {
+        log_debug("cancel delayed transfer to: %s",
+                  cable_state_repr(umudev_cable_state_current));
+        g_source_remove(umudev_cable_state_timer_id),
+            umudev_cable_state_timer_id = 0;
+        umudev_cable_state_timer_delay = -1;
+    }
+}
+
+static void umudev_cable_state_start_timer(gint delay)
+{
+    if( umudev_cable_state_timer_delay != delay ) {
+        umudev_cable_state_stop_timer();
+    }
+
+    if( !umudev_cable_state_timer_id ) {
+        log_debug("schedule delayed transfer to: %s",
+                  cable_state_repr(umudev_cable_state_current));
+        umudev_cable_state_timer_id =
+            g_timeout_add(delay,
+                          umudev_cable_state_timer_cb, 0);
+        umudev_cable_state_timer_delay = delay;
+    }
+}
+
+static bool
+umudev_cable_state_connected(void)
+{
+    bool connected = false;
+    switch( umudev_cable_state_get() ) {
+    default:
+        break;
+    case CABLE_STATE_CHARGER_CONNECTED:
+    case CABLE_STATE_PC_CONNECTED:
+        connected = true;
+        break;
+    }
+    return connected;
+}
+
+static cable_state_t umudev_cable_state_get(void)
+{
+    return umudev_cable_state_active;
+}
+
+static void umudev_cable_state_set(cable_state_t state)
+{
+    umudev_cable_state_stop_timer();
+
+    if( umudev_cable_state_active == state )
+        goto EXIT;
+
+    umudev_cable_state_previous = umudev_cable_state_active;
+    umudev_cable_state_active   = state;
+
+    log_debug("cable_state: %s -> %s",
+              cable_state_repr(umudev_cable_state_previous),
+              cable_state_repr(umudev_cable_state_active));
+
+    umudev_cable_state_changed();
+
+EXIT:
+    return;
+}
+
+static void umudev_cable_state_changed(void)
+{
+    /* The rest of usb-moded separates charger
+     * and pc connection states... make single
+     * state tracking compatible with that. */
+
+    /* First handle pc/charger disconnect based
+     * on previous state.
+     */
+    switch( umudev_cable_state_previous ) {
+    default:
+    case CABLE_STATE_DISCONNECTED:
+        /* dontcare */
+        break;
+    case CABLE_STATE_CHARGER_CONNECTED:
+        umdbus_send_state_signal(CHARGER_DISCONNECTED);
+        break;
+    case CABLE_STATE_PC_CONNECTED:
+        umdbus_send_state_signal(USB_DISCONNECTED);
+        break;
+    }
+
+    /* Then handle pc/charger connect based
+     * on current state.
+     */
+
+    switch( umudev_cable_state_active ) {
+    default:
+    case CABLE_STATE_DISCONNECTED:
+        /* dontcare */
+        break;
+    case CABLE_STATE_CHARGER_CONNECTED:
+        umdbus_send_state_signal(CHARGER_CONNECTED);
+        break;
+    case CABLE_STATE_PC_CONNECTED:
+        umdbus_send_state_signal(USB_CONNECTED);
+        break;
+    }
+
+    /* Then act on usb mode */
+    usbmoded_set_cable_state(umudev_cable_state_active);
+}
+
+static void umudev_cable_state_from_udev(cable_state_t curr)
+{
+    cable_state_t prev = umudev_cable_state_current;
+    umudev_cable_state_current = curr;
+
+    if( prev == curr )
+        goto EXIT;
+
+    log_debug("reported cable state: %s -> %s",
+              cable_state_repr(prev),
+              cable_state_repr(curr));
+
+    /* Because mode transitions are handled synchronously and can thus
+     * block the usb-moded mainloop, we might end up receiving a bursts
+     * of stale udev events after returning from mode switch - including
+     * multiple cable connect / disconnect events due to user replugging
+     * the cable in frustration of things taking too long.
+     */
+
+    if( curr == CABLE_STATE_DISCONNECTED ) {
+        /* If we see any disconnect events, those must be acted on
+         * immediately to get the 1st disconnect handled.
+         */
+        umudev_cable_state_set(curr);
+    }
+    else {
+        /* All other transitions are handled with at least 100 ms delay.
+         * This should compress multiple stale disconnect + connect
+         * pairs into single action.
+         */
+        gint delay = 100;
+
+        if( curr == CABLE_STATE_PC_CONNECTED && prev != CABLE_STATE_UNKNOWN ) {
+            if( delay < usbmoded_cable_connection_delay )
+                delay = usbmoded_cable_connection_delay;
+        }
+
+        umudev_cable_state_start_timer(delay);
+    }
+
+EXIT:
+    return;
+}
+
+/* ========================================================================= *
+ * legacy code
+ * ========================================================================= */
+
+static void umudev_io_error_cb(gpointer data)
+{
+    (void)data;
+
+    /* we do not want to restart when we try to clean up */
+    if( !umudev_in_cleanup ) {
         log_debug("USB connection watch destroyed, restarting it\n!");
         /* restart trigger */
-        hwal_cleanup();
-	hwal_init();
+        umudev_quit();
+        umudev_init();
+    }
 }
 
-static int check_device_is_usb_power_supply(const char *syspath)
+static gboolean umudev_io_input_cb(GIOChannel *iochannel, GIOCondition cond, gpointer data)
 {
-  struct udev *udev;
-  struct udev_device *dev = 0;
-  const char *udev_name;
-  int score = 0;
+    (void)iochannel;
+    (void)data;
 
-  udev = udev_new();
-  dev = udev_device_new_from_syspath(udev, syspath);
-  if(!dev)
-        return 0;
-  udev_name = udev_device_get_sysname(dev);
+    gboolean continue_watching = TRUE;
 
-  /* try to assign a weighed score */
+    /* No code paths are allowed to bypass the usbmoded_release_wakelock() call below */
+    usbmoded_acquire_wakelock(USB_MODED_WAKELOCK_PROCESS_INPUT);
 
-  /* check it is no battery */
-  if(strstr(udev_name, "battery") || strstr(udev_name, "BAT"))
-        return 0;
-  /* if it contains usb in the name it very likely is good */
-  if(strstr(udev_name, "usb"))
-        score = score + 10;
-  /* often charger is also mentioned in the name */
-  if(strstr(udev_name, "charger"))
-        score = score + 5;
-  /* present property is used to detect activity, however online is better */
-  if(udev_device_get_property_value(dev, "POWER_SUPPLY_PRESENT"))
-        score = score + 5;
-  if(udev_device_get_property_value(dev, "POWER_SUPPLY_ONLINE"))
-        score = score + 10;
-  /* type is used to detect if it is a cable or dedicated charger. 
-     Bonus points if it is there. */
-  if(udev_device_get_property_value(dev, "POWER_SUPPLY_TYPE"))
-        score = score + 10;
-
-  /* clean up */
-  udev_device_unref(dev);
-  udev_unref(udev);
-
-  return(score);
-}
-
-
-gboolean hwal_init(void)
-{
-  char *udev_path = NULL, *udev_subsystem = NULL;
-  struct udev_device *dev;
-  struct udev_enumerate *list;
-  struct udev_list_entry *list_entry, *first_entry;
-  struct power_device power_dev;
-  int ret = 0;
-
-  cleanup = 0;
-	
-  /* Create the udev object */
-  udev = udev_new();
-  if (!udev) 
-  {
-    log_err("Can't create udev\n");
-    return FALSE;
-  }
-  
-  udev_path = find_udev_path();
-  if(udev_path)
-  {
-	dev = udev_device_new_from_syspath(udev, udev_path);
-	g_free(udev_path);
-  }
-  else
-  	dev = udev_device_new_from_syspath(udev, "/sys/class/power_supply/usb");
-  if (!dev) 
-  {
-    log_debug("Trying to guess $power_supply device.\n");
-
-    power_dev.score = 0;
-    power_dev.syspath = 0;
-
-    list = udev_enumerate_new(udev);
-    udev_enumerate_add_match_subsystem(list, "power_supply");
-    udev_enumerate_scan_devices(list);
-    first_entry = udev_enumerate_get_list_entry(list);
-    udev_list_entry_foreach(list_entry, first_entry)
+    if( cond & G_IO_IN )
     {
-	udev_path =  (char *)udev_list_entry_get_name(list_entry);
-        ret = check_device_is_usb_power_supply(udev_path);
-        if(ret)
+        /* This normally blocks but G_IO_IN indicates that we can read */
+        struct udev_device *dev = udev_monitor_receive_device(umudev_monitor);
+        if( !dev )
         {
-		if(ret > power_dev.score)
-		{
-			power_dev.score = ret;
-			power_dev.syspath = udev_path;
-		}
-	}
+            /* if we get something else something bad happened stop watching to avoid busylooping */
+            continue_watching = FALSE;
+        }
+        else
+        {
+            /* check if it is the actual device we want to check */
+            if( !strcmp(umudev_sysname, udev_device_get_sysname(dev)) )
+            {
+                if( !strcmp(udev_device_get_action(dev), "change") )
+                {
+                    umudev_parse_properties(dev, false);
+                }
+            }
+
+            udev_device_unref(dev);
+        }
     }
-    /* check if we found anything with some kind of score */
-    if(power_dev.score > 0)
+
+    if( cond & (G_IO_ERR | G_IO_HUP | G_IO_NVAL) )
     {
-  	dev = udev_device_new_from_syspath(udev, power_dev.syspath);
+        /* Unhandled errors turn io watch to virtual busyloop too */
+        continue_watching = FALSE;
     }
-    if(!dev)
+
+    if( !continue_watching && umudev_watch_id )
     {
-	log_err("Unable to find $power_supply device.");
-	/* communicate failure, mainloop will exit and call appropriate clean-up */
-	return FALSE;
+        umudev_watch_id = 0;
+        log_crit("udev io watch disabled");
     }
-  }
 
-  dev_name = strdup(udev_device_get_sysname(dev));
-  log_debug("device name = %s\n", dev_name);
-  mon = udev_monitor_new_from_netlink (udev, "udev");
-  if (!mon) 
-  {
-    log_err("Unable to monitor the netlink\n");
-    /* communicate failure, mainloop will exit and call appropriate clean-up */
-    return FALSE;
-  }
-  udev_subsystem = find_udev_subsystem();
-  if(udev_subsystem)
-  {
-	  ret = udev_monitor_filter_add_match_subsystem_devtype(mon, udev_subsystem, NULL);
-	  g_free(udev_subsystem);
-  }
-  else
-	  ret = udev_monitor_filter_add_match_subsystem_devtype(mon, "power_supply", NULL);
-  if(ret != 0)
-  {
-    log_err("Udev match failed.\n");
-    return FALSE;
-  }
-  ret = udev_monitor_enable_receiving (mon);
-  if(ret != 0)
-  { 
-     log_err("Failed to enable monitor recieving.\n");
-     return FALSE;
-  }
+    usbmoded_release_wakelock(USB_MODED_WAKELOCK_PROCESS_INPUT);
 
-  /* check if we are already connected */
-  udev_parse(dev, true);
-  
-  iochannel = g_io_channel_unix_new(udev_monitor_get_fd(mon));
-  watch_id = g_io_add_watch_full(iochannel, 0, G_IO_IN, monitor_udev, NULL,notify_issue);
-
-  /* everything went well */
-  udev_device_unref(dev);
-  return TRUE;
+    return continue_watching;
 }
 
-static gboolean monitor_udev(GIOChannel *iochannel G_GNUC_UNUSED, GIOCondition cond,
-                             gpointer data G_GNUC_UNUSED)
+static void umudev_parse_properties(struct udev_device *dev, bool initial)
 {
-  struct udev_device *dev;
+    (void)initial;
 
-  gboolean continue_watching = TRUE;
+    /* udev properties we are interested in */
+    const char *power_supply_present = 0;
+    const char *power_supply_online  = 0;
+    const char *power_supply_type    = 0;
 
-  /* No code paths are allowed to bypass the release_wakelock() call below */
-  acquire_wakelock(USB_MODED_WAKELOCK_PROCESS_INPUT);
+    /* Assume there is no usb connection until proven otherwise */
+    bool connected  = false;
 
-  if(cond & G_IO_IN)
-  {
-    /* This normally blocks but G_IO_IN indicates that we can read */
-    dev = udev_monitor_receive_device (mon);
-    if (!dev)
-    {
-      /* if we get something else something bad happened stop watching to avoid busylooping */
-      continue_watching = FALSE;
+    /* Unless debug logging has been request via command line,
+     * suppress warnings about potential property issues and/or
+     * fallback strategies applied (to avoid spamming due to the
+     * code below seeing the same property values over and over
+     * again also in stable states).
+     */
+    bool warnings = log_p(LOG_DEBUG);
+
+    /*
+     * Check for present first as some drivers use online for when charging
+     * is enabled
+     */
+    power_supply_present = udev_device_get_property_value(dev, "POWER_SUPPLY_PRESENT");
+    if( !power_supply_present ) {
+        power_supply_present =
+            power_supply_online = udev_device_get_property_value(dev, "POWER_SUPPLY_ONLINE");
     }
-    else
-    {
-      /* check if it is the actual device we want to check */
-      if(!strcmp(dev_name, udev_device_get_sysname(dev)))
-      {
-	if(!strcmp(udev_device_get_action(dev), "change"))
-	{
-	  udev_parse(dev, false);
-	}
-      }
 
-      udev_device_unref(dev);
+    if( power_supply_present && !strcmp(power_supply_present, "1") )
+        connected = true;
+
+    /* Transition period = Connection status derived from udev
+     * events disagrees with usb-moded side bookkeeping. */
+    if( connected != usbmoded_get_connection_state() ) {
+        /* Enable udev property diagnostic logging */
+        warnings = true;
+        /* Block suspend briefly */
+        usbmoded_delay_suspend();
     }
-  }
 
-  if(cond & (G_IO_ERR | G_IO_HUP | G_IO_NVAL))
-  {
-    /* Unhandled errors turn io watch to virtual busyloop too */
-    continue_watching = FALSE;
-  }
+    if( !connected ) {
+        /* Handle: Disconnected */
 
-  release_wakelock(USB_MODED_WAKELOCK_PROCESS_INPUT);
+        if( warnings && !power_supply_present )
+            log_err("No usable power supply indicator\n");
+        umudev_cable_state_from_udev(CABLE_STATE_DISCONNECTED);
+    }
+    else {
+        if( warnings && power_supply_online )
+            log_warning("Using online property\n");
 
-  if (!continue_watching && watch_id )
-  {
-    watch_id = 0;
-    log_crit("udev io watch disabled");
-  }
+        /* At least h4113 i.e. "Xperia XA2 - Dual SIM" seem to have
+         * POWER_SUPPLY_REAL_TYPE udev property with information
+         * that usb-moded expects to be in POWER_SUPPLY_TYPE prop.
+         */
+        power_supply_type = udev_device_get_property_value(dev, "POWER_SUPPLY_REAL_TYPE");
+        if( !power_supply_type )
+            power_supply_type = udev_device_get_property_value(dev, "POWER_SUPPLY_TYPE");
+        /*
+         * Power supply type might not exist also :(
+         * Send connected event but this will not be able
+         * to discriminate between charger/cable.
+         */
+        if( !power_supply_type ) {
+            if( warnings )
+                log_warning("Fallback since cable detection might not be accurate. "
+                            "Will connect on any voltage on charger.\n");
+            umudev_cable_state_from_udev(CABLE_STATE_PC_CONNECTED);
+            goto cleanup;
+        }
 
-  return continue_watching;
-}
+        log_debug("CONNECTED - POWER_SUPPLY_TYPE = %s", power_supply_type);
 
-void hwal_cleanup(void)
-{
-  cleanup = 1;
-
-  log_debug("HWhal cleanup\n");
-
-  if(watch_id != 0)
-  {
-    g_source_remove(watch_id);
-    watch_id = 0;
-  }
-  if(iochannel != NULL)
-  {
-    g_io_channel_unref(iochannel);
-    iochannel = NULL;
-  }
-  cancel_cable_connection_timeout();
-  free(dev_name);
-  udev_monitor_unref(mon);
-  udev_unref(udev);
-}
-
-static void setup_cable_connection(void)
-{
-	cancel_cable_connection_timeout();
-
-	log_debug("UDEV:USB pc cable connected\n");
-
-	cable = 1;
-	charger = 0;
-	set_usb_connected(TRUE);
-}
-
-static void setup_charger_connection(void)
-{
-	cancel_cable_connection_timeout();
-
-	log_debug("UDEV:USB dedicated charger connected\n");
-
-	if (cable) {
-		/* The connection was initially reported incorrectly
-		 * as pc cable, then later on declared as charger.
-		 *
-		 * Clear "connected" boolean flag so that the
-		 * set_charger_connected() call below acts as if charger
-		 * were detected already on connect: mode gets declared
-		 * as dedicated charger (and the mode selection dialog
-		 * shown by ui gets closed).
-		 */
-		set_usb_connection_state(FALSE);
-	}
-
-	charger = 1;
-	cable = 0;
-	set_charger_connected(TRUE);
-}
-
-static gboolean cable_connection_timeout_cb(gpointer data)
-{
-	(void)data;
-
-	log_debug("connect delay: timeout");
-	cable_connection_timeout_id = 0;
-
-	setup_cable_connection();
-
-	return FALSE;
-}
-
-static void cancel_cable_connection_timeout(void)
-{
-	if (cable_connection_timeout_id) {
-		log_debug("connect delay: cancel");
-		g_source_remove(cable_connection_timeout_id);
-		cable_connection_timeout_id = 0;
-	}
-}
-
-
-static void schedule_cable_connection_timeout(void)
-{
-	/* Ignore If already connected */
-	if (get_usb_connection_state())
-		return;
-
-	if (!cable_connection_timeout_id && cable_connection_delay > 0) {
-		/* Dedicated charger might be initially misdetected as
-		 * pc cable. Delay a bit befor accepting the state. */
-
-		log_debug("connect delay: started (%d ms)",
-			  cable_connection_delay);
-		cable_connection_timeout_id =
-			g_timeout_add(cable_connection_delay,
-				      cable_connection_timeout_cb,
-				      NULL);
-	}
-	else {
-		/* If more udev events indicating cable connection
-		 * are received while waiting, accept immediately. */
-		setup_cable_connection();
-	}
-}
-
-static void udev_parse(struct udev_device *dev, bool initial)
-{
-	/* udev properties we are interested in */
-	const char *power_supply_present = 0;
-	const char *power_supply_online  = 0;
-	const char *power_supply_type    = 0;
-
-	/* Assume there is no usb connection until proven otherwise */
-	bool connected  = false;
-
-	/* Unless debug logging has been request via command line,
-	 * suppress warnings about potential property issues and/or
-	 * fallback strategies applied (to avoid spamming due to the
-	 * code below seeing the same property values over and over
-	 * again also in stable states).
-	 */
-	bool warnings = log_p(LOG_DEBUG);
-
-	/*
-	 * Check for present first as some drivers use online for when charging
-	 * is enabled
-	 */
-	power_supply_present = udev_device_get_property_value(dev, "POWER_SUPPLY_PRESENT");
-	if (!power_supply_present) {
-		power_supply_present =
-		power_supply_online = udev_device_get_property_value(dev, "POWER_SUPPLY_ONLINE");
-	}
-
-	if (power_supply_present && !strcmp(power_supply_present, "1"))
-		connected = true;
-
-	/* Transition period = Connection status derived from udev
-	 * events disagrees with usb-moded side bookkeeping. */
-	if (connected != get_usb_connection_state()) {
-		/* Enable udev property diagnostic logging */
-		warnings = true;
-		/* Block suspend briefly */
-		delay_suspend();
-	}
-
-	/* disconnect */
-	if (!connected) {
-		if (warnings && !power_supply_present)
-			log_err("No usable power supply indicator\n");
-
-		log_debug("DISCONNECTED");
-
-		cancel_cable_connection_timeout();
-
-		if (charger) {
-			log_debug("UDEV:USB dedicated charger disconnected\n");
-			set_charger_connected(FALSE);
-		}
-
-		if (cable) {
-			log_debug("UDEV:USB cable disconnected\n");
-			set_usb_connected(FALSE);
-		}
-
-		cable = 0;
-		charger = 0;
-	}
-	else {
-		if (warnings && power_supply_online)
-			log_warning("Using online property\n");
-
-		power_supply_type = udev_device_get_property_value(dev, "POWER_SUPPLY_TYPE");
-		/*
-		 * Power supply type might not exist also :(
-		 * Send connected event but this will not be able
-		 * to discriminate between charger/cable.
-		 */
-		if (!power_supply_type) {
-			if( warnings )
-				log_warning("Fallback since cable detection might not be accurate. "
-					    "Will connect on any voltage on charger.\n");
-			schedule_cable_connection_timeout();
-			goto cleanup;
-		}
-
-		log_debug("CONNECTED - POWER_SUPPLY_TYPE = %s", power_supply_type);
-
-		if (!strcmp(power_supply_type, "USB") ||
-		    !strcmp(power_supply_type, "USB_CDP")) {
-			if( initial )
-				setup_cable_connection();
-			else
-				schedule_cable_connection_timeout();
-		}
-		else if (!strcmp(power_supply_type, "USB_DCP") ||
-			 !strcmp(power_supply_type, "USB_HVDCP") ||
-			 !strcmp(power_supply_type, "USB_HVDCP_3")) {
-			setup_charger_connection();
-		}
-		else if( !strcmp(power_supply_type, "Unknown")) {
-			// nop
-		}
-		else {
-			if (warnings)
-				log_warning("unhandled power supply type: %s", power_supply_type);
-		}
-	}
+        if( !strcmp(power_supply_type, "USB") ||
+            !strcmp(power_supply_type, "USB_CDP") ) {
+            umudev_cable_state_from_udev(CABLE_STATE_PC_CONNECTED);
+        }
+        else if( !strcmp(power_supply_type, "USB_DCP") ||
+                 !strcmp(power_supply_type, "USB_HVDCP") ||
+                 !strcmp(power_supply_type, "USB_HVDCP_3") ) {
+            umudev_cable_state_from_udev(CABLE_STATE_CHARGER_CONNECTED);
+        }
+        else if( !strcmp(power_supply_type, "USB_FLOAT")) {
+            if( !umudev_cable_state_connected() )
+                log_warning("connection type detection failed, assuming charger");
+            umudev_cable_state_from_udev(CABLE_STATE_CHARGER_CONNECTED);
+        }
+        else if( !strcmp(power_supply_type, "Unknown")) {
+            // nop
+            log_warning("unknown connection type reported, assuming disconnected");
+            umudev_cable_state_from_udev(CABLE_STATE_DISCONNECTED);
+        }
+        else {
+            if( warnings )
+                log_warning("unhandled power supply type: %s", power_supply_type);
+            umudev_cable_state_from_udev(CABLE_STATE_DISCONNECTED);
+        }
+    }
 
 cleanup:
-	return;
+    return;
+}
+
+static int umudev_score_as_power_supply(const char *syspath)
+{
+    int                 score   = 0;
+    struct udev_device *dev     = 0;
+    const char         *sysname = 0;
+
+    if( !umudev_object )
+        goto EXIT;
+
+    if( !(dev = udev_device_new_from_syspath(umudev_object, syspath)) )
+        goto EXIT;
+
+    if( !(sysname = udev_device_get_sysname(dev)) )
+        goto EXIT;
+
+    /* try to assign a weighed score */
+
+    /* check that it is not a battery */
+    if(strstr(sysname, "battery") || strstr(sysname, "BAT"))
+        goto EXIT;
+
+    /* if it contains usb in the name it very likely is good */
+    if(strstr(sysname, "usb"))
+        score = score + 10;
+
+    /* often charger is also mentioned in the name */
+    if(strstr(sysname, "charger"))
+        score = score + 5;
+
+    /* present property is used to detect activity, however online is better */
+    if(udev_device_get_property_value(dev, "POWER_SUPPLY_PRESENT"))
+        score = score + 5;
+
+    if(udev_device_get_property_value(dev, "POWER_SUPPLY_ONLINE"))
+        score = score + 10;
+
+    /* type is used to detect if it is a cable or dedicated charger.
+     * Bonus points if it is there. */
+    if(udev_device_get_property_value(dev, "POWER_SUPPLY_TYPE"))
+        score = score + 10;
+
+EXIT:
+    /* clean up */
+    if( dev )
+        udev_device_unref(dev);
+
+    return score;
+}
+
+gboolean umudev_init(void)
+{
+    gboolean                success = FALSE;
+
+    char                   *configured_device = NULL;
+    char                   *configured_subsystem = NULL;
+    struct udev_device     *dev = 0;
+    static GIOChannel      *iochannel  = 0;
+
+    int ret = 0;
+
+    /* Clear in-cleanup in case of restart */
+    umudev_in_cleanup = false;
+
+    /* Create the udev object */
+    if( !(umudev_object = udev_new()) ) {
+        log_err("Can't create umudev_object\n");
+        goto EXIT;
+    }
+
+    if( !(configured_device = config_find_udev_path()) )
+        configured_device = g_strdup("/sys/class/power_supply/usb");
+
+    if( !(configured_subsystem = config_find_udev_subsystem()) )
+        configured_subsystem = g_strdup("power_supply");
+
+    /* Try with configured / default device */
+    dev = udev_device_new_from_syspath(umudev_object, configured_device);
+
+    /* If needed, try heuristics */
+    if( !dev ) {
+        log_debug("Trying to guess $power_supply device.\n");
+
+        int    current_score = 0;
+        gchar *current_name  = 0;
+
+        struct udev_enumerate  *list;
+        struct udev_list_entry *list_entry;
+        struct udev_list_entry *first_entry;
+
+        list = udev_enumerate_new(umudev_object);
+        udev_enumerate_add_match_subsystem(list, "power_supply");
+        udev_enumerate_scan_devices(list);
+        first_entry = udev_enumerate_get_list_entry(list);
+        udev_list_entry_foreach(list_entry, first_entry) {
+            const char *name = udev_list_entry_get_name(list_entry);
+            int score = umudev_score_as_power_supply(name);
+            if( current_score < score ) {
+                g_free(current_name);
+                current_name = g_strdup(name);
+                current_score = score;
+            }
+        }
+        /* check if we found anything with some kind of score */
+        if(current_score > 0) {
+            dev = udev_device_new_from_syspath(umudev_object, current_name);
+        }
+        g_free(current_name);
+    }
+
+    /* Give up if no power supply device was found */
+    if( !dev ) {
+        log_err("Unable to find $power_supply device.");
+        /* communicate failure, mainloop will exit and call appropriate clean-up */
+        goto EXIT;
+    }
+
+    /* Cache device name */
+    umudev_sysname = g_strdup(udev_device_get_sysname(dev));
+    log_debug("device name = %s\n", umudev_sysname);
+
+    /* Start monitoring for changes */
+    umudev_monitor = udev_monitor_new_from_netlink(umudev_object, "udev");
+    if( !umudev_monitor )
+    {
+        log_err("Unable to monitor the netlink\n");
+        /* communicate failure, mainloop will exit and call appropriate clean-up */
+        goto EXIT;
+    }
+
+    ret = udev_monitor_filter_add_match_subsystem_devtype(umudev_monitor,
+                                                          configured_subsystem,
+                                                          NULL);
+    if(ret != 0)
+    {
+        log_err("Udev match failed.\n");
+        goto EXIT;
+    }
+
+    ret = udev_monitor_enable_receiving(umudev_monitor);
+    if(ret != 0)
+    {
+        log_err("Failed to enable monitor recieving.\n");
+        goto EXIT;
+    }
+
+    iochannel = g_io_channel_unix_new(udev_monitor_get_fd(umudev_monitor));
+    if( !iochannel )
+        goto EXIT;
+
+    umudev_watch_id = g_io_add_watch_full(iochannel, 0, G_IO_IN, umudev_io_input_cb, NULL, umudev_io_error_cb);
+    if( !umudev_watch_id )
+        goto EXIT;
+
+    /* everything went well */
+    success = TRUE;
+
+    /* check initial status */
+    umudev_parse_properties(dev, true);
+
+EXIT:
+    /* Cleanup local resources */
+    if( iochannel )
+        g_io_channel_unref(iochannel);
+
+    if( dev )
+        udev_device_unref(dev);
+
+    g_free(configured_subsystem);
+    g_free(configured_device);
+
+    /* All or nothing */
+    if( !success )
+        umudev_quit();
+
+    return success;
+}
+
+void umudev_quit(void)
+{
+    umudev_in_cleanup = true;
+
+    log_debug("HWhal cleanup\n");
+
+    if( umudev_watch_id )
+    {
+        g_source_remove(umudev_watch_id),
+            umudev_watch_id = 0;
+    }
+
+    if( umudev_monitor ) {
+        udev_monitor_unref(umudev_monitor),
+            umudev_monitor = 0;
+    }
+
+    if( umudev_object ) {
+        udev_unref(umudev_object),
+            umudev_object =0 ;
+    }
+
+    g_free(umudev_sysname),
+        umudev_sysname = 0;
+
+    umudev_cable_state_stop_timer();
 }

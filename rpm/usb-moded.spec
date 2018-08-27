@@ -11,7 +11,7 @@ Source1:  usb_moded.conf
 BuildRequires: pkgconfig(dbus-1)
 BuildRequires: pkgconfig(dbus-glib-1)
 BuildRequires: pkgconfig(glib-2.0)
-BuildRequires: pkgconfig(udev)
+BuildRequires: pkgconfig(libudev)
 BuildRequires: pkgconfig(libkmod)
 BuildRequires: doxygen
 BuildRequires: pkgconfig(libsystemd)
@@ -24,6 +24,9 @@ Requires: busybox-symlinks-dhcp
 Requires(post): systemd
 Requires(postun): systemd
 Conflicts: dsme < 0.79.0
+Conflicts: buteo-mtp-qt5-sync-plugin
+Conflicts: buteo-mtp-qt5 < 0.5.0
+Recommends: buteo-mtp-qt5
 
 %description
 Usb_moded is a daemon to control the USB states. For this
@@ -71,7 +74,7 @@ usb networking.
 %package mtp-mode
 Summary:  USB mode controller - mtp mode config
 Group:  Config
-Requires: buteo-mtp
+Requires: buteo-mtp-qt5
 
 %description mtp-mode
 Usb_moded is a daemon to control the USB states. For this
@@ -357,6 +360,7 @@ touch %{buildroot}/%{_sysconfdir}/udhcpd.conf
 install -d $RPM_BUILD_ROOT/lib/systemd/system/basic.target.wants/
 install -m 644 -D systemd/%{name}.service %{buildroot}/lib/systemd/system/%{name}.service
 ln -s ../%{name}.service $RPM_BUILD_ROOT/lib/systemd/system/basic.target.wants/%{name}.service
+install -d %{buildroot}/usr/lib/systemd/user
 install -m 644 -D systemd/usb-moded-args.conf %{buildroot}/var/lib/environment/usb-moded/usb-moded-args.conf
 install -m 755 -D systemd/turn-usb-rescue-mode-off %{buildroot}/%{_bindir}/turn-usb-rescue-mode-off
 install -m 644 -D systemd/usb-rescue-mode-off.service %{buildroot}/lib/systemd/system/usb-rescue-mode-off.service

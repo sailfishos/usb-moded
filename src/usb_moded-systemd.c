@@ -1,27 +1,27 @@
 /**
-  @file usb_moded-systemd.c
+ * @file usb_moded-systemd.c
+ *
+ * Copyright (C) 2013-2018 Jolla oy. All rights reserved.
+ *
+ * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
+ * @author: Slava Monich <slava.monich@jolla.com>
+ * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the Lesser GNU General Public License
+ * version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the Lesser GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA
+ */
 
-  Copyright (C) 2013-2016 Jolla oy. All rights reserved.
-
-  @author: Philippe De Swert <philippe.deswert@jollamobile.com>
-  @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
-
-  This program is free software; you can redistribute it and/or
-  modify it under the terms of the Lesser GNU General Public License
-  version 2 as published by the Free Software Foundation.
-
-  This program is distributed in the hope that it will be useful, but
-  WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  General Public License for more details.
-
-  You should have received a copy of the Lesser GNU General Public License
-  along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
-  02110-1301 USA
-*/
-
-#define _GNU_SOURCE
 #include <stdio.h>
 #include <string.h>
 
@@ -29,23 +29,42 @@
 #include <dbus/dbus-glib.h>
 #include <dbus/dbus-glib-lowlevel.h>
 
-#include "usb_moded-dbus.h"
 #include "usb_moded-dbus-private.h"
 #include "usb_moded.h"
 #include "usb_moded-log.h"
 #include "usb_moded-systemd.h"
 
+/* ========================================================================= *
+ * Constants
+ * ========================================================================= */
+
 #define SYSTEMD_DBUS_SERVICE   "org.freedesktop.systemd1"
 #define SYSTEMD_DBUS_PATH      "/org/freedesktop/systemd1"
 #define SYSTEMD_DBUS_INTERFACE "org.freedesktop.systemd1.Manager"
 
+/* ========================================================================= *
+ * Prototypes
+ * ========================================================================= */
+
+/* -- systemd -- */
+
+gboolean systemd_control_service(const char *name, const char *method);
+gboolean systemd_control_start  (void);
+void     systemd_control_stop   (void);
+
+/* ========================================================================= *
+ * Data
+ * ========================================================================= */
 
 /* SystemBus connection ref used for systemd control ipc */
 static DBusConnection *systemd_con = NULL;
 
+/* ========================================================================= *
+ * Functions
+ * ========================================================================= */
+
 // QDBusObjectPath org.freedesktop.systemd1.Manager.StartUnit(QString name, QString mode)
 // QDBusObjectPath org.freedesktop.systemd1.Manager.StopUnit(QString name, QString mode)
-
 
 //  mode = replace
 //  method = StartUnit or StopUnit
@@ -56,7 +75,6 @@ gboolean systemd_control_service(const char *name, const char *method)
     DBusError       err = DBUS_ERROR_INIT;
     const char     *arg = "replace";
     const char     *res = 0;
-
 
     log_debug("%s(%s) ...", method, name);
 
@@ -84,7 +102,6 @@ gboolean systemd_control_service(const char *name, const char *method)
         log_debug("error appending arguments");
         goto EXIT;
     }
-
 
     rsp = dbus_connection_send_with_reply_and_block(systemd_con, req, -1, &err);
     if( !rsp ) {
@@ -137,7 +154,7 @@ systemd_control_start(void)
     log_debug("starting systemd control");
 
     /* Get connection ref */
-    if( (systemd_con = usb_moded_dbus_get_connection()) == 0 )
+    if( (systemd_con = umdbus_get_connection()) == 0 )
     {
         log_err("Could not connect to dbus for systemd control\n");
         goto cleanup;

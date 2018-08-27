@@ -1,28 +1,26 @@
 /**
-  @file usb_moded-dsme.c
-
-  Copyright (C) 2013-2016 Jolla. All rights reserved.
-
-  @author: Philippe De Swert <philippe.deswert@jollamobile.com>
-  @author: Jonni Rainisto <jonni.rainisto@jollamobile.com>
-  @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
-
-  This program is free software; you can redistribute it and/or
-  modify it under the terms of the Lesser GNU General Public License
-  version 2 as published by the Free Software Foundation.
-
-  This program is distributed in the hope that it will be useful, but
-  WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  General Public License for more details.
-
-  You should have received a copy of the Lesser GNU General Public License
-  along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
-  02110-1301 USA
-*/
-
-#define _GNU_SOURCE
+ * @file usb_moded-dsme.c
+ *
+ * Copyright (C) 2013-2018 Jolla. All rights reserved.
+ *
+ * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
+ * @author: Jonni Rainisto <jonni.rainisto@jollamobile.com>
+ * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the Lesser GNU General Public License
+ * version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the Lesser GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA
+ */
 
 #include <stdbool.h>
 
@@ -121,7 +119,7 @@ static void               dsme_dbus_quit                        (void);
 
 gboolean                  dsme_listener_start                   (void);
 void                      dsme_listener_stop                    (void);
-gboolean                  is_in_user_state                      (void);
+gboolean                  dsme_in_user_state                    (void);
 
 /* ========================================================================= *
  * DSME_STATE_TRACKING
@@ -202,7 +200,7 @@ dsme_state_update(dsme_state_t state)
         dsme_user_state = user_state;
         log_debug("in user state: %s", dsme_user_state ? "true" : "false");
 
-        rethink_usb_charging_fallback();
+        usbmoded_rethink_usb_charging_fallback();
     }
 
     /* Handle entry to / exit from SHUTDOWN / REBOOT state */
@@ -213,9 +211,9 @@ dsme_state_update(dsme_state_t state)
         dsme_shutdown_state = shutdown_state;
         log_debug("in shutdown: %s", dsme_shutdown_state ? "true" : "false");
 
-	/* Re-evaluate dsmesock connection */
-	if( !dsme_shutdown_state )
-	    dsme_socket_connect();
+        /* Re-evaluate dsmesock connection */
+        if( !dsme_shutdown_state )
+            dsme_socket_connect();
     }
 }
 
@@ -226,7 +224,7 @@ dsme_state_update(dsme_state_t state)
 static bool
 dsme_state_is_shutdown(void)
 {
-  return dsme_shutdown_state;
+    return dsme_shutdown_state;
 }
 
 /** Checks if the device is is USER-state.
@@ -367,7 +365,7 @@ dsme_socket_recv_cb(GIOChannel *source,
         dsme_socket_processwd_pong();
 
         /* Do heartbeat actions here */
-        usb_moded_mode_verify_values();
+        modesetting_verify_values();
     }
     else if( (msg2 = DSMEMSG_CAST(DSM_MSGTYPE_STATE_CHANGE_IND, msg)) ) {
         dsme_state_update(msg2->state);
@@ -383,7 +381,7 @@ EXIT:
     if( !keep_going ) {
         if( !dsme_state_is_shutdown() ) {
             log_warning("DSME i/o notifier disabled;"
-                    " assuming dsme was stopped");
+                        " assuming dsme was stopped");
         }
 
         /* mark notifier as removed */
@@ -421,7 +419,7 @@ dsme_socket_connect(void)
 
     /* No new connections uness dsme dbus service is available */
     if( !dsme_dbus_name_owner_available() )
-	goto EXIT;
+        goto EXIT;
 
     /* Already connected ? */
     if( dsme_socket_iowatch )
@@ -669,9 +667,9 @@ dsme_dbus_name_owner_query(void)
 {
     dsme_dbus_name_owner_cancel();
 
-    usb_moded_get_name_owner_async(DSME_DBUS_SERVICE,
-                                   dsme_dbus_name_owner_query_cb,
-                                   &dsme_dbus_name_owner_query_pc);
+    umdbus_get_name_owner_async(DSME_DBUS_SERVICE,
+                                dsme_dbus_name_owner_query_cb,
+                                &dsme_dbus_name_owner_query_pc);
 }
 
 static void
@@ -741,7 +739,7 @@ dsme_dbus_init(void)
     bool ack = false;
 
     /* Get connection ref */
-    if( (dsme_dbus_con = usb_moded_dbus_get_connection()) == 0 )
+    if( (dsme_dbus_con = umdbus_get_connection()) == 0 )
     {
         log_err("Could not connect to dbus for dsme\n");
         goto cleanup;
@@ -821,7 +819,7 @@ dsme_listener_stop(void)
  * @return 1 if it is in USER-state, 0 for not
  */
 gboolean
-is_in_user_state(void)
+dsme_in_user_state(void)
 {
     return dsme_state_is_user();
 }

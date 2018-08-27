@@ -1,37 +1,56 @@
 /**
-  @file usb_moded-modesetting.h
- 
-  Copyright (C) 2010 Nokia Corporation. All rights reserved.
+ * @file usb_moded-modesetting.h
+ *
+ * Copyright (C) 2010 Nokia Corporation. All rights reserved.
+ * Copyright (C) 2013-2018 Jolla Ltd.
+ *
+ * @author: Philippe De Swert <philippe.de-swert@nokia.com>
+ * @author: Philippe De Swert <phdeswer@lumi.maa>
+ * @author: Philippe De Swert <philippedeswert@gmail.com>
+ * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
+ * @author: Thomas Perl <m@thp.io>
+ * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the Lesser GNU General Public License
+ * version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the Lesser GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA
+ */
 
-  @author: Philippe De Swert <philippe.de-swert@nokia.com>
+#ifndef  USB_MODED_MODESETTING_H_
+# define USB_MODED_MODESETTING_H_
 
-  This program is free software; you can redistribute it and/or
-  modify it under the terms of the Lesser GNU General Public License 
-  version 2 as published by the Free Software Foundation. 
+# include "usb_moded-dyn-config.h"
 
-  This program is distributed in the hope that it will be useful, but
-  WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  General Public License for more details.
- 
-  You should have received a copy of the Lesser GNU General Public License
-  along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
-  02110-1301 USA
-*/
+# include <stdbool.h>
 
-#include "usb_moded-dyn-config.h"
+/* ========================================================================= *
+ * Prototypes
+ * ========================================================================= */
 
-int write_to_file_real(const char *file, int line, const char *func, const char *path, const char *text);
+/* -- modesetting -- */
 
-#define write_to_file(path,text)\
-   write_to_file_real(__FILE__,__LINE__,__FUNCTION__,(path),(text))
+void modesetting_verify_values     (void);
+int  modesetting_write_to_file_real(const char *file, int line, const char *func, const char *path, const char *text);
+bool modesetting_enter_dynamic_mode(void);
+void modesetting_leave_dynamic_mode(void);
+void modesetting_init              (void);
+void modesetting_quit              (void);
 
-int set_mtp_mode(void);
-int set_dynamic_mode(void);
-void unset_dynamic_mode(void);
-/* clean up for the mode changes on disconnect */
-int usb_moded_mode_cleanup(const char *module);
-void usb_moded_mode_verify_values(void);
-void usb_moded_mode_init(void);
-void usb_moded_mode_quit(void);
+/* ========================================================================= *
+ * Macros
+ * ========================================================================= */
+
+# define write_to_file(path,text)\
+     modesetting_write_to_file_real(__FILE__,__LINE__,__FUNCTION__,(path),(text))
+
+#endif /* USB_MODED_MODESETTING_H_ */

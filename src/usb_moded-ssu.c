@@ -1,35 +1,54 @@
 /**
-  @file usb_moded-ssu.c
-
-  Copyright (C) 2016 Jolla. All rights reserved.
-
-  @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
-
-  This program is free software; you can redistribute it and/or
-  modify it under the terms of the Lesser GNU General Public License
-  version 2 as published by the Free Software Foundation.
-
-  This program is distributed in the hope that it will be useful, but
-  WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  General Public License for more details.
-
-  You should have received a copy of the Lesser GNU General Public License
-  along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
-  02110-1301 USA
-*/
+ * @file usb_moded-ssu.c
+ *
+ * Copyright (C) 2016-2018 Jolla. All rights reserved.
+ *
+ * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the Lesser GNU General Public License
+ * version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the Lesser GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA
+ */
 
 #include <glib.h>
 #include <ssusysinfo.h>
 #include "usb_moded-ssu.h"
 #include "usb_moded-log.h"
 
+/* ========================================================================= *
+ * Prototypes
+ * ========================================================================= */
+
+/* -- ssu -- */
+
+static void          ssu_free_handle          (void);
+static ssusysinfo_t *ssu_get_handle           (void);
+gchar               *ssu_get_manufacturer_name(void);
+gchar               *ssu_get_product_name     (void);
+
+/* ========================================================================= *
+ * Data
+ * ========================================================================= */
+
 /** Cached ssu-sysinfo handle */
 static ssusysinfo_t *ssu_instance = 0;
 
 /** Flag for ssu-sysinfo instance has been initialized */
 static gboolean      ssu_intialized = FALSE;
+
+/* ========================================================================= *
+ * Functions
+ * ========================================================================= */
 
 /** Atexit callback for releasing cached ssu-sysinfo handle */
 static void ssu_free_handle(void)

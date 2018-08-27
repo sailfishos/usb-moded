@@ -1,24 +1,25 @@
 /**
-  @file usb_moded-android.c
-
-  Copyright (C) 2013 Jolla. All rights reserved.
-
-  @author: Philippe De Swert <philippe.deswert@jollamobile.com>
-
-  This program is free software; you can redistribute it and/or
-  modify it under the terms of the Lesser GNU General Public License 
-  version 2 as published by the Free Software Foundation. 
-
-  This program is distributed in the hope that it will be useful, but
-  WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  General Public License for more details.
- 
-  You should have received a copy of the Lesser GNU General Public License
-  along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
-  02110-1301 USA
-*/
+ * @file usb_moded-android.c
+ *
+ * Copyright (C) 2013-2018 Jolla. All rights reserved.
+ *
+ * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
+ * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the Lesser GNU General Public License
+ * version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the Lesser GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA
+ */
 
 #include <stdio.h>
 #include <glib.h>
@@ -27,13 +28,87 @@
 #include "usb_moded-android.h"
 #include "usb_moded-log.h"
 #include "usb_moded-modesetting.h"
-#include "usb_moded-config.h"
+#include "usb_moded-config-private.h"
 #include "usb_moded-mac.h"
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+/* ========================================================================= *
+ * Functions
+ * ========================================================================= */
+
+/* -- android -- */
+
+bool         android_in_use           (void);
+static bool  android_probe            (void);
+gchar       *android_get_serial       (void);
+bool         android_init_values      (void);
+bool         android_set_enabled      (bool enable);
+bool         android_set_charging_mode(void);
+bool         android_set_function     (const char *function);
+bool         android_set_productid    (const char *id);
+bool         android_set_vendorid     (const char *id);
+bool         android_set_attr         (const char *function, const char *attr, const char *value);
+
+/* ========================================================================= *
+ * Data
+ * ========================================================================= */
+
+static int android_probed = -1;
+
+/* ========================================================================= *
+ * Functions
+ * ========================================================================= */
+
+static bool
+android_write_file(const char *path, const char *text)
+{
+    bool ack = false;
+
+    if( !path || !text )
+        goto EXIT;
+
+    log_debug("WRITE %s '%s'", path, text);
+
+    char buff[64];
+    snprintf(buff, sizeof buff, "%s\n", text);
+
+    if( write_to_file(path, buff) == -1 )
+        goto EXIT;
+
+    ack = true;
+
+EXIT:
+
+    return ack;
+}
+
+bool
+android_in_use(void)
+{
+    if( android_probed < 0 )
+        log_debug("android_in_use() called before android_probe()");
+
+    return android_probed > 0;
+}
+
+static bool
+android_probe(void)
+{
+    if( android_probed <= 0 ) {
+        android_probed = access(ANDROID0_ENABLE, F_OK) == 0;
+        log_warning("ANDROID0 %sdetected", android_probed ? "" : "not ");
+    }
+
+    return android_in_use();
+}
 
 /** Read android serial number from kernel command line
  */
-static gchar *get_android_serial(void)
+gchar *
+android_get_serial(void)
 {
     static const char path[] = "/proc/cmdline";
     static const char find[] = "androidboot.serialno=";
@@ -81,129 +156,199 @@ EXIT:
 
 /** initialize the basic android values
  */
-void android_init_values(void)
+bool
+android_init_values(void)
 {
-  gchar *text;
+    gchar *text;
 
-  /* If the directory is not there, no point emitting warnings
-   * about every file that is not going to be there either. */
-  if( access("/sys/class/android_usb/android0", F_OK) != 0 )
-  {
-    goto EXIT;
-  }
+    if( !android_probe() )
+        goto EXIT;
 
-  /* Disable */
-  write_to_file("/sys/class/android_usb/android0/enable", "0");
+    /* Disable */
+    android_set_enabled(false);
 
-  /* Configure */
-  if( (text = get_android_serial()) )
-  {
-	write_to_file("/sys/class/android_usb/android0/iSerial", text);
-	g_free(text);
-  }
-
-  text = get_android_manufacturer();
-  if(text)
-  {
-	write_to_file("/sys/class/android_usb/android0/iManufacturer", text);
-	g_free(text);
-  }
-  text = get_android_vendor_id();
-  if(text)
-  {
-	write_to_file("/sys/class/android_usb/android0/idVendor", text);
-	g_free(text);
-  }
-  text = get_android_product();
-  if(text)
-  {
-	write_to_file("/sys/class/android_usb/android0/iProduct", text);
-	g_free(text);
-  }
-  text = get_android_product_id();
-  if(text)
-  {
-	write_to_file("/sys/class/android_usb/android0/idProduct", text);
-	g_free(text);
-  }
-  text = read_mac();
-  if(text)
-  {
-	write_to_file("/sys/class/android_usb/f_rndis/ethaddr", text);
-	g_free(text);
-  }
-  /* For rndis to be discovered correctly in M$ Windows (vista and later) */
-  write_to_file("/sys/class/android_usb/f_rndis/wceis", "1");
-
-
-  /* Some devices can have enumeration issues due to incomplete
-   * configuration on the 1st connect after bootup. Briefly setting
-   * up for example mass_storage function can be utilized as a
-   * workaround in such cases. */
-  if(!init_done_p()) {
-    const char *function = get_android_bootup_function();
-    if(function) {
-      write_to_file("/sys/class/android_usb/android0/functions", function);
-      write_to_file("/sys/class/android_usb/android0/enable", "1");
-      write_to_file("/sys/class/android_usb/android0/enable", "0");
+    /* Configure */
+    if( (text = android_get_serial()) )
+    {
+        android_write_file(ANDROID0_SERIAL, text);
+        g_free(text);
     }
-  }
 
-  /* Clear functions and enable */
-  write_to_file("/sys/class/android_usb/android0/functions", "none");
-  write_to_file("/sys/class/android_usb/android0/enable", "1");
+    text = config_get_android_manufacturer();
+    if(text)
+    {
+        android_write_file(ANDROID0_MANUFACTURER, text);
+        g_free(text);
+    }
+    text = config_get_android_vendor_id();
+    if(text)
+    {
+        android_set_vendorid(text);
+        g_free(text);
+    }
+    text = config_get_android_product();
+    if(text)
+    {
+        android_write_file(ANDROID0_PRODUCT, text);
+        g_free(text);
+    }
+    text = config_get_android_product_id();
+    if(text)
+    {
+        android_set_productid(text);
+        g_free(text);
+    }
+    text = mac_read_mac();
+    if(text)
+    {
+        android_set_attr("f_rndis", "ethaddr", text);
+        g_free(text);
+    }
+    /* For rndis to be discovered correctly in M$ Windows (vista and later) */
+    android_set_attr("f_rndis", "wceis", "1");
+
+    /* Make sure remnants off mass-storage mode do not cause
+     * issues for charging_fallback & co */
+    android_set_attr("f_mass_storage", "lun/nofua", "0");
+    android_set_attr("f_mass_storage", "lun/file", "");
 
 EXIT:
-  return;
+    return android_in_use();
+}
+
+bool
+android_set_enabled(bool enable)
+{
+    bool ack = false;
+    if( android_in_use() ) {
+        const char *val = enable ? "1" : "0";
+        ack = android_write_file(ANDROID0_ENABLE, val) != -1;
+    }
+    log_debug("ANDROID %s(%d) -> %d", __func__, enable, ack);
+    return ack;
 }
 
 /* Set a charging mode for the android gadget
  *
- * @return 0 if successful, 1 on failure
+ * @return true if successful, false on failure
  */
-int set_android_charging_mode(void)
+bool
+android_set_charging_mode(void)
 {
-   int ret = 0;
+    bool ack = false;
 
-   /* disable, set functions to "mass_storage", re-enable */
-   write_to_file("/sys/class/android_usb/android0/enable", "0");
-   write_to_file("/sys/class/android_usb/android0/idProduct", "0AFE"); /* TODO: make configurable */
-   write_to_file("/sys/class/android_usb/android0/functions", "mass_storage");
-   ret = write_to_file("/sys/class/android_usb/android0/enable", "1");
-   if(ret < 0)
-	return(1);
-   else
-	return(ret);
+    if( !android_in_use() )
+        goto EXIT;
+
+    if( !android_set_function("mass_storage") )
+        goto EXIT;
+
+     /* TODO: make configurable */
+    if( !android_set_productid("0AFE") )
+        goto EXIT;
+
+    if( !android_set_enabled(true) )
+        goto EXIT;
+
+    ack = true;
+
+EXIT:
+    log_debug("ANDROID %s() -> %d", __func__, ack);
+    return ack;
+}
+
+/* Set a function for the android gadget
+ *
+ * @return true if successful, false on failure
+ */
+bool
+android_set_function(const char *function)
+{
+    bool ack = false;
+
+    if( !function )
+        goto EXIT;
+
+    if( !android_in_use() )
+        goto EXIT;
+
+    if( !android_set_enabled(false) )
+        goto EXIT;
+
+    if( android_write_file(ANDROID0_FUNCTIONS, function) == -1 )
+        goto EXIT;
+
+    /* Leave disabled, so that caller can adjust attributes
+     * etc before enabling */
+
+    ack = true;
+EXIT:
+
+    log_debug("ANDROID %s(%s) -> %d", __func__, function, ack);
+    return ack;
 }
 
 /* Set a product id for the android gadget
  *
- * @return 0 if successful, 1 on failure
+ * @return true if successful, false on failure
  */
-int set_android_productid(char *id)
+bool
+android_set_productid(const char *id)
 {
-   int ret = 0;
+    bool ack = false;
 
-   /* disable, set functions to "mass_storage", re-enable */
-   ret = write_to_file("/sys/class/android_usb/android0/idProduct", id);
-   if(ret < 0)
-	return(1);
-   else
-	return(ret);
+    if( id && android_in_use() ) {
+        char str[16];
+        char *end = 0;
+        unsigned num = strtol(id, &end, 16);
+        if( end > id && *end == 0 ) {
+            snprintf(str, sizeof str, "%04x", num);
+            id = str;
+        }
+        ack = android_write_file(ANDROID0_ID_PRODUCT, id) != -1;
+    }
+    log_debug("ANDROID %s(%s) -> %d", __func__, id, ack);
+    return ack;
 }
 
 /* Set a vendor id for the android gadget
  *
- * @return 0 if successful, 1 on failure
+ * @return true if successful, false on failure
  */
-int set_android_vendorid(char *id)
+bool
+android_set_vendorid(const char *id)
 {
-   int ret = 0;
+    bool ack = false;
+    if( id && android_in_use() ) {
+        char str[16];
+        char *end = 0;
+        unsigned num = strtol(id, &end, 16);
+        if( end > id && *end == 0 ) {
+            snprintf(str, sizeof str, "%04x", num);
+            id = str;
+        }
+        ack = android_write_file(ANDROID0_ID_VENDOR, id) != -1;
+    }
+    log_debug("ANDROID %s(%s) -> %d", __func__, id, ack);
+    return ack;
+}
 
-   /* disable, set functions to "mass_storage", re-enable */
-   ret = write_to_file("/sys/class/android_usb/android0/idVendor", id);
-   if(ret < 0)
-	return(1);
-   else
-	return(ret);
+/** Set function attribute
+ *
+ * @return true if successful, false on failure
+ */
+bool
+android_set_attr(const char *function, const char *attr, const char *value)
+{
+    bool ack = false;
+
+    if( function && attr && value && android_in_use() ) {
+        char path[256];
+        snprintf(path, sizeof path, "%s/%s/%s",
+                 ANDROID0_DIRECTORY, function, attr);
+        ack = android_write_file(path, value);
+    }
+    log_debug("ANDROID %s(%s, %s, %s) -> %d", __func__,
+              function, attr, value, ack);
+    return ack;
 }

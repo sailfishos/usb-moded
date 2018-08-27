@@ -1,36 +1,36 @@
 /**
-
-  @file: usb_moded-devicelock.c
-
-  Copyright (C) 2010 Nokia Corporation. All rights reserved.
-  Copyright (C) 2013-2016 Jolla Ltd.
-
-  @author: Philippe De Swert <philippe.de-swert@nokia.com>
-  @author: Philippe De Swert <philippe.deswert@jollamobile.com>
-  @author: Jonni Rainisto <jonni.rainisto@jollamobile.com>
-  @author: Vesa Halttunen <vesa.halttunen@jollamobile.com>
-  @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
-
-  This program is free software; you can redistribute it and/or
-  modify it under the terms of the Lesser GNU General Public License
-  version 2 as published by the Free Software Foundation.
-
-  This program is distributed in the hope that it will be useful, but
-  WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  General Public License for more details.
-
-  You should have received a copy of the Lesser GNU General Public License
-  along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
-  02110-1301 USA
-*/
+ * @file: usb_moded-devicelock.c
+ *
+ * Copyright (C) 2010 Nokia Corporation. All rights reserved.
+ * Copyright (C) 2013-2018 Jolla Ltd.
+ *
+ * @author: Philippe De Swert <philippe.de-swert@nokia.com>
+ * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
+ * @author: Jonni Rainisto <jonni.rainisto@jollamobile.com>
+ * @author: Philippe De Swert <philippedeswert@gmail.com>
+ * @author: Vesa Halttunen <vesa.halttunen@jollamobile.com>
+ * @author: Jonni Rainisto <jonni.rainisto@jollamobile.com>
+ * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
+ * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the Lesser GNU General Public License
+ * version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the Lesser GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA
+ */
 
 /*
  * Interacts with the devicelock to know if we can expose the system contents or not
  */
-
-/*============================================================================= */
 
 #include <stdlib.h>
 #include <string.h>
@@ -38,14 +38,13 @@
 #include <dbus/dbus-glib-lowlevel.h>
 
 #include "usb_moded-devicelock.h"
-#include "usb_moded-lock.h"
 #include "usb_moded-log.h"
 #include "usb_moded.h"
 #include "usb_moded-modes.h"
 #include "usb_moded-dbus-private.h"
 
 /* ========================================================================= *
- * devicelock state type
+ * Types
  * ========================================================================= */
 
 /** Devicelock states  */
@@ -60,6 +59,45 @@ typedef enum
     /** Initial startup value; from usb-moded p.o.v. equals locked */
     DEVICE_LOCK_UNDEFINED = 2,
 }  devicelock_state_t;
+
+/* ========================================================================= *
+ * Prototypes
+ * ========================================================================= */
+
+/* -- devicelock -- */
+
+static const char        *devicelock_state_repr            (devicelock_state_t state);
+bool                      devicelock_have_export_permission(void);
+static void               devicelock_state_changed         (devicelock_state_t state);
+static void               devicelock_state_cancel          (void);
+static void               devicelock_state_query_cb        (DBusPendingCall *pending, void *aptr);
+static void               devicelock_state_query           (void);
+static void               devicelock_state_signal          (DBusMessage *msg);
+static void               devicelock_available_changed     (const char *owner);
+static void               devicelock_available_cb          (const char *owner);
+static void               devicelock_available_cancel      (void);
+static void               devicelock_available_query       (void);
+static void               devicelock_name_owner_signal     (DBusMessage *msg);
+static DBusHandlerResult  devicelock_dbus_filter_cb        (DBusConnection *con, DBusMessage *msg, void *aptr);
+bool                      devicelock_start_listener        (void);
+void                      devicelock_stop_listener         (void);
+
+/* ========================================================================= *
+ * module state data
+ * ========================================================================= */
+
+/* SystemBus connection ref used for devicelock ipc */
+static DBusConnection *devicelock_con = NULL;
+
+/* Cached devicelock state */
+static devicelock_state_t device_lock_state = DEVICE_LOCK_UNDEFINED;
+
+/* Flag for: devicelock is available on system bus */
+static gboolean devicelock_is_available = FALSE;
+
+/* ========================================================================= *
+ * devicelock state type
+ * ========================================================================= */
 
 /** Return human readable representation of devicelock state enum
  */
@@ -80,19 +118,6 @@ devicelock_state_repr(devicelock_state_t state)
 }
 
 /* ========================================================================= *
- * module state data
- * ========================================================================= */
-
-/* SystemBus connection ref used for devicelock ipc */
-static DBusConnection *devicelock_con = NULL;
-
-/* Cached devicelock state */
-static devicelock_state_t device_lock_state = DEVICE_LOCK_UNDEFINED;
-
-/* Flag for: devicelock is available on system bus */
-static gboolean devicelock_is_available = FALSE;
-
-/* ========================================================================= *
  * functionality provided to the other modules
  * ========================================================================= */
 
@@ -101,9 +126,9 @@ static gboolean devicelock_is_available = FALSE;
  * @return TRUE for unlocked, FALSE for locked
  *
  */
-gboolean usb_moded_get_export_permission(void)
+bool devicelock_have_export_permission(void)
 {
-    gboolean unlocked = (device_lock_state == DEVICE_LOCK_UNLOCKED);
+    bool unlocked = (device_lock_state == DEVICE_LOCK_UNLOCKED);
 
     return unlocked;
 }
@@ -122,7 +147,7 @@ static void devicelock_state_changed(devicelock_state_t state)
               devicelock_state_repr(state));
     device_lock_state = state;
 
-    rethink_usb_charging_fallback();
+    usbmoded_rethink_usb_charging_fallback();
 
 EXIT:
     return;
@@ -281,7 +306,7 @@ static void devicelock_available_cancel(void)
 {
     if( devicelock_available_pc )
     {
-            dbus_pending_call_cancel(devicelock_available_pc);
+        dbus_pending_call_cancel(devicelock_available_pc);
         dbus_pending_call_unref(devicelock_available_pc),
             devicelock_available_pc = 0;
     }
@@ -293,12 +318,12 @@ static void devicelock_available_query(void)
 
     log_debug("querying %s name owner", DEVICELOCK_SERVICE);
 
-    usb_moded_get_name_owner_async(DEVICELOCK_SERVICE,
-                                   devicelock_available_cb,
-                                   &devicelock_available_pc);
+    umdbus_get_name_owner_async(DEVICELOCK_SERVICE,
+                                devicelock_available_cb,
+                                &devicelock_available_pc);
 }
 
-static void name_owner_signal(DBusMessage *msg)
+static void devicelock_name_owner_signal(DBusMessage *msg)
 {
     DBusError   err  = DBUS_ERROR_INIT;
     const char *name = 0;
@@ -341,7 +366,7 @@ devicelock_dbus_filter_cb(DBusConnection *con, DBusMessage *msg, void *aptr)
                                     DBUS_INTERFACE_DBUS,
                                     DBUS_NAME_OWNER_CHANGED_SIG) )
     {
-        name_owner_signal(msg);
+        devicelock_name_owner_signal(msg);
     }
 
     return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
@@ -351,15 +376,15 @@ devicelock_dbus_filter_cb(DBusConnection *con, DBusMessage *msg, void *aptr)
  * start/stop devicelock state tracking
  * ========================================================================= */
 
-gboolean
-start_devicelock_listener(void)
+bool
+devicelock_start_listener(void)
 {
-    gboolean ack = FALSE;
+    bool ack = false;
 
     log_debug("starting devicelock listener");
 
     /* Get connection ref */
-    if( (devicelock_con = usb_moded_dbus_get_connection()) == 0 )
+    if( (devicelock_con = umdbus_get_connection()) == 0 )
     {
         log_err("Could not connect to dbus for devicelock\n");
         goto cleanup;
@@ -380,7 +405,7 @@ start_devicelock_listener(void)
     /* Initiate async devicelock name owner query */
     devicelock_available_query();
 
-    ack = TRUE;
+    ack = true;
 
 cleanup:
 
@@ -388,7 +413,7 @@ cleanup:
 }
 
 void
-stop_devicelock_listener(void)
+devicelock_stop_listener(void)
 {
     log_debug("stopping devicelock listener");
 
