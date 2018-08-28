@@ -62,13 +62,13 @@ bool           control_get_connection_state         (void);
  *
  * What was the last mode signaled over D-Bus.
  */
-char *control_external_mode = NULL;
+static char *control_external_mode = NULL;
 
 /** The logical mode name
  *
  * Full set of valid modes can occur here
  */
-char *control_internal_mode = NULL;
+static char *control_internal_mode = NULL;
 
 /** Connection status
  *
@@ -76,7 +76,7 @@ char *control_internal_mode = NULL;
  * - control_set_cable_state()
  * - control_get_connection_state()
  */
-cable_state_t control_cable_state = CABLE_STATE_UNKNOWN;
+static cable_state_t control_cable_state = CABLE_STATE_UNKNOWN;
 
 /* ========================================================================= *
  * Functions
