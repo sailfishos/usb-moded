@@ -231,7 +231,7 @@ void control_select_usb_mode(void)
 {
     char *mode_to_set = 0;
 
-    if( usbmoded_rescue_mode ) {
+    if( usbmoded_get_rescue_mode() ) {
         log_debug("Entering rescue mode!\n");
         control_set_usb_mode(MODE_DEVELOPER);
         goto EXIT;

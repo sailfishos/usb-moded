@@ -60,14 +60,6 @@
  * Data
  * ========================================================================= */
 
-/** Rescue mode flag
- *
- * When enabled, usb-moded allows developer_mode etc when device is
- * booted up with cable connected without requiring device unlock.
- * Which can be useful if UI for some reason does not come up.
- */
-extern bool            usbmoded_rescue_mode;
-
 extern GList *usbmoded_modelist;
 
 /* ========================================================================= *
@@ -76,6 +68,8 @@ extern GList *usbmoded_modelist;
 
 /* -- usbmoded -- */
 
+bool usbmoded_get_rescue_mode           (void);
+void usbmoded_set_rescue_mode           (bool rescue_mode);
 bool usbmoded_get_diag_mode             (void);
 void usbmoded_set_diag_mode             (bool diag_mode);
 void usbmoded_set_cable_connection_delay(int delay_ms);

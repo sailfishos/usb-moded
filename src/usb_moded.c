@@ -104,6 +104,8 @@
 
 /* -- usbmoded -- */
 
+bool            usbmoded_get_rescue_mode           (void);
+void            usbmoded_set_rescue_mode           (bool rescue_mode);
 bool            usbmoded_get_diag_mode             (void);
 void            usbmoded_set_diag_mode             (bool diag_mode);
 void            usbmoded_set_cable_connection_delay(int delay_ms);
@@ -129,7 +131,7 @@ static void     usbmoded_parse_options             (int argc, char *argv[]);
 GList            *usbmoded_modelist       = 0;
 static int        usbmoded_exitcode       = EXIT_FAILURE;
 static GMainLoop *usbmoded_mainloop       = NULL;
-bool              usbmoded_rescue_mode    = false;
+
 static bool       usbmoded_hw_fallback    = false;
 #ifdef SYSTEMD
 static bool       usbmoded_systemd_notify = false;
@@ -138,6 +140,31 @@ static bool       usbmoded_systemd_notify = false;
 /* ========================================================================= *
  * Functions
  * ========================================================================= */
+
+/* ------------------------------------------------------------------------- *
+ * RESCUE_MODE
+ * ------------------------------------------------------------------------- */
+
+/** Rescue mode flag
+ *
+ * When enabled, usb-moded allows developer_mode etc when device is
+ * booted up with cable connected without requiring device unlock.
+ * Which can be useful if UI for some reason does not come up.
+ */
+static bool usbmoded_rescue_mode = false;
+
+bool usbmoded_get_rescue_mode(void)
+{
+    return usbmoded_rescue_mode;
+}
+
+void usbmoded_set_rescue_mode(bool rescue_mode)
+{
+    if( usbmoded_rescue_mode != rescue_mode ) {
+        log_info("rescue_mode: %d -> %d",  usbmoded_rescue_mode, rescue_mode);
+        usbmoded_rescue_mode = rescue_mode;
+    }
+}
 
 /* ------------------------------------------------------------------------- *
  * DIAG_MODE
@@ -292,7 +319,7 @@ bool usbmoded_can_export(void)
                   devicelock_have_export_permission());
 
     /* Having bootup rescue mode active is an exception */
-    if( usbmoded_rescue_mode )
+    if( usbmoded_get_rescue_mode() )
         can_export = true;
 #endif
 
@@ -404,8 +431,8 @@ static bool usbmoded_init(void)
         goto EXIT;
     }
 
-    if( usbmoded_rescue_mode && usbmoded_init_done_p() ) {
-        usbmoded_rescue_mode = false;
+    if( usbmoded_get_rescue_mode() && usbmoded_init_done_p() ) {
+        usbmoded_set_rescue_mode(false);
         log_warning("init done passed; rescue mode ignored");
     }
 
@@ -730,7 +757,7 @@ static void usbmoded_parse_options(int argc, char* argv[])
             exit(EXIT_SUCCESS);
 
         case 'r':
-            usbmoded_rescue_mode = true;
+            usbmoded_set_rescue_mode(true);
             break;
 #ifdef SYSTEMD
         case 'n':

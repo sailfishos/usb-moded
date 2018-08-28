@@ -236,8 +236,8 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
             usbmoded_set_init_done(true);
 
             /* Auto-disable rescue mode when bootup is finished */
-            if( usbmoded_rescue_mode ) {
-                usbmoded_rescue_mode = FALSE;
+            if( usbmoded_get_rescue_mode() ) {
+                usbmoded_set_rescue_mode(false);
                 log_debug("init done reached - rescue mode disabled");
             }
         }
@@ -446,7 +446,7 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
         }
         else if(!strcmp(member, USB_MODE_RESCUE_OFF))
         {
-            usbmoded_rescue_mode = FALSE;
+            usbmoded_set_rescue_mode(false);
             log_debug("Rescue mode off\n ");
             reply = dbus_message_new_method_return(msg);
         }
