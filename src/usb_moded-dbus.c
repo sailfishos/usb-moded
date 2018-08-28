@@ -78,11 +78,11 @@ gboolean                  umdbus_get_name_owner_async         (const char *name,
  * Data
  * ========================================================================= */
 
-static DBusConnection *dbus_connection_sys = NULL;
-static gboolean        have_service_name   = FALSE;
+static DBusConnection *umdbus_connection = NULL;
+static gboolean        umdbus_service_name_acquired   = FALSE;
 
 /** Introspect xml format string for parents of USB_MODE_OBJECT */
-static const char intospect_template[] =
+static const char umdbus_introspect_template[] =
 "<!DOCTYPE node PUBLIC \"-//freedesktop//DTD D-BUS Object Introspection 1.0//EN\" \"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd\">\n"
 "<node name=\"%s\">\n"
 "  <interface name=\"org.freedesktop.DBus.Introspectable\">\n"
@@ -100,7 +100,7 @@ static const char intospect_template[] =
 "</node>\n";
 
 /** Introspect xml data for object path USB_MODE_OBJECT */
-static const char introspect_usb_moded[] =
+static const char umdbus_introspect_usbmoded[] =
 "<!DOCTYPE node PUBLIC \"-//freedesktop//DTD D-BUS Object Introspection 1.0//EN\" "
 "\"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd\">\n"
 "<node name=\"" USB_MODE_OBJECT "\">\n"
@@ -192,12 +192,12 @@ static void umdbus_send_config_signal(const char *section, const char *key, cons
 {
     log_debug("broadcast signal %s(%s, %s, %s)\n", USB_MODE_CONFIG_SIGNAL_NAME, section, key, value);
 
-    if( !have_service_name )
+    if( !umdbus_service_name_acquired )
     {
         log_err("config notification without service: [%s] %s=%s",
                 section, key, value);
     }
-    else if (dbus_connection_sys)
+    else if (umdbus_connection)
     {
         DBusMessage* msg = dbus_message_new_signal(USB_MODE_OBJECT, USB_MODE_INTERFACE, USB_MODE_CONFIG_SIGNAL_NAME);
         if (msg) {
@@ -205,7 +205,7 @@ static void umdbus_send_config_signal(const char *section, const char *key, cons
                                      DBUS_TYPE_STRING, &key,
                                      DBUS_TYPE_STRING, &value,
                                      DBUS_TYPE_INVALID);
-            dbus_connection_send(dbus_connection_sys, msg, NULL);
+            dbus_connection_send(umdbus_connection, msg, NULL);
             dbus_message_unref(msg);
         }
     }
@@ -535,7 +535,7 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
             if( pos[len] == 0 )
             {
                 /* Full length USB_MODE_OBJECT requested */
-                xml = introspect_usb_moded;
+                xml = umdbus_introspect_usbmoded;
             }
             else if( pos[len] == '/' )
             {
@@ -546,7 +546,7 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
                 pos += len + 1;
                 len = strcspn(pos, "/");
                 child = g_strndup(pos, len);
-                xml = tmp = g_strdup_printf(intospect_template,
+                xml = tmp = g_strdup_printf(umdbus_introspect_template,
                                             parent, child);
                 g_free(child);
                 g_free(parent);
@@ -559,7 +559,7 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
                 pos += 1;
                 len = strcspn(pos, "/");
                 child = g_strndup(pos, len);
-                xml = tmp = g_strdup_printf(intospect_template,
+                xml = tmp = g_strdup_printf(umdbus_introspect_template,
                                             parent, child);
                 g_free(child);
             }
@@ -606,8 +606,8 @@ EXIT:
 DBusConnection *umdbus_get_connection(void)
 {
     DBusConnection *connection = 0;
-    if( dbus_connection_sys )
-        connection = dbus_connection_ref(dbus_connection_sys);
+    if( umdbus_connection )
+        connection = dbus_connection_ref(umdbus_connection);
     else
         log_err("something asked for connection ref while unconnected");
     return connection;
@@ -624,24 +624,24 @@ gboolean umdbus_init_connection(void)
     DBusError error = DBUS_ERROR_INIT;
 
     /* connect to system bus */
-    if ((dbus_connection_sys = dbus_bus_get(DBUS_BUS_SYSTEM, &error)) == NULL)
+    if ((umdbus_connection = dbus_bus_get(DBUS_BUS_SYSTEM, &error)) == NULL)
     {
         log_debug("Failed to open connection to system message bus; %s\n",  error.message);
         goto EXIT;
     }
 
     /* Initialise message handlers */
-    if (!dbus_connection_add_filter(dbus_connection_sys, umdbus_msg_handler, NULL, NULL))
+    if (!dbus_connection_add_filter(umdbus_connection, umdbus_msg_handler, NULL, NULL))
         goto EXIT;
 
     /* Listen to init-done signals */
-    dbus_bus_add_match(dbus_connection_sys, INIT_DONE_MATCH, 0);
+    dbus_bus_add_match(umdbus_connection, INIT_DONE_MATCH, 0);
 
     /* Re-check flag file after adding signal listener */
     usbmoded_probe_init_done();
 
     /* Connect D-Bus to the mainloop */
-    dbus_connection_setup_with_g_main(dbus_connection_sys, NULL);
+    dbus_connection_setup_with_g_main(umdbus_connection, NULL);
 
     /* everything went fine */
     status = TRUE;
@@ -662,12 +662,12 @@ gboolean umdbus_init_service(void)
     DBusError error = DBUS_ERROR_INIT;
     int ret;
 
-    if( !dbus_connection_sys ) {
+    if( !umdbus_connection ) {
         goto EXIT;
     }
 
     /* Acquire D-Bus service */
-    ret = dbus_bus_request_name(dbus_connection_sys, USB_MODE_SERVICE, DBUS_NAME_FLAG_DO_NOT_QUEUE, &error);
+    ret = dbus_bus_request_name(umdbus_connection, USB_MODE_SERVICE, DBUS_NAME_FLAG_DO_NOT_QUEUE, &error);
     if (ret != DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER)
     {
         log_debug("failed claiming dbus name\n");
@@ -676,7 +676,7 @@ gboolean umdbus_init_service(void)
         goto EXIT;
     }
     log_debug("claimed name %s", USB_MODE_SERVICE);
-    have_service_name = TRUE;
+    umdbus_service_name_acquired = TRUE;
     /* everything went fine */
     status = TRUE;
 
@@ -689,16 +689,16 @@ EXIT:
  */
 static void umdbus_cleanup_service(void)
 {
-    if( !have_service_name )
+    if( !umdbus_service_name_acquired )
         goto EXIT;
 
-    have_service_name = FALSE;
+    umdbus_service_name_acquired = FALSE;
     log_debug("release name %s", USB_MODE_SERVICE);
 
-    if( dbus_connection_sys &&
-        dbus_connection_get_is_connected(dbus_connection_sys) )
+    if( umdbus_connection &&
+        dbus_connection_get_is_connected(umdbus_connection) )
     {
-        dbus_bus_release_name(dbus_connection_sys, USB_MODE_SERVICE, NULL);
+        dbus_bus_release_name(umdbus_connection, USB_MODE_SERVICE, NULL);
     }
 
 EXIT:
@@ -712,14 +712,14 @@ EXIT:
 void umdbus_cleanup(void)
 {
     /* clean up system bus connection */
-    if (dbus_connection_sys != NULL)
+    if (umdbus_connection != NULL)
     {
         umdbus_cleanup_service();
 
-        dbus_connection_remove_filter(dbus_connection_sys, umdbus_msg_handler, NULL);
+        dbus_connection_remove_filter(umdbus_connection, umdbus_msg_handler, NULL);
 
-        dbus_connection_unref(dbus_connection_sys),
-            dbus_connection_sys = NULL;
+        dbus_connection_unref(umdbus_connection),
+            umdbus_connection = NULL;
     }
 }
 
@@ -737,13 +737,13 @@ static int umdbus_send_signal_ex(const char *signal_type, const char *content)
 
     log_debug("broadcast signal %s(%s)\n", signal_type, content);
 
-    if( !have_service_name )
+    if( !umdbus_service_name_acquired )
     {
         log_err("sending signal without service: %s(%s)",
                 signal_type, content);
         goto EXIT;
     }
-    if(!dbus_connection_sys)
+    if(!umdbus_connection)
     {
         log_err("Dbus system connection broken!\n");
         goto EXIT;
@@ -764,7 +764,7 @@ static int umdbus_send_signal_ex(const char *signal_type, const char *content)
     }
 
     // send the message on the correct bus  and flush the connection
-    if (!dbus_connection_send(dbus_connection_sys, msg, 0))
+    if (!dbus_connection_send(umdbus_connection, msg, 0))
     {
         log_debug("Failed sending message. Out Of Memory!\n");
         goto EXIT;
@@ -910,7 +910,7 @@ gboolean umdbus_get_name_owner_async(const char *name,
     DBusMessage     *req = 0;
     DBusPendingCall *pc  = 0;
 
-    if(!dbus_connection_sys)
+    if(!umdbus_connection)
         goto EXIT;
 
     req = dbus_message_new_method_call(DBUS_INTERFACE_DBUS,
@@ -929,7 +929,7 @@ gboolean umdbus_get_name_owner_async(const char *name,
         goto EXIT;
     }
 
-    if( !dbus_connection_send_with_reply(dbus_connection_sys, req, &pc, -1) )
+    if( !dbus_connection_send_with_reply(umdbus_connection, req, &pc, -1) )
         goto EXIT;
 
     if( !pc )
