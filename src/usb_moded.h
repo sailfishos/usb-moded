@@ -60,15 +60,6 @@
  * Data
  * ========================================================================= */
 
-/** PC connection delay (FIXME: is defunct now)
- *
- * Slow cable insert / similar physical issues can lead to a charger
- * getting initially recognized as a pc connection. This defines how
- * long we should wait and see if pc connection gets corrected to a
- * charger kind.
- */
-extern int             usbmoded_cable_connection_delay;
-
 /** Rescue mode flag
  *
  * When enabled, usb-moded allows developer_mode etc when device is
@@ -85,15 +76,15 @@ extern GList *usbmoded_modelist;
  * Functions
  * ========================================================================= */
 
-/* -- usbmoded -- */
-
-void usbmoded_allow_suspend  (void);
-void usbmoded_delay_suspend  (void);
-bool usbmoded_can_export     (void);
-bool usbmoded_init_done_p    (void);
-void usbmoded_set_init_done  (bool reached);
-void usbmoded_probe_init_done(void);
-void usbmoded_exit_mainloop  (int exitcode);
-void usbmoded_handle_signal  (int signum);
+void usbmoded_set_cable_connection_delay(int delay_ms);
+int  usbmoded_get_cable_connection_delay(void);
+void usbmoded_allow_suspend             (void);
+void usbmoded_delay_suspend             (void);
+bool usbmoded_init_done_p               (void);
+void usbmoded_set_init_done             (bool reached);
+void usbmoded_probe_init_done           (void);
+bool usbmoded_can_export                (void);
+void usbmoded_exit_mainloop             (int exitcode);
+void usbmoded_handle_signal             (int signum);
 
 #endif /* USB_MODED_H_ */

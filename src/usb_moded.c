@@ -104,19 +104,21 @@
 
 /* -- usbmoded -- */
 
-static void     usbmoded_set_cable_connection_delay(int delay_ms);
+void            usbmoded_set_cable_connection_delay(int delay_ms);
+int             usbmoded_get_cable_connection_delay(void);
 static gboolean usbmoded_allow_suspend_timer_cb    (gpointer aptr);
 void            usbmoded_allow_suspend             (void);
 void            usbmoded_delay_suspend             (void);
-bool            usbmoded_can_export                (void);
 bool            usbmoded_init_done_p               (void);
 void            usbmoded_set_init_done             (bool reached);
 void            usbmoded_probe_init_done           (void);
+bool            usbmoded_can_export                (void);
 void            usbmoded_exit_mainloop             (int exitcode);
 void            usbmoded_handle_signal             (int signum);
 static bool     usbmoded_init                      (void);
 static void     usbmoded_cleanup                   (void);
 static void     usbmoded_usage                     (void);
+static void     usbmoded_parse_options             (int argc, char *argv[]);
 
 /* ========================================================================= *
  * Data
@@ -132,10 +134,6 @@ static bool       usbmoded_hw_fallback    = false;
 static bool       usbmoded_systemd_notify = false;
 #endif
 
-/** Currently allowed cable detection delay
- */
-int usbmoded_cable_connection_delay = CABLE_CONNECTION_DELAY_DEFAULT;
-
 /* ========================================================================= *
  * Functions
  * ========================================================================= */
@@ -144,19 +142,41 @@ int usbmoded_cable_connection_delay = CABLE_CONNECTION_DELAY_DEFAULT;
  * CABLE_CONNECT_DELAY
  * ------------------------------------------------------------------------- */
 
+/** PC connection delay
+ *
+ * Slow cable insert / similar physical issues can lead to a charger
+ * getting initially recognized as a pc connection. This defines how
+ * long we should wait and see if pc connection gets corrected to a
+ * charger kind.
+ */
+static int usbmoded_cable_connection_delay = CABLE_CONNECTION_DELAY_DEFAULT;
+
 /** Helper for setting allowed cable detection delay
  *
  * Used for implementing --max-cable-delay=<ms> option.
  */
-static void usbmoded_set_cable_connection_delay(int delay_ms)
+void
+usbmoded_set_cable_connection_delay(int delay_ms)
 {
-    if( delay_ms < CABLE_CONNECTION_DELAY_MAXIMUM )
+    if( delay_ms > CABLE_CONNECTION_DELAY_MAXIMUM )
+        delay_ms = CABLE_CONNECTION_DELAY_MAXIMUM;
+    if( delay_ms < 0 )
+        delay_ms = 0;
+
+    if( usbmoded_cable_connection_delay != delay_ms ) {
+        log_info("cable_connection_delay: %d -> %d",
+                 usbmoded_cable_connection_delay,
+                 delay_ms);
         usbmoded_cable_connection_delay = delay_ms;
-    else {
-        usbmoded_cable_connection_delay = CABLE_CONNECTION_DELAY_MAXIMUM;
-        log_warning("using maximum connection delay: %d ms",
-                    usbmoded_cable_connection_delay);
     }
+}
+
+/** Helper for getting allowed cable detection delay
+ */
+int
+usbmoded_get_cable_connection_delay(void)
+{
+    return usbmoded_cable_connection_delay;
 }
 
 /* ------------------------------------------------------------------------- *

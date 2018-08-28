@@ -243,8 +243,8 @@ static void umudev_cable_state_from_udev(cable_state_t curr)
         gint delay = 100;
 
         if( curr == CABLE_STATE_PC_CONNECTED && prev != CABLE_STATE_UNKNOWN ) {
-            if( delay < usbmoded_cable_connection_delay )
-                delay = usbmoded_cable_connection_delay;
+            if( delay < usbmoded_get_cable_connection_delay() )
+                delay = usbmoded_get_cable_connection_delay();
         }
 
         umudev_cable_state_start_timer(delay);
