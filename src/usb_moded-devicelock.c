@@ -45,16 +45,16 @@
  * ========================================================================= */
 
 /** Devicelock states  */
-typedef enum
+typedef enum devicelock_state_t
 {
     /** Devicelock is not active */
-    DEVICE_LOCK_UNLOCKED  = 0,
+    DEVICELOCK_UNLOCKED  = 0,
 
     /** Devicelock is active */
-    DEVICE_LOCK_LOCKED    = 1,
+    DEVICELOCK_LOCKED    = 1,
 
     /** Initial startup value; from usb-moded p.o.v. equals locked */
-    DEVICE_LOCK_UNDEFINED = 2,
+    DEVICELOCK_UNDEFINED = 2,
 }  devicelock_state_t;
 
 /* ========================================================================= *
@@ -87,7 +87,7 @@ void                      devicelock_stop_listener         (void);
 static DBusConnection *devicelock_con = NULL;
 
 /* Cached devicelock state */
-static devicelock_state_t device_lock_state = DEVICE_LOCK_UNDEFINED;
+static devicelock_state_t devicelock_state = DEVICELOCK_UNDEFINED;
 
 /* Flag for: devicelock is available on system bus */
 static gboolean devicelock_is_available = FALSE;
@@ -101,13 +101,13 @@ static gboolean devicelock_is_available = FALSE;
 static const char *
 devicelock_state_repr(devicelock_state_t state)
 {
-    const char *repr = "DEVICE_LOCK_<INVALID>";
+    const char *repr = "DEVICELOCK_<INVALID>";
 
     switch( state )
     {
-    case DEVICE_LOCK_UNLOCKED:  repr = "DEVICE_LOCK_UNLOCKED";  break;
-    case DEVICE_LOCK_LOCKED:    repr = "DEVICE_LOCK_LOCKED";    break;
-    case DEVICE_LOCK_UNDEFINED: repr = "DEVICE_LOCK_UNDEFINED"; break;
+    case DEVICELOCK_UNLOCKED:  repr = "DEVICELOCK_UNLOCKED";  break;
+    case DEVICELOCK_LOCKED:    repr = "DEVICELOCK_LOCKED";    break;
+    case DEVICELOCK_UNDEFINED: repr = "DEVICELOCK_UNDEFINED"; break;
     default: break;
     }
 
@@ -125,7 +125,7 @@ devicelock_state_repr(devicelock_state_t state)
  */
 bool devicelock_have_export_permission(void)
 {
-    bool unlocked = (device_lock_state == DEVICE_LOCK_UNLOCKED);
+    bool unlocked = (devicelock_state == DEVICELOCK_UNLOCKED);
 
     return unlocked;
 }
@@ -136,13 +136,13 @@ bool devicelock_have_export_permission(void)
 
 static void devicelock_state_changed(devicelock_state_t state)
 {
-    if( device_lock_state == state )
+    if( devicelock_state == state )
         goto EXIT;
 
     log_debug("devicelock state: %s -> %s",
-              devicelock_state_repr(device_lock_state),
+              devicelock_state_repr(devicelock_state),
               devicelock_state_repr(state));
-    device_lock_state = state;
+    devicelock_state = state;
 
     control_rethink_usb_charging_fallback();
 
@@ -164,7 +164,7 @@ static void devicelock_state_cancel(void)
 static void devicelock_state_query_cb(DBusPendingCall *pending, void *aptr)
 {
     DBusMessage *rsp = 0;
-    dbus_int32_t dta = DEVICE_LOCK_UNDEFINED;
+    dbus_int32_t dta = DEVICELOCK_UNDEFINED;
     DBusError    err = DBUS_ERROR_INIT;
 
     (void)aptr;
@@ -250,7 +250,7 @@ EXIT:
 static void devicelock_state_signal(DBusMessage *msg)
 {
     DBusError    err = DBUS_ERROR_INIT;
-    dbus_int32_t dta = DEVICE_LOCK_LOCKED;
+    dbus_int32_t dta = DEVICELOCK_LOCKED;
 
     if( !dbus_message_get_args(msg, &err,
                                DBUS_TYPE_INT32, &dta,
@@ -280,7 +280,7 @@ static void devicelock_available_changed(const char *owner)
                   devicelock_is_available ? "running" : "stopped");
 
         /* Forget cached device state */
-        devicelock_state_changed(DEVICE_LOCK_UNDEFINED);
+        devicelock_state_changed(DEVICELOCK_UNDEFINED);
 
         /* Query current state on devicelock startup */
         if( devicelock_is_available ) {
