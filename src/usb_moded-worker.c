@@ -253,7 +253,7 @@ SUCCESS:
  * ------------------------------------------------------------------------- */
 
 /** The module name for the specific mode */
-char *worker_kernel_module = NULL;
+static char *worker_kernel_module = NULL;
 
 /** get the supposedly loaded module
  *
@@ -311,7 +311,7 @@ void worker_clear_kernel_module(void)
  * ------------------------------------------------------------------------- */
 
 /** Contains the mode data */
-struct mode_list_elem *worker_mode_data = NULL;
+static struct mode_list_elem *worker_mode_data = NULL;
 
 /** get the usb mode data
  *
@@ -343,9 +343,9 @@ void worker_set_usb_mode_data(struct mode_list_elem *data)
  *
  * For example internal_mode=MODE_ASK gets
  * mapped to hardware_mode=MODE_CHARGING */
-gchar *worker_requested_mode = NULL;
+static gchar *worker_requested_mode = NULL;
 
-gchar *worker_activated_mode = NULL;
+static gchar *worker_activated_mode = NULL;
 
 static const char *
 worker_get_activated_mode_locked(void)
