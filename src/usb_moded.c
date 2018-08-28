@@ -393,7 +393,7 @@ static void usbmoded_cleanup(void)
 #endif
 
     /* Release dynamic memory */
-    worker_clear_usb_module();
+    worker_clear_kernel_module();
     worker_clear_hardware_mode();
     control_clear_cable_state();
     control_clear_internal_mode();

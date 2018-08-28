@@ -53,9 +53,9 @@ static bool            worker_is_mtpd_running          (void);
 static bool            worker_stop_mtpd                (void);
 static bool            worker_start_mtpd               (void);
 static bool            worker_switch_to_charging       (void);
-const char            *worker_get_usb_module           (void);
-bool                   worker_set_usb_module           (const char *module);
-void                   worker_clear_usb_module         (void);
+const char            *worker_get_kernel_module           (void);
+bool                   worker_set_kernel_module           (const char *module);
+void                   worker_clear_kernel_module         (void);
 struct mode_list_elem *worker_get_usb_mode_data        (void);
 void                   worker_set_usb_mode_data        (struct mode_list_elem *data);
 static const char     *worker_get_activated_mode_locked(void);
@@ -236,9 +236,9 @@ static bool worker_switch_to_charging(void)
         goto SUCCESS;
 
     if( modules_in_use() ) {
-        if( worker_set_usb_module(MODULE_MASS_STORAGE) )
+        if( worker_set_kernel_module(MODULE_MASS_STORAGE) )
             goto SUCCESS;
-        worker_set_usb_module(MODULE_NONE);
+        worker_set_kernel_module(MODULE_NONE);
     }
 
     log_err("switch to charging mode failed");
@@ -253,16 +253,16 @@ SUCCESS:
  * ------------------------------------------------------------------------- */
 
 /** The module name for the specific mode */
-char *usbmoded_module = NULL;
+char *worker_kernel_module = NULL;
 
 /** get the supposedly loaded module
  *
  * @return The name of the loaded module
  *
  */
-const char * worker_get_usb_module(void)
+const char * worker_get_kernel_module(void)
 {
-    return usbmoded_module ?: MODULE_NONE;
+    return worker_kernel_module ?: MODULE_NONE;
 }
 
 /** set the loaded module
@@ -270,14 +270,14 @@ const char * worker_get_usb_module(void)
  * @param module The module name for the requested mode
  *
  */
-bool worker_set_usb_module(const char *module)
+bool worker_set_kernel_module(const char *module)
 {
     bool ack = false;
 
     if( !module )
         module = MODULE_NONE;
 
-    const char *current = worker_get_usb_module();
+    const char *current = worker_get_kernel_module();
 
     log_debug("current module: %s -> %s", current, module);
 
@@ -287,13 +287,13 @@ bool worker_set_usb_module(const char *module)
     if( modules_unload_module(current) != 0 )
         goto EXIT;
 
-    free(usbmoded_module), usbmoded_module = 0;
+    free(worker_kernel_module), worker_kernel_module = 0;
 
     if( modules_load_module(module) != 0 )
         goto EXIT;
 
     if( g_strcmp0(module, MODULE_NONE) )
-        usbmoded_module = strdup(module);
+        worker_kernel_module = strdup(module);
 
 SUCCESS:
     ack = true;
@@ -301,9 +301,9 @@ EXIT:
     return ack;
 }
 
-void worker_clear_usb_module(void)
+void worker_clear_kernel_module(void)
 {
-    free(usbmoded_module), usbmoded_module = 0;
+    free(worker_kernel_module), worker_kernel_module = 0;
 }
 
 /* ------------------------------------------------------------------------- *
@@ -311,7 +311,7 @@ void worker_clear_usb_module(void)
  * ------------------------------------------------------------------------- */
 
 /** Contains the mode data */
-struct mode_list_elem *usbmoded_data = NULL;
+struct mode_list_elem *worker_mode_data = NULL;
 
 /** get the usb mode data
  *
@@ -320,7 +320,7 @@ struct mode_list_elem *usbmoded_data = NULL;
  */
 struct mode_list_elem * worker_get_usb_mode_data(void)
 {
-    return usbmoded_data;
+    return worker_mode_data;
 }
 
 /** set the mode_list_elem data
@@ -330,7 +330,7 @@ struct mode_list_elem * worker_get_usb_mode_data(void)
  */
 void worker_set_usb_mode_data(struct mode_list_elem *data)
 {
-    usbmoded_data = data;
+    worker_mode_data = data;
 }
 
 /* ------------------------------------------------------------------------- *
@@ -498,7 +498,7 @@ worker_switch_to_mode(const char *mode)
                 goto FAILED;
         }
 
-        if( !worker_set_usb_module(data->mode_module) )
+        if( !worker_set_kernel_module(data->mode_module) )
             goto FAILED;
 
         if( !modesetting_enter_dynamic_mode() )
@@ -528,7 +528,7 @@ CHARGE:
 
     override = MODE_UNDEFINED;
     log_warning("mode setting failed, fallback to %s", override);
-    worker_set_usb_module(MODULE_NONE);
+    worker_set_kernel_module(MODULE_NONE);
 
 SUCCESS:
 

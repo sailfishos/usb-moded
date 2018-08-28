@@ -37,9 +37,9 @@
 /* -- worker -- */
 
 bool                   worker_bailing_out          (void);
-const char            *worker_get_usb_module       (void);
-bool                   worker_set_usb_module       (const char *module);
-void                   worker_clear_usb_module     (void);
+const char            *worker_get_kernel_module       (void);
+bool                   worker_set_kernel_module       (const char *module);
+void                   worker_clear_kernel_module     (void);
 struct mode_list_elem *worker_get_usb_mode_data    (void);
 void                   worker_set_usb_mode_data    (struct mode_list_elem *data);
 void                   worker_request_hardware_mode(const char *mode);
