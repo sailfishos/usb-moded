@@ -454,7 +454,7 @@ gchar *common_get_mode_list(mode_list_type_t type)
 
     modelist_str = g_string_new(NULL);
 
-    if(!usbmoded_diag_mode)
+    if(!usbmoded_get_diag_mode())
     {
         /* check dynamic modes */
         if(usbmoded_modelist)

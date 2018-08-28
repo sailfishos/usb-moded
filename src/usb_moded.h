@@ -68,14 +68,16 @@
  */
 extern bool            usbmoded_rescue_mode;
 
-extern bool usbmoded_diag_mode;
-
 extern GList *usbmoded_modelist;
 
 /* ========================================================================= *
  * Functions
  * ========================================================================= */
 
+/* -- usbmoded -- */
+
+bool usbmoded_get_diag_mode             (void);
+void usbmoded_set_diag_mode             (bool diag_mode);
 void usbmoded_set_cable_connection_delay(int delay_ms);
 int  usbmoded_get_cable_connection_delay(void);
 void usbmoded_allow_suspend             (void);

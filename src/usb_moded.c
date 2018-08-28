@@ -104,6 +104,8 @@
 
 /* -- usbmoded -- */
 
+bool            usbmoded_get_diag_mode             (void);
+void            usbmoded_set_diag_mode             (bool diag_mode);
 void            usbmoded_set_cable_connection_delay(int delay_ms);
 int             usbmoded_get_cable_connection_delay(void);
 static gboolean usbmoded_allow_suspend_timer_cb    (gpointer aptr);
@@ -128,7 +130,6 @@ GList            *usbmoded_modelist       = 0;
 static int        usbmoded_exitcode       = EXIT_FAILURE;
 static GMainLoop *usbmoded_mainloop       = NULL;
 bool              usbmoded_rescue_mode    = false;
-bool              usbmoded_diag_mode      = false;
 static bool       usbmoded_hw_fallback    = false;
 #ifdef SYSTEMD
 static bool       usbmoded_systemd_notify = false;
@@ -137,6 +138,30 @@ static bool       usbmoded_systemd_notify = false;
 /* ========================================================================= *
  * Functions
  * ========================================================================= */
+
+/* ------------------------------------------------------------------------- *
+ * DIAG_MODE
+ * ------------------------------------------------------------------------- */
+
+/** Diagnostic mode active
+ *
+ * In diag mode usb-moded uses separate mode configuration which
+ * should have exactly one mode defined / available.
+ */
+static bool usbmoded_diag_mode = false;
+
+bool usbmoded_get_diag_mode(void)
+{
+    return usbmoded_diag_mode;
+}
+
+void usbmoded_set_diag_mode(bool diag_mode)
+{
+    if( usbmoded_diag_mode != diag_mode ) {
+        log_info("diag_mode: %d -> %d",  usbmoded_diag_mode, diag_mode);
+        usbmoded_diag_mode = diag_mode;
+    }
+}
 
 /* ------------------------------------------------------------------------- *
  * CABLE_CONNECT_DELAY
@@ -348,7 +373,7 @@ void usbmoded_handle_signal(int signum)
         /* free and read in modelist again */
         dynconfig_free_mode_list(usbmoded_modelist);
 
-        usbmoded_modelist = dynconfig_read_mode_list(usbmoded_diag_mode);
+        usbmoded_modelist = dynconfig_read_mode_list(usbmoded_get_diag_mode());
 
         common_send_supported_modes_signal();
         common_send_available_modes_signal();
@@ -422,11 +447,11 @@ static bool usbmoded_init(void)
     }
 
 #ifdef APP_SYNC
-    appsync_read_list(usbmoded_diag_mode);
+    appsync_read_list(usbmoded_get_diag_mode());
 #endif
 
     /* always read dyn modes even if appsync is not used */
-    usbmoded_modelist = dynconfig_read_mode_list(usbmoded_diag_mode);
+    usbmoded_modelist = dynconfig_read_mode_list(usbmoded_get_diag_mode());
 
     if(config_check_trigger())
         trigger_init();
@@ -697,7 +722,7 @@ static void usbmoded_parse_options(int argc, char* argv[])
             break;
 
         case 'd':
-            usbmoded_diag_mode = true;
+            usbmoded_set_diag_mode(true);
             break;
 
         case 'h':

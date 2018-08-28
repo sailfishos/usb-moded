@@ -237,7 +237,7 @@ void control_select_usb_mode(void)
         goto EXIT;
     }
 
-    if( usbmoded_diag_mode ) {
+    if( usbmoded_get_diag_mode() ) {
         log_debug("Entering diagnostic mode!\n");
         if( usbmoded_modelist ) {
             /* XXX 1st entry is just assumed to be diag mode??? */
