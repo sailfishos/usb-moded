@@ -586,6 +586,8 @@ cleanup:
 
 static void *worker_thread_cb(void *aptr)
 {
+    (void)aptr;
+
     /* Async cancellation, but disabled */
     pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, 0);
     pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, 0);

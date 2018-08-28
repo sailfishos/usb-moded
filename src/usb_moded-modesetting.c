@@ -553,6 +553,8 @@ EXIT:
 
 static int modesetting_leave_mass_storage_mode(struct mode_list_elem *data)
 {
+    (void)data;
+
     bool            ack      = false;
     size_t          count    = 0;
     storage_info_t *info     = 0;
