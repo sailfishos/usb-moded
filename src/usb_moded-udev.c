@@ -483,7 +483,7 @@ gboolean umudev_init(void)
     char                   *configured_device = NULL;
     char                   *configured_subsystem = NULL;
     struct udev_device     *dev = 0;
-    static GIOChannel      *iochannel  = 0;
+    GIOChannel             *iochannel = 0;
 
     int ret = 0;
 
