@@ -668,7 +668,7 @@ set_config_result_t config_set_network_setting(const char *config, const char *s
 char * config_get_network_setting(const char *config)
 {
     char * ret = 0;
-    struct mode_list_elem *data;
+    mode_list_elem_t *data;
 
     if(!strcmp(config, NETWORK_IP_KEY))
     {

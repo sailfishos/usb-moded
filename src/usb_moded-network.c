@@ -59,7 +59,7 @@
  * ========================================================================= */
 
 /** IP forwarding configuration block */
-typedef struct ipforward_data
+typedef struct ipforward_data_t
 {
     /** Address of primary DNS */
     char *dns1;
@@ -67,7 +67,7 @@ typedef struct ipforward_data
     char *dns2;
     /** Interface from which packets should be forwarded */
     char *nat_interface;
-}ipforward_data;
+}ipforward_data_t;
 
 /* ========================================================================= *
  * Prototypes
@@ -75,16 +75,16 @@ typedef struct ipforward_data
 
 /* -- network -- */
 
-static void  network_free_ipforward_data (struct ipforward_data *ipforward);
+static void  network_free_ipforward_data (ipforward_data_t *ipforward);
 static int   network_check_interface     (char *interface);
-static char *network_get_interface       (struct mode_list_elem *data);
-static int   network_set_usb_ip_forward  (struct mode_list_elem *data, struct ipforward_data *ipforward);
+static char *network_get_interface       (mode_list_elem_t *data);
+static int   network_set_usb_ip_forward  (mode_list_elem_t *data, ipforward_data_t *ipforward);
 static void  network_clean_usb_ip_forward(void);
 static int   network_checklink           (void);
-static int   network_write_udhcpd_conf   (struct ipforward_data *ipforward, struct mode_list_elem *data);
-int          network_set_up_dhcpd        (struct mode_list_elem *data);
-int          network_up                  (struct mode_list_elem *data);
-int          network_down                (struct mode_list_elem *data);
+static int   network_write_udhcpd_conf   (ipforward_data_t *ipforward, mode_list_elem_t *data);
+int          network_set_up_dhcpd        (mode_list_elem_t *data);
+int          network_up                  (mode_list_elem_t *data);
+int          network_down                (mode_list_elem_t *data);
 int          network_update              (void);
 
 /* -- connman -- */
@@ -93,10 +93,10 @@ int          network_update              (void);
 static gboolean  connman_try_set_tethering   (DBusConnection *connection, const char *path, gboolean on);
 gboolean         connman_set_tethering       (const char *path, gboolean on);
 static char     *connman_parse_manager_reply (DBusMessage *reply, const char *req_service);
-static int       connman_fill_connection_data(DBusMessage *reply, struct ipforward_data *ipforward);
+static int       connman_fill_connection_data(DBusMessage *reply, ipforward_data_t *ipforward);
 static int       connman_set_cellular_online (DBusConnection *dbus_conn_connman, const char *service, int retry);
 static int       connman_wifi_power_control  (DBusConnection *dbus_conn_connman, int on);
-static int       connman_get_connection_data (struct ipforward_data *ipforward);
+static int       connman_get_connection_data (ipforward_data_t *ipforward);
 static int       connman_reset_state         (void);
 #endif
 
@@ -110,7 +110,7 @@ static const char default_interface[] = "usb0";
  * Functions
  * ========================================================================= */
 
-static void network_free_ipforward_data (struct ipforward_data *ipforward)
+static void network_free_ipforward_data (ipforward_data_t *ipforward)
 {
     if(ipforward)
     {
@@ -139,7 +139,7 @@ static int network_check_interface(char *interface)
     return ret;
 }
 
-static char* network_get_interface(struct mode_list_elem *data)
+static char* network_get_interface(mode_list_elem_t *data)
 {
     (void)data; // FIXME: why is this passed in the 1st place?
 
@@ -174,7 +174,7 @@ static char* network_get_interface(struct mode_list_elem *data)
  * Turn on ip forwarding on the usb interface
  * @return: 0 on success, 1 on failure
  */
-static int network_set_usb_ip_forward(struct mode_list_elem *data, struct ipforward_data *ipforward)
+static int network_set_usb_ip_forward(mode_list_elem_t *data, ipforward_data_t *ipforward)
 {
     char *interface, *nat_interface;
     char command[128];
@@ -302,7 +302,7 @@ static int get_roaming(void)
 /**
  * Read dns settings from /etc/resolv.conf
  */
-static int resolv_conf_dns(struct ipforward_data *ipforward)
+static int resolv_conf_dns(ipforward_data_t *ipforward)
 {
     FILE *resolv;
     int i = 0, count = 0;
@@ -359,7 +359,7 @@ static int network_checklink(void)
  * Write udhcpd.conf
  * @ipforward : NULL if we want a simple config, otherwise include dns info etc...
  */
-static int network_write_udhcpd_conf(struct ipforward_data *ipforward, struct mode_list_elem *data)
+static int network_write_udhcpd_conf(ipforward_data_t *ipforward, mode_list_elem_t *data)
 {
     FILE *conffile;
     char *ip, *interface, *netmask;
@@ -594,7 +594,7 @@ static char * connman_parse_manager_reply(DBusMessage *reply, const char *req_se
     return(0);
 }
 
-static int connman_fill_connection_data(DBusMessage *reply, struct ipforward_data *ipforward)
+static int connman_fill_connection_data(DBusMessage *reply, ipforward_data_t *ipforward)
 {
     DBusMessageIter array_iter, dict_iter, inside_dict_iter, variant_iter;
     DBusMessageIter sub_array_iter, string_iter;
@@ -829,7 +829,7 @@ static int connman_wifi_power_control(DBusConnection *dbus_conn_connman, int on)
     return(0);
 }
 
-static int connman_get_connection_data(struct ipforward_data *ipforward)
+static int connman_get_connection_data(ipforward_data_t *ipforward)
 {
     DBusConnection *dbus_conn_connman = NULL;
     DBusMessage *msg = NULL, *reply = NULL;
@@ -915,9 +915,9 @@ static int connman_reset_state(void)
 /**
  * Write out /etc/udhcpd.conf conf so the config is available when it gets started
  */
-int network_set_up_dhcpd(struct mode_list_elem *data)
+int network_set_up_dhcpd(mode_list_elem_t *data)
 {
-    struct ipforward_data *ipforward = NULL;
+    ipforward_data_t *ipforward = NULL;
     int ret = 1;
 
     /* Set up nat info only if it is required */
@@ -932,8 +932,7 @@ int network_set_up_dhcpd(struct mode_list_elem *data)
                 goto end;
         }
 #endif /* OFONO */
-        ipforward = malloc(sizeof(struct ipforward_data));
-        memset(ipforward, 0, sizeof(struct ipforward_data));
+        ipforward = calloc(1, sizeof *ipforward);
 #ifdef CONNMAN
         if(connman_get_connection_data(ipforward))
         {
@@ -996,7 +995,7 @@ static int append_variant(DBusMessageIter *iter, const char *property,
  * Activate the network interface
  *
  */
-int network_up(struct mode_list_elem *data)
+int network_up(mode_list_elem_t *data)
 {
     char *ip = NULL, *gateway = NULL;
     int ret = -1;
@@ -1162,7 +1161,7 @@ int network_up(struct mode_list_elem *data)
  * Deactivate the network interface
  *
  */
-int network_down(struct mode_list_elem *data)
+int network_down(mode_list_elem_t *data)
 {
 #if CONNMAN_WORKS_BETTER
     DBusConnection *dbus_conn_connman = NULL;
@@ -1237,7 +1236,7 @@ int network_down(struct mode_list_elem *data)
 int network_update(void)
 {
     if( control_get_cable_state() == CABLE_STATE_PC_CONNECTED ) {
-        struct mode_list_elem *data = worker_get_usb_mode_data();
+        mode_list_elem_t *data = worker_get_usb_mode_data();
         if( data && data->network ) {
             network_down(data);
             network_up(data);

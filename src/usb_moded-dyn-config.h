@@ -93,7 +93,7 @@
 /**
  * Struct keeping all the data needed for the definition of a dynamic mode
  */
-typedef struct mode_list_elem
+typedef struct mode_list_elem_t
 {
     char *mode_name;                      /**< Mode name */
     char *mode_module;                    /**< Needed module for given mode */
@@ -119,7 +119,7 @@ typedef struct mode_list_elem
 # ifdef CONNMAN
     char* connman_tethering;              /**< Connman's tethering technology path */
 # endif
-} mode_list_elem;
+} mode_list_elem_t;
 
 /* ========================================================================= *
  * Prototypes
@@ -127,7 +127,7 @@ typedef struct mode_list_elem
 
 /* -- dynconfig -- */
 
-void   dynconfig_free_list_item(mode_list_elem *list_item);
+void   dynconfig_free_list_item(mode_list_elem_t *list_item);
 void   dynconfig_free_mode_list(GList *modelist);
 GList *dynconfig_read_mode_list(int diag);
 

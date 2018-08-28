@@ -42,12 +42,12 @@
 
 /* -- appsync -- */
 
-static void              appsync_free_elem                 (struct list_elem *elem);
+static void              appsync_free_elem                 (list_elem_t *elem);
 static void              appsync_free_elem_cb              (gpointer elem, gpointer user_data);
 void                     appsync_free_appsync_list         (void);
 static gint              appsync_list_sort_func            (gconstpointer a, gconstpointer b);
 void                     appsync_read_list                 (int diag);
-static struct list_elem *appsync_read_file                 (const gchar *filename, int diag);
+static list_elem_t      *appsync_read_file                 (const gchar *filename, int diag);
 int                      appsync_activate_sync             (const char *mode);
 int                      appsync_activate_sync_post        (const char *mode);
 int                      appsync_mark_active               (const gchar *name, int post);
@@ -76,7 +76,7 @@ static  int appsync_no_dbus = 0;
  * Functions
  * ========================================================================= */
 
-static void appsync_free_elem(struct list_elem *elem)
+static void appsync_free_elem(list_elem_t *elem)
 {
     g_free(elem->name);
     g_free(elem->launch);
@@ -112,7 +112,7 @@ void appsync_read_list(int diag)
     GDir *confdir = 0;
 
     const gchar *dirname;
-    struct list_elem *list_item;
+    list_elem_t *list_item;
 
     appsync_free_appsync_list();
 
@@ -154,11 +154,11 @@ cleanup:
     }
 }
 
-static struct list_elem *appsync_read_file(const gchar *filename, int diag)
+static list_elem_t *appsync_read_file(const gchar *filename, int diag)
 {
     gchar *full_filename = NULL;
     GKeyFile *settingsfile = NULL;
-    struct list_elem *list_item = NULL;
+    list_elem_t *list_item = NULL;
 
     if(diag)
     {
@@ -230,7 +230,7 @@ int appsync_activate_sync(const char *mode)
      * mark them as currently inactive */
     for( iter = appsync_sync_list; iter; iter = g_list_next(iter) )
     {
-        struct list_elem *data = iter->data;
+        list_elem_t *data = iter->data;
 
         if(!strcmp(data->mode, mode))
         {
@@ -266,7 +266,7 @@ int appsync_activate_sync(const char *mode)
     /* go through list and launch apps */
     for( iter = appsync_sync_list; iter; iter = g_list_next(iter) )
     {
-        struct list_elem *data = iter->data;
+        list_elem_t *data = iter->data;
         if(!strcmp(mode, data->mode))
         {
             /* do not launch items marked as post, will be launched after usb is up */
@@ -329,7 +329,7 @@ int appsync_activate_sync_post(const char *mode)
     /* go through list and launch apps */
     for( iter = appsync_sync_list; iter; iter = g_list_next(iter) )
     {
-        struct list_elem *data = iter->data;
+        list_elem_t *data = iter->data;
         if(!strcmp(mode, data->mode))
         {
             /* launch only items marked as post, others are already running */
@@ -375,7 +375,7 @@ int appsync_mark_active(const gchar *name, int post)
 
     for( iter = appsync_sync_list; iter; iter = g_list_next(iter) )
     {
-        struct list_elem *data = iter->data;
+        list_elem_t *data = iter->data;
 
         if(!strcmp(data->name, name))
         {
@@ -455,7 +455,7 @@ void appsync_stop_apps(int post)
 
     for( iter = appsync_sync_list; iter; iter = g_list_next(iter) )
     {
-        struct list_elem *data = iter->data;
+        list_elem_t *data = iter->data;
 
         if(data->systemd && data->state == APP_STATE_ACTIVE && data->post == post)
         {
@@ -478,7 +478,7 @@ int appsync_stop(gboolean force)
 
         for( iter = appsync_sync_list; iter; iter = g_list_next(iter) )
         {
-            struct list_elem *data = iter->data;
+            list_elem_t *data = iter->data;
             data->state = APP_STATE_ACTIVE;
         }
     }

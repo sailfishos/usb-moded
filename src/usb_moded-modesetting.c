@@ -64,8 +64,8 @@ int              modesetting_write_to_file_real         (const char *file, int l
 
 static gboolean  modesetting_network_retry_cb           (gpointer data);
 
-static bool      modesetting_enter_mass_storage_mode    (struct mode_list_elem *data);
-static int       modesetting_leave_mass_storage_mode    (struct mode_list_elem *data);
+static bool      modesetting_enter_mass_storage_mode    (mode_list_elem_t *data);
+static int       modesetting_leave_mass_storage_mode    (mode_list_elem_t *data);
 static void      modesetting_report_mass_storage_blocker(const char *mountpoint, int try);
 
 bool             modesetting_enter_dynamic_mode         (void);
@@ -415,7 +415,7 @@ EXIT:
     return *pcount = count, info;
 }
 
-static bool modesetting_enter_mass_storage_mode(struct mode_list_elem *data)
+static bool modesetting_enter_mass_storage_mode(mode_list_elem_t *data)
 {
     bool            ack   = false;
     size_t          count = 0;
@@ -551,7 +551,7 @@ EXIT:
     return ack;
 }
 
-static int modesetting_leave_mass_storage_mode(struct mode_list_elem *data)
+static int modesetting_leave_mass_storage_mode(mode_list_elem_t *data)
 {
     (void)data;
 
@@ -685,7 +685,7 @@ bool modesetting_enter_dynamic_mode(void)
 {
     bool ack = false;
 
-    struct mode_list_elem *data;
+    mode_list_elem_t *data;
     int network = 1;
 
     log_debug("DYNAMIC MODE: SETUP");
@@ -835,7 +835,7 @@ void modesetting_leave_dynamic_mode(void)
 {
     log_debug("DYNAMIC MODE: CLEANUP");
 
-    struct mode_list_elem *data;
+    mode_list_elem_t *data;
 
     data = worker_get_usb_mode_data();
 

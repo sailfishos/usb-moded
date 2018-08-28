@@ -417,7 +417,7 @@ int common_valid_mode(const char *mode)
             whitelist_array = g_strsplit(whitelist_value, ",", 0);
 
         for( GList *iter = usbmoded_get_modelist(); iter; iter = g_list_next(iter) ) {
-            struct mode_list_elem *data = iter->data;
+            mode_list_elem_t *data = iter->data;
             if( strcmp(mode, data->mode_name) )
                 continue;
 
@@ -472,7 +472,7 @@ gchar *common_get_mode_list(mode_list_type_t type)
 
     for( GList *iter = usbmoded_get_modelist(); iter; iter = g_list_next(iter) )
     {
-        struct mode_list_elem *data = iter->data;
+        mode_list_elem_t *data = iter->data;
 
         /* skip items in the hidden list */
         if (common_mode_in_list(data->mode_name, hidden_modes_array))

@@ -97,12 +97,12 @@ int main (int argc, char **argv)
     const char *udev_name;
     int ret = 0, score = 0;
 
-    typedef struct power_device {
+    typedef struct power_device_t {
         const char *syspath;
         int score;
-    } power_device;
+    } power_device_t;
 
-    struct power_device power_dev;
+    power_device_t power_dev;
 
     power_dev.score = 0;
 
