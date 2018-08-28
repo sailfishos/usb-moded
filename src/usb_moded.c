@@ -104,31 +104,33 @@
 
 /* -- usbmoded -- */
 
-bool            usbmoded_get_rescue_mode           (void);
-void            usbmoded_set_rescue_mode           (bool rescue_mode);
-bool            usbmoded_get_diag_mode             (void);
-void            usbmoded_set_diag_mode             (bool diag_mode);
-void            usbmoded_set_cable_connection_delay(int delay_ms);
-int             usbmoded_get_cable_connection_delay(void);
-static gboolean usbmoded_allow_suspend_timer_cb    (gpointer aptr);
-void            usbmoded_allow_suspend             (void);
-void            usbmoded_delay_suspend             (void);
-bool            usbmoded_init_done_p               (void);
-void            usbmoded_set_init_done             (bool reached);
-void            usbmoded_probe_init_done           (void);
-bool            usbmoded_can_export                (void);
-void            usbmoded_exit_mainloop             (int exitcode);
-void            usbmoded_handle_signal             (int signum);
-static bool     usbmoded_init                      (void);
-static void     usbmoded_cleanup                   (void);
-static void     usbmoded_usage                     (void);
-static void     usbmoded_parse_options             (int argc, char *argv[]);
+GList           *usbmoded_get_modelist              (void);
+void             usbmoded_load_modelist             (void);
+void             usbmoded_free_modelist             (void);
+bool             usbmoded_get_rescue_mode           (void);
+void             usbmoded_set_rescue_mode           (bool rescue_mode);
+bool             usbmoded_get_diag_mode             (void);
+void             usbmoded_set_diag_mode             (bool diag_mode);
+void             usbmoded_set_cable_connection_delay(int delay_ms);
+int              usbmoded_get_cable_connection_delay(void);
+static gboolean  usbmoded_allow_suspend_timer_cb    (gpointer aptr);
+void             usbmoded_allow_suspend             (void);
+void             usbmoded_delay_suspend             (void);
+bool             usbmoded_init_done_p               (void);
+void             usbmoded_set_init_done             (bool reached);
+void             usbmoded_probe_init_done           (void);
+bool             usbmoded_can_export                (void);
+void             usbmoded_exit_mainloop             (int exitcode);
+void             usbmoded_handle_signal             (int signum);
+static bool      usbmoded_init                      (void);
+static void      usbmoded_cleanup                   (void);
+static void      usbmoded_usage                     (void);
+static void      usbmoded_parse_options             (int argc, char *argv[]);
 
 /* ========================================================================= *
  * Data
  * ========================================================================= */
 
-GList            *usbmoded_modelist       = 0;
 static int        usbmoded_exitcode       = EXIT_FAILURE;
 static GMainLoop *usbmoded_mainloop       = NULL;
 
@@ -140,6 +142,37 @@ static bool       usbmoded_systemd_notify = false;
 /* ========================================================================= *
  * Functions
  * ========================================================================= */
+
+/* ------------------------------------------------------------------------- *
+ * MODELIST
+ * ------------------------------------------------------------------------- */
+
+static GList *usbmoded_modelist = 0;
+
+GList *
+usbmoded_get_modelist(void)
+{
+    return usbmoded_modelist;
+}
+
+void
+usbmoded_load_modelist(void)
+{
+    if( !usbmoded_modelist ) {
+        log_notice("load modelist");
+        usbmoded_modelist = dynconfig_read_mode_list(usbmoded_get_diag_mode());
+    }
+}
+
+void
+usbmoded_free_modelist(void)
+{
+    if( usbmoded_modelist ) {
+        log_notice("free modelist");
+        dynconfig_free_mode_list(usbmoded_modelist),
+            usbmoded_modelist = 0;
+    }
+}
 
 /* ------------------------------------------------------------------------- *
  * RESCUE_MODE
@@ -398,9 +431,8 @@ void usbmoded_handle_signal(int signum)
     else if( signum == SIGHUP )
     {
         /* free and read in modelist again */
-        dynconfig_free_mode_list(usbmoded_modelist);
-
-        usbmoded_modelist = dynconfig_read_mode_list(usbmoded_get_diag_mode());
+        usbmoded_free_modelist();
+        usbmoded_load_modelist();
 
         common_send_supported_modes_signal();
         common_send_available_modes_signal();
@@ -478,7 +510,7 @@ static bool usbmoded_init(void)
 #endif
 
     /* always read dyn modes even if appsync is not used */
-    usbmoded_modelist = dynconfig_read_mode_list(usbmoded_get_diag_mode());
+    usbmoded_load_modelist();
 
     if(config_check_trigger())
         trigger_init();
@@ -613,8 +645,8 @@ static void usbmoded_cleanup(void)
     /* Undo trigger_init() */
     trigger_stop();
 
-    /* Undo dynconfig_read_mode_list() */
-    dynconfig_free_mode_list(usbmoded_modelist);
+    /* Undo usbmoded_load_modelist() */
+    usbmoded_free_modelist();
 
 #ifdef APP_SYNC
     /* Undo appsync_read_list() */

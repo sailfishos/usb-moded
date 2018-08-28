@@ -397,117 +397,104 @@ static bool common_mode_in_list(const char *mode, char * const *modes)
 /** check if a given usb_mode exists
  *
  * @param mode The mode to look for
- * @return 0 if mode exists, 1 if it does not exist
  *
+ * @return 0 if mode exists, 1 if it does not exist
  */
 int common_valid_mode(const char *mode)
 {
     int valid = 1;
     /* MODE_ASK, MODE_CHARGER and MODE_CHARGING_FALLBACK are not modes that are settable seen their special 'internal' status
      * so we only check the modes that are announed outside. Only exception is the built in MODE_CHARGING */
-    if(!strcmp(MODE_CHARGING, mode))
+    if(!strcmp(MODE_CHARGING, mode)) {
         valid = 0;
+    }
     else
     {
-        char *whitelist;
-        gchar **whitelist_split = NULL;
+        gchar  *whitelist_value = 0;
+        gchar **whitelist_array = 0;
 
-        whitelist = config_get_mode_whitelist();
-        if (whitelist)
-        {
-            whitelist_split = g_strsplit(whitelist, ",", 0);
-            g_free(whitelist);
+        if( (whitelist_value = config_get_mode_whitelist()) )
+            whitelist_array = g_strsplit(whitelist_value, ",", 0);
+
+        for( GList *iter = usbmoded_get_modelist(); iter; iter = g_list_next(iter) ) {
+            struct mode_list_elem *data = iter->data;
+            if( strcmp(mode, data->mode_name) )
+                continue;
+
+            if (!whitelist_array || common_mode_in_list(data->mode_name, whitelist_array))
+                valid = 0;
+            break;
         }
 
-        /* check dynamic modes */
-        if(usbmoded_modelist)
-        {
-            GList *iter;
-
-            for( iter = usbmoded_modelist; iter; iter = g_list_next(iter) )
-            {
-                struct mode_list_elem *data = iter->data;
-                if(!strcmp(mode, data->mode_name))
-                {
-                    if (!whitelist_split || common_mode_in_list(data->mode_name, whitelist_split))
-                        valid = 0;
-                    break;
-                }
-            }
-
-            g_strfreev(whitelist_split);
-        }
+        g_strfreev(whitelist_array);
+        g_free(whitelist_value);
     }
     return valid;
-
 }
 
 /** make a list of all available usb modes
  *
  * @param type The type of list to return. Supported or available.
- * @return a comma-separated list of modes (MODE_ASK not included as it is not a real mode)
  *
+ * @return a comma-separated list of modes (MODE_ASK not included as it is not a real mode)
  */
 gchar *common_get_mode_list(mode_list_type_t type)
 {
-    GString *modelist_str;
+    GString *mode_list_str = g_string_new(NULL);
 
-    modelist_str = g_string_new(NULL);
+    gchar  *hidden_modes_value = 0;
+    gchar **hidden_modes_array = 0;
 
-    if(!usbmoded_get_diag_mode())
-    {
-        /* check dynamic modes */
-        if(usbmoded_modelist)
-        {
-            GList *iter;
-            char *hidden_modes_list, *whitelist;
-            gchar **hidden_mode_split = NULL, **whitelist_split = NULL;
+    gchar  *whitelist_value = 0;
+    gchar **whitelist_array = 0;
 
-            hidden_modes_list = config_get_hidden_modes();
-            if(hidden_modes_list)
-            {
-                hidden_mode_split = g_strsplit(hidden_modes_list, ",", 0);
-                g_free(hidden_modes_list);
-            }
-
-            if (type == AVAILABLE_MODES_LIST)
-            {
-                whitelist = config_get_mode_whitelist();
-                if (whitelist)
-                {
-                    whitelist_split = g_strsplit(whitelist, ",", 0);
-                    g_free(whitelist);
-                }
-            }
-
-            for( iter = usbmoded_modelist; iter; iter = g_list_next(iter) )
-            {
-                struct mode_list_elem *data = iter->data;
-
-                /* skip items in the hidden list */
-                if (common_mode_in_list(data->mode_name, hidden_mode_split))
-                    continue;
-
-                /* if there is a whitelist skip items not in the list */
-                if (whitelist_split && !common_mode_in_list(data->mode_name, whitelist_split))
-                    continue;
-
-                modelist_str = g_string_append(modelist_str, data->mode_name);
-                modelist_str = g_string_append(modelist_str, ", ");
-            }
-
-            g_strfreev(hidden_mode_split);
-            g_strfreev(whitelist_split);
-        }
-
-        /* end with charging mode */
-        g_string_append(modelist_str, MODE_CHARGING);
-        return g_string_free(modelist_str, false);
-    }
-    else
+    if( usbmoded_get_diag_mode() )
     {
         /* diag mode. there is only one active mode */
-        g_string_append(modelist_str, MODE_DIAG);
-        return g_string_free(modelist_str, false);
+        g_string_append(mode_list_str, MODE_DIAG);
+        goto EXIT;
     }
+
+    if( (hidden_modes_value = config_get_hidden_modes()) )
+        hidden_modes_array = g_strsplit(hidden_modes_value, ",", 0);
+
+    switch( type ) {
+    case SUPPORTED_MODES_LIST:
+        /* All modes that are not hidden */
+        break;
+
+    case AVAILABLE_MODES_LIST:
+        /* All whitelisted modes that are not hidden */
+        if( (whitelist_value = config_get_mode_whitelist()) )
+            whitelist_array = g_strsplit(whitelist_value, ",", 0);
+        break;
+    }
+
+    for( GList *iter = usbmoded_get_modelist(); iter; iter = g_list_next(iter) )
+    {
+        struct mode_list_elem *data = iter->data;
+
+        /* skip items in the hidden list */
+        if (common_mode_in_list(data->mode_name, hidden_modes_array))
+            continue;
+
+        /* if there is a whitelist skip items not in the list */
+        if (whitelist_array && !common_mode_in_list(data->mode_name, whitelist_array))
+            continue;
+
+        g_string_append(mode_list_str, data->mode_name);
+        g_string_append(mode_list_str, ", ");
+    }
+
+    /* End with charging mode */
+    g_string_append(mode_list_str, MODE_CHARGING);
+
+EXIT:
+    g_strfreev(whitelist_array);
+    g_free(whitelist_value);
+
+    g_strfreev(hidden_modes_array);
+    g_free(hidden_modes_value);
+
+    return g_string_free(mode_list_str, false);
 }

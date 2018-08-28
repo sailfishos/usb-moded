@@ -481,7 +481,7 @@ worker_switch_to_mode(const char *mode)
     }
 
     /* go through all the dynamic modes if the modelist exists*/
-    for( GList *iter = usbmoded_modelist; iter; iter = g_list_next(iter) )
+    for( GList *iter = usbmoded_get_modelist(); iter; iter = g_list_next(iter) )
     {
         struct mode_list_elem *data = iter->data;
         if( strcmp(mode, data->mode_name) )

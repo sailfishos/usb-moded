@@ -238,11 +238,15 @@ void control_select_usb_mode(void)
     }
 
     if( usbmoded_get_diag_mode() ) {
-        log_debug("Entering diagnostic mode!\n");
-        if( usbmoded_modelist ) {
-            /* XXX 1st entry is just assumed to be diag mode??? */
-            GList *iter = usbmoded_modelist;
+        /* Assumption is that in diag-mode there is only
+         * one mode configured i.e. list head is diag-mode. */
+        GList *iter = usbmoded_get_modelist();
+        if( !iter ) {
+            log_err("Diagnostic mode is not configured!");
+        }
+        else {
             struct mode_list_elem *data = iter->data;
+            log_debug("Entering diagnostic mode!");
             control_set_usb_mode(data->mode_name);
         }
         goto EXIT;
