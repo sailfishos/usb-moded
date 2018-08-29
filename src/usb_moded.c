@@ -114,7 +114,7 @@ void            usbmoded_set_init_done             (bool reached);
 void            usbmoded_probe_init_done           (void);
 void            usbmoded_exit_mainloop             (int exitcode);
 void            usbmoded_handle_signal             (int signum);
-static void     usbmoded_init                      (void);
+static bool     usbmoded_init                      (void);
 static void     usbmoded_cleanup                   (void);
 static void     usbmoded_usage                     (void);
 
@@ -136,21 +136,13 @@ static bool       usbmoded_systemd_notify = false;
  */
 int usbmoded_cable_connection_delay = CABLE_CONNECTION_DELAY_DEFAULT;
 
-/** Path to init-done flag file */
-static const char usbmoded_init_done_flagfile[] = "/run/systemd/boot-status/init-done";
-
-/** cached init-done-reached state */
-static bool usbmoded_init_done_reached = false;
-
-/** Flag for: USB_MODED_WAKELOCK_STATE_CHANGE has been acquired */
-static bool usbmoded_blocking_suspend = false;
-
-/** Timer for releasing USB_MODED_WAKELOCK_STATE_CHANGE */
-static guint usbmoded_allow_suspend_timer_id = 0;
-
 /* ========================================================================= *
  * Functions
  * ========================================================================= */
+
+/* ------------------------------------------------------------------------- *
+ * CABLE_CONNECT_DELAY
+ * ------------------------------------------------------------------------- */
 
 /** Helper for setting allowed cable detection delay
  *
@@ -166,6 +158,16 @@ static void usbmoded_set_cable_connection_delay(int delay_ms)
                     usbmoded_cable_connection_delay);
     }
 }
+
+/* ------------------------------------------------------------------------- *
+ * SUSPEND_BLOCKING
+ * ------------------------------------------------------------------------- */
+
+/** Flag for: USB_MODED_WAKELOCK_STATE_CHANGE has been acquired */
+static bool usbmoded_blocking_suspend = false;
+
+/** Timer for releasing USB_MODED_WAKELOCK_STATE_CHANGE */
+static guint usbmoded_allow_suspend_timer_id = 0;
 
 /** Timer callback for releasing wakelock acquired via usbmoded_delay_suspend()
  *
@@ -226,6 +228,10 @@ void usbmoded_delay_suspend(void)
                       usbmoded_allow_suspend_timer_cb, 0);
 }
 
+/* ------------------------------------------------------------------------- *
+ * CAN_EXPORT
+ * ------------------------------------------------------------------------- */
+
 /** Check if exposing device data is currently allowed
  *
  * @return true exposing data is ok, or false otherwise
@@ -247,6 +253,16 @@ bool usbmoded_can_export(void)
 
     return can_export;
 }
+
+/* ------------------------------------------------------------------------- *
+ * INIT_DONE
+ * ------------------------------------------------------------------------- */
+
+/** Path to init-done flag file */
+static const char usbmoded_init_done_flagfile[] = "/run/systemd/boot-status/init-done";
+
+/** cached init-done-reached state */
+static bool usbmoded_init_done_reached = false;
 
 /** Check if system has already been successfully booted up
  *
@@ -272,6 +288,10 @@ void usbmoded_probe_init_done(void)
 {
     usbmoded_set_init_done(access(usbmoded_init_done_flagfile, F_OK) == 0);
 }
+
+/* ------------------------------------------------------------------------- *
+ * MAINLOOP
+ * ------------------------------------------------------------------------- */
 
 /** Request orderly exit from mainloop
  */
@@ -321,14 +341,64 @@ void usbmoded_handle_signal(int signum)
     }
 }
 
-/* set default values for usb_moded */
-static void usbmoded_init(void)
+/* Prepare usb-moded for running the mainloop */
+static bool usbmoded_init(void)
 {
+    bool ack = false;
+
+    /* Check if we are in mid-bootup */
+    usbmoded_probe_init_done();
+
+    if( !worker_init() ) {
+        log_crit("worker thread init failed");
+      goto EXIT;
+    }
+
+    if( !sigpipe_init() ) {
+        log_crit("signal handler init failed");
+        goto EXIT;
+    }
+
+    if( usbmoded_rescue_mode && usbmoded_init_done_p() ) {
+        usbmoded_rescue_mode = false;
+        log_warning("init done passed; rescue mode ignored");
+    }
+
+    /* Connect to SystemBus */
+    if( !umdbus_init_connection() ) {
+        log_crit("dbus systembus connection failed");
+        goto EXIT;
+    }
+
+    /* Start DBus trackers that do async initialization
+     * so that initial method calls are on the way while
+     * we do initialization actions that might block. */
+
+    /* DSME listener maintains in-user-mode state and is relevant
+     * only when MEEGOLOCK configure option has been chosen. */
+#ifdef MEEGOLOCK
+    if( !dsme_listener_start() ) {
+        log_crit("dsme tracking could not be started");
+        goto EXIT;
+    }
+#endif
+
+    /* Devicelock listener maintains devicelock state and is relevant
+     * only when MEEGOLOCK configure option has been chosen. */
+#ifdef MEEGOLOCK
+    if( !devicelock_start_listener() ) {
+        log_crit("devicelock tracking could not be started");
+        goto EXIT;
+    }
+#endif
+
+    /* Set daemon config/state data to sane state */
+    modesetting_init();
+
     /* check config, merge or create if outdated */
-    if(config_merge_conf_file() != 0)
-    {
-        log_err("Cannot create or find a valid configuration. Exiting.\n");
-        exit(1);
+    if( config_merge_conf_file() != 0 ) {
+        log_crit("Cannot create or find a valid configuration");
+        goto EXIT;
     }
 
 #ifdef APP_SYNC
@@ -359,7 +429,7 @@ static void usbmoded_init(void)
         if( android_init_values() )
             break;
 
-        /* Must probe /pollsince we're not yet running mainloop */
+        /* Must probe / poll since we're not yet running mainloop */
         usbmoded_probe_init_done();
 
         if( usbmoded_init_done_p() || --i <= 0 ) {
@@ -371,13 +441,100 @@ static void usbmoded_init(void)
         common_msleep(1000);
     }
 
-    /* TODO: add more start-up clean-up and init here if needed */
+    /* Allow making systemd control ipc */
+    if( !systemd_control_start() ) {
+        log_crit("systemd control could not be started");
+        goto EXIT;
+    }
+
+    /* If usb-moded happens to crash, it could leave appsync processes
+     * running. To make sure things are in the order expected by usb-moded
+     * force stopping of appsync processes during usb-moded startup.
+     *
+     * The exception is: When usb-moded starts as a part of bootup. Then
+     * we can be relatively sure that usb-moded has not been running yet
+     * and therefore no appsync processes have been started and we can
+     * skip the blocking ipc required to stop the appsync systemd units. */
+#ifdef APP_SYNC
+    if( usbmoded_init_done_p() ) {
+        log_warning("usb-moded started after init-done; "
+                    "forcing appsync stop");
+        appsync_stop(true);
+    }
+#endif
+
+    /* Claim D-Bus service name before proceeding with things that
+     * could result in dbus signal broadcasts from usb-moded interface.
+     */
+    if( !umdbus_init_service() ) {
+        log_crit("usb-moded dbus service init failed");
+        goto EXIT;
+    }
+
+    /* Initialize udev listener. Can cause mode changes.
+     *
+     * Failing here is allowed if '--fallback' commandline option is used.
+     */
+    if( !umudev_init() && !usbmoded_hw_fallback ) {
+        log_crit("hwal init failed");
+        goto EXIT;
+    }
+
+    /* Broadcast supported / hidden modes */
+    // TODO: should this happen before umudev_init()?
+    common_send_supported_modes_signal();
+    common_send_available_modes_signal();
+    common_send_hidden_modes_signal();
+    common_send_whitelisted_modes_signal();
+
+    /* Act on '--fallback' commandline option */
+    if( usbmoded_hw_fallback ) {
+        log_warning("Forcing USB state to connected always. ASK mode non functional!");
+        /* Since there will be no disconnect signals coming from hw the state should not change */
+        control_set_cable_state(CABLE_STATE_PC_CONNECTED);
+    }
+
+    ack = true;
+
+EXIT:
+    return ack;
 }
 
 /** Release resources allocated by usbmoded_init()
  */
 static void usbmoded_cleanup(void)
 {
+    /* Stop the worker thread first to avoid confusion about shared
+     * resources we are just about to release. */
+    worker_quit();
+
+    /* Detach from SystemBus. Components that hold reference to the
+     * shared bus connection can still perform cleanup tasks, but new
+     * references can't be obtained anymore and usb-moded method call
+     * processing no longer occurs. */
+    umdbus_cleanup();
+
+    /* Stop appsync processes that have been started by usb-moded */
+#ifdef APP_SYNC
+    appsync_stop(false);
+#endif
+
+    /* Deny making systemd control ipc */
+    systemd_control_stop();
+
+    /* Stop tracking devicelock status */
+#ifdef MEEGOLOCK
+    devicelock_stop_listener();
+#endif
+
+    /* Stop tracking device state */
+#ifdef MEEGOLOCK
+    dsme_listener_stop();
+#endif
+
+    /* Stop udev listener */
+    umudev_quit();
+
     /* Undo modules_init() */
     modules_quit();
 
@@ -398,86 +555,99 @@ static void usbmoded_cleanup(void)
     control_clear_cable_state();
     control_clear_internal_mode();
     control_clear_external_mode();
+
+    modesetting_quit();
+
+    /* Detach from SessionBus connection used for APP_SYNC_DBUS.
+     *
+     * Can be handled separately from SystemBus side wind down. */
+#ifdef APP_SYNC
+# ifdef APP_SYNC_DBUS
+    dbusappsync_cleanup();
+# endif
+#endif
 }
 
 /* ========================================================================= *
  * MAIN ENTRY
  * ========================================================================= */
 
+static const char usbmoded_usage_info[] =
+"Usage: usb_moded [OPTION]...\n"
+"USB mode daemon\n"
+"\n"
+"  -a,  --android_usb_broken\n"
+"      keep gadget active on broken android kernels\n"
+"  -i,  --android_usb_broken_udev_events\n"
+"      ignore incorrect disconnect events after mode setting\n"
+"  -f,  --fallback       \n"
+"      assume always connected\n"
+"  -s,  --force-syslog \n"
+"      log to syslog\n"
+"  -T,  --force-stderr \n"
+"      log to stderr\n"
+"  -l,  --log-line-info\n"
+"      log to stderr and show origin of logging\n"
+"  -D,  --debug  \n"
+"      turn on debug printing\n"
+"  -d,  --diag   \n"
+"      turn on diag mode\n"
+"  -h,  --help         \n"
+"      display this help and exit\n"
+"  -r,  --rescue         \n"
+"      rescue mode\n"
+#ifdef SYSTEMD
+"  -n,  --systemd      \n"
+"      notify systemd when started up\n"
+#endif
+"  -v,  --version      \n"
+"      output version information and exit\n"
+"  -m,  --max-cable-delay=<ms>\n"
+"      maximum delay before accepting cable connection\n"
+"  -b,  --android-bootup-function=<function>\n"
+"      Setup given function during bootup. Might be required\n"
+"      on some devices to make enumeration work on the 1st\n"
+"      cable connect.\n"
+"\n";
+
+static const struct option const usbmoded_long_options[] =
+{
+    { "android_usb_broken",             no_argument,       0, 'a' },
+    { "android_usb_broken_udev_events", no_argument,       0, 'i' },
+    { "fallback",                       no_argument,       0, 'd' },
+    { "force-syslog",                   no_argument,       0, 's' },
+    { "force-stderr",                   no_argument,       0, 'T' },
+    { "log-line-info",                  no_argument,       0, 'l' },
+    { "debug",                          no_argument,       0, 'D' },
+    { "diag",                           no_argument,       0, 'd' },
+    { "help",                           no_argument,       0, 'h' },
+    { "rescue",                         no_argument,       0, 'r' },
+    { "systemd",                        no_argument,       0, 'n' },
+    { "version",                        no_argument,       0, 'v' },
+    { "max-cable-delay",                required_argument, 0, 'm' },
+    { "android-bootup-function",        required_argument, 0, 'b' },
+    { 0, 0, 0, 0 }
+};
+
+static const char usbmoded_short_options[] = "aifsTlDdhrnvm:b:";
+
 /* Display usbmoded_usage information */
 static void usbmoded_usage(void)
 {
-    fprintf(stdout,
-            "Usage: usb_moded [OPTION]...\n"
-            "USB mode daemon\n"
-            "\n"
-            "  -a,  --android_usb_broken\n"
-            "      keep gadget active on broken android kernels\n"
-            "  -i,  --android_usb_broken_udev_events\n"
-            "      ignore incorrect disconnect events after mode setting\n"
-            "  -f,  --fallback       \n"
-            "      assume always connected\n"
-            "  -s,  --force-syslog \n"
-            "      log to syslog\n"
-            "  -T,  --force-stderr \n"
-            "      log to stderr\n"
-            "  -l,  --log-line-info\n"
-            "      log to stderr and show origin of logging\n"
-            "  -D,  --debug  \n"
-            "      turn on debug printing\n"
-            "  -d,  --diag   \n"
-            "      turn on diag mode\n"
-            "  -h,  --help         \n"
-            "      display this help and exit\n"
-            "  -r,  --rescue         \n"
-            "      rescue mode\n"
-#ifdef SYSTEMD
-            "  -n,  --systemd      \n"
-            "      notify systemd when started up\n"
-#endif
-            "  -v,  --version      \n"
-            "      output version information and exit\n"
-            "  -m,  --max-cable-delay=<ms>\n"
-            "      maximum delay before accepting cable connection\n"
-            "  -b,  --android-bootup-function=<function>\n"
-            "      Setup given function during bootup. Might be required\n"
-            "      on some devices to make enumeration work on the 1st\n"
-            "      cable connect.\n"
-            "\n");
+    fprintf(stdout, "%s", usbmoded_usage_info);
 }
 
-int main(int argc, char* argv[])
+static void usbmoded_parse_options(int argc, char* argv[])
 {
-    int opt = 0, opt_idx = 0;
-
-    struct option const options[] = {
-        { "android_usb_broken", no_argument, 0, 'a' },
-        { "android_usb_broken_udev_events", no_argument, 0, 'i' },
-        { "fallback", no_argument, 0, 'd' },
-        { "force-syslog", no_argument, 0, 's' },
-        { "force-stderr", no_argument, 0, 'T' },
-        { "log-line-info", no_argument, 0, 'l' },
-        { "debug", no_argument, 0, 'D' },
-        { "diag", no_argument, 0, 'd' },
-        { "help", no_argument, 0, 'h' },
-        { "rescue", no_argument, 0, 'r' },
-        { "systemd", no_argument, 0, 'n' },
-        { "version", no_argument, 0, 'v' },
-        { "max-cable-delay", required_argument, 0, 'm' },
-        { "android-bootup-function", required_argument, 0, 'b' },
-        { 0, 0, 0, 0 }
-    };
-
-    log_init();
-    log_set_name(basename(*argv));
-
-    /* - - - - - - - - - - - - - - - - - - - *
-     * OPTIONS
-     * - - - - - - - - - - - - - - - - - - - */
-
     /* Parse the command-line options */
-    while ((opt = getopt_long(argc, argv, "aifsTlDdhrnvm:b:", options, &opt_idx)) != -1)
-    {
+    for( ;; ) {
+        int opt = getopt_long(argc, argv,
+                              usbmoded_short_options,
+                              usbmoded_long_options,
+                              0);
+        if( opt == -1 )
+            break;
+
         switch (opt)
         {
         case 'a':
@@ -512,7 +682,7 @@ int main(int argc, char* argv[])
 
         case 'h':
             usbmoded_usage();
-            exit(0);
+            exit(EXIT_SUCCESS);
 
         case 'r':
             usbmoded_rescue_mode = true;
@@ -524,7 +694,7 @@ int main(int argc, char* argv[])
 #endif
         case 'v':
             printf("USB mode daemon version: %s\n", VERSION);
-            exit(0);
+            exit(EXIT_SUCCESS);
 
         case 'm':
             usbmoded_set_cable_connection_delay(strtol(optarg, 0, 0));
@@ -536,18 +706,39 @@ int main(int argc, char* argv[])
 
         default:
             usbmoded_usage();
-            exit(0);
+            exit(EXIT_FAILURE);
         }
     }
+}
+
+int main(int argc, char* argv[])
+{
+    /* Library init calls that should be made before
+     * using library functionality.
+     */
+#if !GLIB_CHECK_VERSION(2, 36, 0)
+    g_type_init();
+#endif
+#if !GLIB_CHECK_VERSION(2, 31, 0)
+    g_thread_init(NULL);
+#endif
+    dbus_threads_init_default();
+
+    /* - - - - - - - - - - - - - - - - - - - *
+     * OPTIONS
+     * - - - - - - - - - - - - - - - - - - - */
+
+    /* Set logging defaults */
+    log_init();
+    log_set_name(basename(*argv));
+
+    /* Parse command line options */
+    usbmoded_parse_options(argc, argv);
 
     fprintf(stderr, "usb_moded %s starting\n", VERSION);
     fflush(stderr);
 
-    /* - - - - - - - - - - - - - - - - - - - *
-     * INITIALIZE
-     * - - - - - - - - - - - - - - - - - - - */
-
-    /* silence common_system() calls */
+    /* Silence common_system() calls */
     if( log_get_type() != LOG_TO_STDERR && log_get_level() != LOG_DEBUG )
     {
         if( !freopen("/dev/null", "a", stdout) ) {
@@ -558,122 +749,12 @@ int main(int argc, char* argv[])
         }
     }
 
-#if !GLIB_CHECK_VERSION(2, 36, 0)
-    g_type_init();
-#endif
-#if !GLIB_CHECK_VERSION(2, 31, 0)
-    g_thread_init(NULL);
-#endif
+    /* - - - - - - - - - - - - - - - - - - - *
+     * INITIALIZE
+     * - - - - - - - - - - - - - - - - - - - */
 
-    if( !worker_init() )
+    if( !usbmoded_init() )
         goto EXIT;
-
-    /* Check if we are in mid-bootup */
-    usbmoded_probe_init_done();
-
-    /* Must be the 1st libdbus call that is made */
-    dbus_threads_init_default();
-
-    /* signal handling */
-    if( !sigpipe_init() )
-    {
-        log_crit("signal handler init failed\n");
-        goto EXIT;
-    }
-
-    if (usbmoded_rescue_mode && usbmoded_init_done_p())
-    {
-        usbmoded_rescue_mode = false;
-        log_warning("init done passed; rescue mode ignored");
-    }
-
-    /* Connect to SystemBus */
-    if( !umdbus_init_connection() )
-    {
-        log_crit("dbus systembus connection failed\n");
-        goto EXIT;
-    }
-
-    /* Start DBus trackers that do async initialization
-     * so that initial method calls are on the way while
-     * we do initialization actions that might block. */
-
-    /* DSME listener maintains in-user-mode state and is relevant
-     * only when MEEGOLOCK configure option has been chosen. */
-#ifdef MEEGOLOCK
-    if( !dsme_listener_start() ) {
-        log_crit("dsme tracking could not be started");
-        goto EXIT;
-    }
-#endif
-    /* Devicelock listener maintains devicelock state and is relevant
-     * only when MEEGOLOCK configure option has been chosen. */
-#ifdef MEEGOLOCK
-    if( !devicelock_start_listener() ) {
-        log_crit("devicelock tracking could not be started");
-        goto EXIT;
-    }
-#endif
-
-    /* Set daemon config/state data to sane state */
-    modesetting_init();
-    usbmoded_init();
-
-    /* Allos making systemd control ipc */
-    if( !systemd_control_start() ) {
-        log_crit("systemd control could not be started");
-        goto EXIT;
-    }
-
-    /* If usb-moded happens to crash, it could leave appsync processes
-     * running. To make sure things are in the order expected by usb-moded
-     * force stopping of appsync processes during usb-moded startup.
-     *
-     * The exception is: When usb-moded starts as a part of bootup. Then
-     * we can be relatively sure that usb-moded has not been running yet
-     * and therefore no appsync processes have been started and we can
-     * skip the blocking ipc required to stop the appsync systemd units. */
-#ifdef APP_SYNC
-    if( usbmoded_init_done_p() )
-    {
-        log_warning("usb-moded started after init-done; "
-                    "forcing appsync stop");
-        appsync_stop(true);
-    }
-#endif
-
-    /* Claim D-Bus service name before proceeding with things that
-     * could result in dbus signals from usb-moded interfaces to
-     * be broadcast */
-    if( !umdbus_init_service() )
-    {
-        log_crit("usb-moded dbus service init failed\n");
-        goto EXIT;
-    }
-
-    /* Initialize udev listener. Can cause mode changes.
-     *
-     * Failing here is allowed if '--fallback' commandline option is used. */
-    if( !umudev_init() && !usbmoded_hw_fallback )
-    {
-        log_crit("hwal init failed\n");
-        goto EXIT;
-    }
-
-    /* Broadcast supported / hidden modes */
-    // TODO: should this happen before umudev_init()?
-    common_send_supported_modes_signal();
-    common_send_available_modes_signal();
-    common_send_hidden_modes_signal();
-    common_send_whitelisted_modes_signal();
-
-    /* Act on '--fallback' commandline option */
-    if(usbmoded_hw_fallback)
-    {
-        log_warning("Forcing USB state to connected always. ASK mode non functional!\n");
-        /* Since there will be no disconnect signals coming from hw the state should not change */
-        control_set_cable_state(CABLE_STATE_PC_CONNECTED);
-    }
 
     /* - - - - - - - - - - - - - - - - - - - *
      * EXECUTE
@@ -681,9 +762,8 @@ int main(int argc, char* argv[])
 
     /* Tell systemd that we have started up */
 #ifdef SYSTEMD
-    if( usbmoded_systemd_notify )
-    {
-        log_debug("notifying systemd\n");
+    if( usbmoded_systemd_notify ) {
+        log_debug("notifying systemd");
         sd_notify(0, "READY=1");
     }
 #endif
@@ -703,46 +783,16 @@ int main(int argc, char* argv[])
      * CLEANUP
      * - - - - - - - - - - - - - - - - - - - */
 EXIT:
-    worker_quit();
-
-    /* Detach from SystemBus. Components that hold reference to the
-     * shared bus connection can still perform cleanup tasks, but new
-     * references can't be obtained anymore and usb-moded method call
-     * processing no longer occurs. */
-    umdbus_cleanup();
-
-    /* Stop appsync processes that have been started by usb-moded */
-#ifdef APP_SYNC
-    appsync_stop(false);
-#endif
-
-    /* Deny making systemd control ipc */
-    systemd_control_stop();
-
-    /* Stop tracking devicelock status */
-#ifdef MEEGOLOCK
-    devicelock_stop_listener();
-#endif
-    /* Stop tracking device state */
-#ifdef MEEGOLOCK
-    dsme_listener_stop();
-#endif
-
-    /* Stop udev listener */
-    umudev_quit();
-
-    /* Release dynamically allocated config/state data */
     usbmoded_cleanup();
-    modesetting_quit();
 
-    /* Detach from SessionBus connection used for APP_SYNC_DBUS.
-     *
-     * Can be handled separately from SystemBus side wind down. */
-#ifdef APP_SYNC
-# ifdef APP_SYNC_DBUS
-    dbusappsync_cleanup();
-# endif
+    /* Memory leak debugging - instruct libdbus to flush resources. */
+#if 0
+    dbus_shutdown();
 #endif
+
+    /* - - - - - - - - - - - - - - - - - - - *
+     * EXIT
+     * - - - - - - - - - - - - - - - - - - - */
 
     /* Must be done just before exit to make sure no more wakelocks
      * are taken and left behind on exit path */
