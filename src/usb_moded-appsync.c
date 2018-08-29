@@ -51,10 +51,14 @@ static list_elem_t      *appsync_read_file                 (const gchar *filenam
 int                      appsync_activate_sync             (const char *mode);
 int                      appsync_activate_sync_post        (const char *mode);
 int                      appsync_mark_active               (const gchar *name, int post);
+
+#ifdef APP_SYNC_DBUS
 static gboolean          appsync_enumerate_usb_cb          (gpointer data);
 static void              appsync_start_enumerate_usb_timer (void);
 static void              appsync_cancel_enumerate_usb_timer(void);
 static void              appsync_enumerate_usb             (void);
+#endif
+
 void                     appsync_stop_apps                 (int post);
 int                      appsync_stop                      (gboolean force);
 
@@ -64,12 +68,12 @@ int                      appsync_stop                      (gboolean force);
 
 static GList *appsync_sync_list = NULL;
 
+#ifdef APP_SYNC_DBUS
 static guint appsync_enumerate_usb_id = 0;
 static struct timeval appsync_sync_tv = {0, 0};
-#ifdef APP_SYNC_DBUS
-static  int appsync_no_dbus = 0;
+static int appsync_no_dbus = 0; // enabled until disabled due to failures
 #else
-static  int appsync_no_dbus = 0;
+static int appsync_no_dbus = 1; // always disabled
 #endif /* APP_SYNC_DBUS */
 
 /* ========================================================================= *
@@ -148,7 +152,7 @@ cleanup:
     if( appsync_sync_list )
     {
         log_debug("Sync list valid\n");
-#ifdef APP_SYN_DBUS
+#ifdef APP_SYNC_DBUS
         dbusappsync_init_connection();
 #endif
     }
@@ -216,13 +220,17 @@ int appsync_activate_sync(const char *mode)
 
     log_debug("activate sync");
 
+#ifdef APP_SYNC_DBUS
     /* Get start of activation timestamp */
     gettimeofday(&appsync_sync_tv, 0);
+#endif
 
     if( appsync_sync_list == 0 )
     {
-        log_debug("No sync list! Enumerating\n");
+        log_debug("No sync list!");
+#ifdef APP_SYNC_DBUS
         appsync_enumerate_usb();
+#endif
         return 0;
     }
 
@@ -246,8 +254,10 @@ int appsync_activate_sync(const char *mode)
     /* If there is nothing to activate, enumerate immediately */
     if(count <= 0)
     {
-        log_debug("Nothing to launch.\n");
+        log_debug("Nothing to launch\n");
+#ifdef APP_SYNC_DBUS
         appsync_enumerate_usb();
+#endif
         return(0);
     }
 
@@ -258,10 +268,10 @@ int appsync_activate_sync(const char *mode)
         log_debug("dbus setup failed => skipping dbus launched apps \n");
         appsync_no_dbus = 1;
     }
-#endif /* APP_SYNC_DBUS */
 
     /* start timer */
     appsync_start_enumerate_usb_timer();
+#endif
 
     /* go through list and launch apps */
     for( iter = appsync_sync_list; iter; iter = g_list_next(iter) )
@@ -288,9 +298,8 @@ int appsync_activate_sync(const char *mode)
                 if(appsync_no_dbus)
                     appsync_mark_active(data->name, 0);
 #ifdef APP_SYNC_DBUS
-                else
-                    if(!dbusappsync_launch_app(data->launch))
-                        appsync_mark_active(data->name, 0);
+                else if(!dbusappsync_launch_app(data->launch))
+                    appsync_mark_active(data->name, 0);
                 else
                     goto error;
 #endif /* APP_SYNC_DBUS */
@@ -349,9 +358,8 @@ int appsync_activate_sync_post(const char *mode)
                 if(appsync_no_dbus)
                     continue;
 #ifdef APP_SYNC_DBUS
-                else
-                    if(dbusappsync_launch_app(data->launch) != 0)
-                        goto error;
+                else if(dbusappsync_launch_app(data->launch) != 0)
+                    goto error;
 #endif /* APP_SYNC_DBUS */
             }
         }
@@ -396,14 +404,17 @@ int appsync_mark_active(const gchar *name, int post)
     }
     if( !post && !missing )
     {
-        log_debug("All pre-enum-apps active. Let's enumerate\n");
+        log_debug("All pre-enum-apps active");
+#ifdef APP_SYNC_DBUS
         appsync_enumerate_usb();
+#endif
     }
 
     /* -1=not found, 0=already active, 1=activated now */
     return ret;
 }
 
+#ifdef APP_SYNC_DBUS
 static gboolean appsync_enumerate_usb_cb(gpointer data)
 {
     (void)data;
@@ -419,6 +430,12 @@ static void appsync_start_enumerate_usb_timer(void)
     log_debug("scheduling enumeration timeout");
     if( appsync_enumerate_usb_id )
         g_source_remove(appsync_enumerate_usb_id), appsync_enumerate_usb_id = 0;
+    /* NOTE: This was effectively hazard free before blocking mode switch
+     *       was offloaded to a worker thread - if APP_SYNC_DBUS is ever
+     *       enabled again, this needs to be revisited to avoid timer
+     *       scheduled from worker thread getting triggered in mainloop
+     *       context before the mode switch activity is finished.
+     */
     appsync_enumerate_usb_id = g_timeout_add_seconds(2, appsync_enumerate_usb_cb, NULL);
 }
 
@@ -435,6 +452,8 @@ static void appsync_enumerate_usb(void)
 {
     struct timeval tv;
 
+    log_debug("Enumerating");
+
     /* Stop the timer in case of explicit enumeration call */
     appsync_cancel_enumerate_usb_timer();
 
@@ -443,11 +462,10 @@ static void appsync_enumerate_usb(void)
     timersub(&tv, &appsync_sync_tv, &tv);
     log_debug("sync to enum: %.3f seconds", tv.tv_sec + tv.tv_usec * 1e-6);
 
-#ifdef APP_SYNC_DBUS
     /* remove dbus service */
     dbusappsync_cleanup();
-#endif /* APP_SYNC_DBUS */
 }
+#endif /* APP_SYNC_DBUS */
 
 void appsync_stop_apps(int post)
 {
@@ -490,6 +508,8 @@ int appsync_stop(gboolean force)
     appsync_stop_apps(0);
 
     /* Do not leave active timers behind */
+#ifdef APP_SYNC_DBUS
     appsync_cancel_enumerate_usb_timer();
+#endif
     return(0);
 }
