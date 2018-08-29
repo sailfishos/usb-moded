@@ -62,8 +62,6 @@ static char     *modesetting_strip                      (char *str);
 static char     *modesetting_read_from_file             (const char *path, size_t maxsize);
 int              modesetting_write_to_file_real         (const char *file, int line, const char *func, const char *path, const char *text);
 
-static gboolean  modesetting_network_retry_cb           (gpointer data);
-
 static bool      modesetting_enter_mass_storage_mode    (mode_list_elem_t *data);
 static int       modesetting_leave_mass_storage_mode    (mode_list_elem_t *data);
 static void      modesetting_report_mass_storage_blocker(const char *mountpoint, int try);
@@ -79,7 +77,6 @@ void             modesetting_quit                       (void);
  * ========================================================================= */
 
 static GHashTable *tracked_values = 0;
-static guint modesetting_network_retry_id = 0;
 
 /* ========================================================================= *
  * Functions
@@ -271,13 +268,6 @@ cleanup:
     free(repr);
 
     return err;
-}
-
-static gboolean modesetting_network_retry_cb(gpointer data)
-{
-    modesetting_network_retry_id = 0;
-    network_up(data);
-    return(FALSE);
 }
 
 #include <mntent.h>
@@ -686,7 +676,6 @@ bool modesetting_enter_dynamic_mode(void)
     bool ack = false;
 
     mode_list_elem_t *data;
-    int network = 1;
 
     log_debug("DYNAMIC MODE: SETUP");
 
@@ -780,18 +769,18 @@ bool modesetting_enter_dynamic_mode(void)
         common_system(command);
 #else
         network_down(data);
-        network = network_up(data);
-#endif /* DEBIAN */
-    }
+        int error = network_up(data);
 
-    /* try a second time to bring up the network if it failed the first time,
-     * this can happen with functionfs based gadgets (which is why we sleep for a bit */
-    if(network != 0 && data->network)
-    {
-        log_debug("Retry setting up the network later\n");
-        if(modesetting_network_retry_id)
-            g_source_remove(modesetting_network_retry_id);
-        modesetting_network_retry_id = g_timeout_add_seconds(3, modesetting_network_retry_cb, data);
+        /* In case of failure, retry upto 3 times */
+        for( int i = 0; error && i < 3; ++i ) {
+            log_warning("Retry setting up the network");
+            common_msleep(1000);
+            if( !(error = network_up(data)) )
+                log_warning("Setting up the network succeeded");
+        }
+        if( error )
+            log_err("Setting up the network failed");
+#endif /* DEBIAN */
     }
 
     /* Needs to be called before application post synching so
@@ -838,16 +827,6 @@ void modesetting_leave_dynamic_mode(void)
     mode_list_elem_t *data;
 
     data = worker_get_usb_mode_data();
-
-    /* - - - - - - - - - - - - - - - - - - - *
-     * Do not leave timers behind
-     * - - - - - - - - - - - - - - - - - - - */
-
-    if(modesetting_network_retry_id)
-    {
-        g_source_remove(modesetting_network_retry_id);
-        modesetting_network_retry_id = 0;
-    }
 
     /* - - - - - - - - - - - - - - - - - - - *
      * Is a dynamic mode?
