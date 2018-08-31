@@ -115,13 +115,33 @@ worker_thread_p(void)
 bool
 worker_bailing_out(void)
 {
-    // ref: see common_usleep_()
+    // ref: see common_msleep_()
     return worker_thread_p() && worker_bailout > 0;
 }
 
 /* ------------------------------------------------------------------------- *
  * MTP_DAEMON
  * ------------------------------------------------------------------------- */
+
+/** Maximum time to wait for mtpd to start [ms]
+ *
+ * This needs to include time to start systemd unit
+ * plus however long it might take for mtpd to scan
+ * all files exposed over mtp. On a slow device with
+ * lots of files it can easily take over 30 seconds,
+ * especially during the 1st mtp connect after reboot.
+ *
+ * Use two minutes as some kind of worst case estimate.
+ */
+static unsigned worker_mtp_start_delay = 120 * 1000;
+
+/** Maximum time to wait for mtpd to stop [ms]
+ *
+ * This is just regular service stop. Expected to
+ * take max couple of seconds, but use someting
+ * in the ballbark of systemd default i.e. 15 seconds
+ */
+static unsigned worker_mtp_stop_delay  =  15 * 1000;
 
 static bool worker_mode_is_mtp_mode(const char *mode)
 {
@@ -156,72 +176,76 @@ static bool worker_is_mtpd_running(void)
 }
 
 static bool
+worker_mtpd_running_p(void *aptr)
+{
+    (void)aptr;
+    return worker_is_mtpd_running();
+}
+
+static bool
+worker_mtpd_stopped_p(void *aptr)
+{
+    (void)aptr;
+    return !worker_is_mtpd_running();
+}
+
+static bool
 worker_stop_mtpd(void)
 {
-    bool ack = !worker_is_mtpd_running();
+    bool ack = false;
 
-    if( ack ) {
+    if( worker_mtpd_stopped_p(0) ) {
         log_debug("mtp daemon is not running");
-        goto EXIT;
+        goto SUCCESS;
     }
 
     int rc = common_system("systemctl-user stop buteo-mtp.service");
     if( rc != 0 ) {
         log_warning("failed to stop mtp daemon; exit code = %d", rc);
-        goto EXIT;
+        goto FAILURE;
     }
 
-    for( int attempts = 3; ; ) {
-        if( (ack = !worker_is_mtpd_running()) ) {
-            log_debug("mtp daemon has stopped");
-            break;
-        }
-
-        if( --attempts <= 0) {
-            log_warning("failed to stop mtp daemon; giving up");
-            break;
-        }
-
-        log_debug("waiting for mtp daemon to stop");
-        common_msleep(2000);
+    if( common_wait(worker_mtp_stop_delay, worker_mtpd_stopped_p, 0) != WAIT_READY ) {
+        log_warning("failed to stop mtp daemon; giving up");
+        goto FAILURE;
     }
-EXIT:
 
+    log_debug("mtp daemon has stopped");
+
+SUCCESS:
+    ack = true;
+
+FAILURE:
     return ack;
 }
 
 static bool
 worker_start_mtpd(void)
 {
-    bool ack = worker_is_mtpd_running();
+    bool ack = false;
 
-    if( ack ) {
-        log_debug("mtp daemon is not running");
-        goto EXIT;
+    if( worker_mtpd_running_p(0) ) {
+        log_debug("mtp daemon is running");
+        goto SUCCESS;
     }
 
     int rc = common_system("systemctl-user start buteo-mtp.service");
     if( rc != 0 ) {
         log_warning("failed to start mtp daemon; exit code = %d", rc);
-        goto EXIT;
+        goto FAILURE;
     }
 
-    for( int attempts = 15; ; ) {
-        if( (ack = worker_is_mtpd_running()) ) {
-            log_debug("mtp daemon has started");
-            break;
-        }
-
-        if( --attempts <= 0) {
-            log_warning("failed to start mtp daemon; giving up");
-            break;
-        }
-
-        log_debug("waiting for mtp daemon to start");
-        common_msleep(2000);
+    if( common_wait(worker_mtp_start_delay, worker_mtpd_running_p, 0) != WAIT_READY ) {
+        log_warning("failed to start mtp daemon; giving up");
+        goto FAILURE;
     }
-EXIT:
 
+    log_debug("mtp daemon has started");
+
+SUCCESS:
+    ack = true;
+
+FAILURE:
     return ack;
 }
 

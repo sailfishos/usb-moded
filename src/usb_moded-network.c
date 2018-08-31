@@ -533,7 +533,8 @@ gboolean connman_set_tethering(const char *path, gboolean on)
         {
             if (i>0)
             {
-                common_msleep(200);
+                if( !common_msleep(200) )
+                    break;
             }
             if (connman_try_set_tethering(connection, path, on))
             {

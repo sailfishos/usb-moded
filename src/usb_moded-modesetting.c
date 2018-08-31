@@ -774,7 +774,8 @@ bool modesetting_enter_dynamic_mode(void)
         /* In case of failure, retry upto 3 times */
         for( int i = 0; error && i < 3; ++i ) {
             log_warning("Retry setting up the network");
-            common_msleep(1000);
+            if( !common_msleep(1000) )
+                break;
             if( !(error = network_up(data)) )
                 log_warning("Setting up the network succeeded");
         }

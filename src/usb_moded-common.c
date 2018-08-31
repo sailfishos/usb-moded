@@ -52,7 +52,8 @@ void         common_acquire_wakelock             (const char *wakelock_name);
 void         common_release_wakelock             (const char *wakelock_name);
 int          common_system_                      (const char *file, int line, const char *func, const char *command);
 FILE        *common_popen_                       (const char *file, int line, const char *func, const char *command, const char *type);
-void         common_usleep_                      (const char *file, int line, const char *func, useconds_t usec);
+waitres_t    common_wait                         (unsigned tot_ms, bool (*ready_cb)(void *aptr), void *aptr);
+bool         common_msleep_                      (const char *file, int line, const char *func, unsigned msec);
 static bool  common_mode_in_list                 (const char *mode, char *const *modes);
 int          common_valid_mode                   (const char *mode);
 gchar       *common_get_mode_list                (mode_list_type_t type);
@@ -338,40 +339,60 @@ common_popen_(const char *file, int line, const char *func,
     return popen(command, type);
 }
 
-/** Wrapper to give visibility to blocking sleeps usb-moded is making
- */
-void
-common_usleep_(const char *file, int line, const char *func,
-                 useconds_t usec)
+waitres_t
+common_wait(unsigned tot_ms, bool (*ready_cb)(void *aptr), void *aptr)
 {
-    struct timespec ts = {
-        .tv_sec  = (usec / 1000000),
-        .tv_nsec = (usec % 1000000) * 1000
-    };
+    struct timespec ts;
 
-    long ms = (ts.tv_nsec + 1000000 - 1) / 1000000;
+    waitres_t res = WAIT_FAILED;
 
-    if( !ms ) {
-        log_debug("SLEEP %ld seconds; from %s:%d: %s()",
-                  (long)ts.tv_sec, file, line, func);
-    }
-    else if( ts.tv_sec ) {
-        log_debug("SLEEP %ld.%03ld seconds; from %s:%d: %s()",
-                  (long)ts.tv_sec, ms, file, line, func);
-    }
-    else {
-        log_debug("SLEEP %ld milliseconds; from %s:%d: %s()",
-                  ms, file, line, func);
-    }
+    for( ;; ) {
+        unsigned nap_ms = (tot_ms > 200) ? 200 : tot_ms;
 
-    do {
-        if( worker_bailing_out() ) {
-            log_warning("SLEEP %ld milliseconds - ignored; from %s:%d: %s()",
-                        ms, file, line, func);
-          break;
+        ts.tv_sec  = (nap_ms / 1000);
+        ts.tv_nsec = (nap_ms % 1000);
+        ts.tv_nsec *= 1000 * 1000;
+
+        for( ;; ) {
+            if( ready_cb && ready_cb(aptr) ) {
+                res = WAIT_READY;
+                goto EXIT;
+            }
+
+            if( tot_ms <= 0 ) {
+                res = WAIT_TIMEOUT;
+                goto EXIT;
+            }
+
+            if( worker_bailing_out() ) {
+                log_warning("wait canceled");
+                goto EXIT;
+            }
+
+            if( nanosleep(&ts, &ts) == 0 )
+                break;
+
+            if( errno != EINTR ) {
+                log_warning("wait failed: %m");
+                goto EXIT;
+            }
         }
 
-    } while( nanosleep(&ts, &ts) == -1 && errno != EINTR );
+        tot_ms -= nap_ms;
+    }
+
+EXIT:
+    return res;
+}
+
+/** Wrapper to give visibility to blocking sleeps usb-moded is making
+ */
+bool
+common_msleep_(const char *file, int line, const char *func, unsigned msec)
+{
+    log_debug("SLEEP %u.%03u seconds; from %s:%d: %s()",
+              msec / 1000u, msec % 1000u,file, line, func);
+    return common_wait(msec, 0, 0) == WAIT_TIMEOUT;
 }
 
 /* ------------------------------------------------------------------------- *

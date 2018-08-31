@@ -2,6 +2,7 @@
 # define USB_MODED_COMMON_H_
 
 # include <stdio.h>
+# include <stdbool.h>
 # include <glib.h>
 
 /* ========================================================================= *
@@ -25,6 +26,13 @@ typedef enum {
     CABLE_STATE_NUMOF
 } cable_state_t;
 
+typedef enum waitres_t
+{
+    WAIT_FAILED,
+    WAIT_READY,
+    WAIT_TIMEOUT,
+} waitres_t;
+
 /* ========================================================================= *
  * Functions
  * ========================================================================= */
@@ -45,7 +53,8 @@ void        common_acquire_wakelock             (const char *wakelock_name);
 void        common_release_wakelock             (const char *wakelock_name);
 int         common_system_                      (const char *file, int line, const char *func, const char *command);
 FILE       *common_popen_                       (const char *file, int line, const char *func, const char *command, const char *type);
-void        common_usleep_                      (const char *file, int line, const char *func, useconds_t usec);
+waitres_t   common_wait                         (unsigned tot_ms, bool (*ready_cb)(void *aptr), void *aptr);
+bool        common_msleep_                      (const char *file, int line, const char *func, unsigned msec);
 int         common_valid_mode                   (const char *mode);
 gchar      *common_get_mode_list                (mode_list_type_t type);
 
@@ -55,8 +64,7 @@ gchar      *common_get_mode_list                (mode_list_type_t type);
 
 # define               common_system(command)      common_system_(__FILE__,__LINE__,__FUNCTION__,(command))
 # define               common_popen(command, type) common_popen_(__FILE__,__LINE__,__FUNCTION__,(command),(type))
-# define               common_usleep(usec)         common_usleep_(__FILE__,__LINE__,__FUNCTION__,(usec))
-# define               common_msleep(msec)         common_usleep_(__FILE__,__LINE__,__FUNCTION__,(msec)*1000)
-# define               common_sleep(sec)           common_usleep_(__FILE__,__LINE__,__FUNCTION__,(sec)*1000000)
+# define               common_msleep(msec)         common_msleep_(__FILE__,__LINE__,__FUNCTION__,(msec))
+# define               common_sleep(sec)           common_msleep_(__FILE__,__LINE__,__FUNCTION__,(sec)*1000)
 
 #endif /* USB_MODED_COMMON_H_ */
