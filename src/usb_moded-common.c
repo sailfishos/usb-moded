@@ -141,7 +141,7 @@ static const modemapping_t common_modemapping[] =
     {
         .internal_mode = MODE_CHARGING_FALLBACK,
         .hardware_mode = MODE_CHARGING,
-        .external_mode = MODE_ASK,
+        .external_mode = 0,
     },
     {
         .internal_mode = MODE_CHARGER,
