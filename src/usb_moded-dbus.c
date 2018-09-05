@@ -190,25 +190,41 @@ static const char umdbus_introspect_usbmoded[] =
 */
 static void umdbus_send_config_signal(const char *section, const char *key, const char *value)
 {
-    log_debug("broadcast signal %s(%s, %s, %s)\n", USB_MODE_CONFIG_SIGNAL_NAME, section, key, value);
+    DBusMessage* msg = 0;
 
-    if( !umdbus_service_name_acquired )
-    {
+    if( !section || !key || !value )  {
+        log_err("config notification with NULL %s",
+                !section ? "section" : !key ? "key" : value);
+        goto EXIT;
+    }
+
+    if( !umdbus_service_name_acquired ) {
         log_err("config notification without service: [%s] %s=%s",
                 section, key, value);
+        goto EXIT;
     }
-    else if (umdbus_connection)
-    {
-        DBusMessage* msg = dbus_message_new_signal(USB_MODE_OBJECT, USB_MODE_INTERFACE, USB_MODE_CONFIG_SIGNAL_NAME);
-        if (msg) {
-            dbus_message_append_args(msg, DBUS_TYPE_STRING, &section,
-                                     DBUS_TYPE_STRING, &key,
-                                     DBUS_TYPE_STRING, &value,
-                                     DBUS_TYPE_INVALID);
-            dbus_connection_send(umdbus_connection, msg, NULL);
-            dbus_message_unref(msg);
-        }
+
+    if( !umdbus_connection ) {
+        log_err("config notification without connection: [%s] %s=%s",
+                section, key, value);
+        goto EXIT;
     }
+
+    log_debug("broadcast signal %s(%s, %s, %s)\n", USB_MODE_CONFIG_SIGNAL_NAME, section, key, value);
+
+    msg = dbus_message_new_signal(USB_MODE_OBJECT, USB_MODE_INTERFACE, USB_MODE_CONFIG_SIGNAL_NAME);
+    if( !msg )
+        goto EXIT;
+
+    dbus_message_append_args(msg, DBUS_TYPE_STRING, &section,
+                             DBUS_TYPE_STRING, &key,
+                             DBUS_TYPE_STRING, &value,
+                             DBUS_TYPE_INVALID);
+    dbus_connection_send(umdbus_connection, msg, NULL);
+
+EXIT:
+    if( msg )
+        dbus_message_unref(msg);
 }
 
 static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DBusMessage *const msg, gpointer const user_data)
@@ -727,6 +743,11 @@ static int umdbus_send_signal_ex(const char *signal_type, const char *content)
 {
     int result = 1;
     DBusMessage* msg = 0;
+
+    /* Assume NULL content equals no value / empty list, and that skipping
+     * signal broadcast is never preferable over sending empty string. */
+    if( !content )
+        content = "";
 
     log_debug("broadcast signal %s(%s)\n", signal_type, content);
 

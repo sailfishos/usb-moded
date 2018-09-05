@@ -211,11 +211,8 @@ void common_send_available_modes_signal(void)
 void common_send_hidden_modes_signal(void)
 {
     gchar *mode_list = config_get_hidden_modes();
-    if(mode_list) {
-        // TODO: cleared list not signaled?
-        umdbus_send_hidden_modes_signal(mode_list);
-        g_free(mode_list);
-    }
+    umdbus_send_hidden_modes_signal(mode_list);
+    g_free(mode_list);
 }
 
 /** Send whitelisted modes signal
@@ -223,11 +220,8 @@ void common_send_hidden_modes_signal(void)
 void common_send_whitelisted_modes_signal(void)
 {
     gchar *mode_list = config_get_mode_whitelist();
-    if(mode_list) {
-        // TODO: cleared list not signaled?
-        umdbus_send_whitelisted_modes_signal(mode_list);
-        g_free(mode_list);
-    }
+    umdbus_send_whitelisted_modes_signal(mode_list);
+    g_free(mode_list);
 }
 
 /* ------------------------------------------------------------------------- *
