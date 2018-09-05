@@ -400,11 +400,20 @@ static char * config_get_kcmdline_string(const char *entry)
 
 char * config_get_mode_setting(void)
 {
-    char * mode = config_get_kcmdline_string(MODE_SETTING_KEY);
-    if (mode != NULL)
-        return(mode);
+    char *mode = 0;
 
-    return(config_get_conf_string(MODE_SETTING_ENTRY, MODE_SETTING_KEY));
+    /* Kernel command line can be used to override settings */
+    if( (mode = config_get_kcmdline_string(MODE_SETTING_KEY)) )
+        goto EXIT;
+
+    if( (mode = config_get_conf_string(MODE_SETTING_ENTRY, MODE_SETTING_KEY)) )
+        goto EXIT;
+
+    /* If no default mode is configured, treat it as charging only */
+    mode = g_strdup(MODE_CHARGING);
+
+EXIT:
+    return mode;
 }
 /*
  *  @param settingsfile: already opened settingsfile we want to read an entry from

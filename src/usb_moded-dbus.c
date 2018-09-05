@@ -417,13 +417,6 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
         {
             char *config = config_get_mode_setting();
 
-            if(!config)
-            {
-                /* Config is corrupted or we do not have a mode
-                 * configured, fallback to undefined. */
-                config = g_strdup(MODE_UNDEFINED);
-            }
-
             if((reply = dbus_message_new_method_return(msg)))
                 dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID);
             g_free(config);
