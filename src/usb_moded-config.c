@@ -340,7 +340,7 @@ static char * config_get_kcmdline_string(const char *entry)
         return(ret);
     }
 
-    len = read(fd, cmdLine, sizeof(cmdLine) - 1);
+    len = read(fd, cmdLine, sizeof cmdLine - 1);
     close(fd);
 
     if (len <= 0)

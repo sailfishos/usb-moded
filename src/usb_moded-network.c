@@ -344,8 +344,8 @@ end:
 static int network_checklink(void)
 {
     int ret = -1;
-    char dest[sizeof(UDHCP_CONFIG_PATH)+1];
-    size_t len = readlink(UDHCP_CONFIG_LINK, dest, sizeof(dest)-1);
+    char dest[sizeof UDHCP_CONFIG_PATH + 1];
+    size_t len = readlink(UDHCP_CONFIG_LINK, dest, sizeof dest - 1);
 
     if (len > 0)
     {
@@ -384,8 +384,8 @@ static int network_write_udhcpd_conf(ipforward_data_t *ipforward, mode_list_elem
     }
     /* generate start and end ip based on the setting */
     ip = config_get_network_setting(NETWORK_IP_KEY);
-    ipstart = malloc(sizeof(char)*15);
-    ipend = malloc(sizeof(char)*15);
+    ipstart = malloc(15);
+    ipend = malloc(15);
     while(i < 15)
     {
         if(dot < 3)

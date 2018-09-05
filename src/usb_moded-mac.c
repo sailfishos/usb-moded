@@ -105,7 +105,7 @@ char * mac_read_mac(void)
         fclose(g_ether);
         return 0;
     }
-    mac = malloc(sizeof(char) *17);
+    mac = malloc(17);
     if(mac)
         read = fread(mac, 1, 17, g_ether);
     if(read == 17)
