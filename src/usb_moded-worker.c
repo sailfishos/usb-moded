@@ -86,7 +86,19 @@ static pthread_t worker_thread_id = 0;
 
 static pthread_mutex_t  worker_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-static int worker_bailout = 0;
+/** Flag for: Main thread has changed target mode worker should apply
+ *
+ * Worker should bailout from synchronous activities related to
+ * ongoing activation of a usb mode.
+ */
+static volatile bool worker_bailout_requested = false;
+
+/** Flag for: Worker thread is cleaning up after abandoning mode switch
+ *
+ * Asynchronous activities on mode cleanup should be executed without
+ * bailing out.
+ */
+static volatile bool worker_bailout_handled = false;
 
 #define WORKER_LOCKED_ENTER do {\
     if( pthread_mutex_lock(&worker_mutex) != 0 ) { \
@@ -116,7 +128,9 @@ bool
 worker_bailing_out(void)
 {
     // ref: see common_msleep_()
-    return worker_thread_p() && worker_bailout > 0;
+    return (worker_thread_p() &&
+            worker_bailout_requested &&
+            !worker_bailout_handled);
 }
 
 /* ------------------------------------------------------------------------- *
@@ -534,9 +548,21 @@ worker_switch_to_mode(const char *mode)
     log_warning("Matching mode %s was not found.", mode);
 
 FAILED:
+    worker_bailout_handled = true;
+
+    /* Undo any changes we might have might have already done */
+    if( worker_get_usb_mode_data() ) {
+        log_debug("Cleaning up failed mode switch");
+
+        if( worker_mode_is_mtp_mode(mode) )
+            worker_stop_mtpd();
+
+        modesetting_leave_dynamic_mode();
+        worker_set_usb_mode_data(NULL);
+    }
+
     override = MODE_CHARGING;
     log_warning("mode setting failed, try %s", override);
-    worker_set_usb_mode_data(NULL);
 
 CHARGE:
     if( worker_switch_to_charging() )
@@ -642,8 +668,8 @@ static void *worker_thread_cb(void *aptr)
             continue;
 
         if( cnt > 0 ) {
-            --worker_bailout;
-            log_debug("worker_bailout -> %d", worker_bailout);
+            worker_bailout_requested = false;
+            worker_bailout_handled = false;
             worker_execute();
         }
 
@@ -839,8 +865,7 @@ worker_quit(void)
 void
 worker_wakeup(void)
 {
-    ++worker_bailout;
-    log_debug("worker_bailout -> %d", worker_bailout);
+    worker_bailout_requested = true;
 
     uint64_t cnt = 1;
     if( write(worker_req_evfd, &cnt, sizeof cnt) == -1 ) {
