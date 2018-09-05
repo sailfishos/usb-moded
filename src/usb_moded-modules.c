@@ -224,7 +224,7 @@ int modules_load_module(const char *module)
         log_info("Module %s loaded successfully\n", module);
     else
         log_info("Module %s failed to load\n", module);
-    return(ret);
+    return ret;
 }
 
 /** unload module
@@ -251,5 +251,5 @@ int modules_unload_module(const char *module)
     ret = kmod_module_remove_module(mod, KMOD_REMOVE_NOWAIT);
     kmod_module_unref(mod);
 
-    return(ret);
+    return ret;
 }

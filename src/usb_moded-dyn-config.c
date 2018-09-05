@@ -125,7 +125,7 @@ GList *dynconfig_read_mode_list(int diag)
         log_debug("Mode confdir open failed or file is incomplete/invalid.\n");
 
     modelist = g_list_sort (modelist, dynconfig_compare_modes);
-    return(modelist);
+    return modelist;
 }
 
 static mode_list_elem_t *dynconfig_read_mode_file(const gchar *filename)

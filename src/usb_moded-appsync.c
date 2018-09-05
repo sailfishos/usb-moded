@@ -258,7 +258,7 @@ int appsync_activate_sync(const char *mode)
 #ifdef APP_SYNC_DBUS
         appsync_enumerate_usb();
 #endif
-        return(0);
+        return 0;
     }
 
 #ifdef APP_SYNC_DBUS
@@ -307,11 +307,11 @@ int appsync_activate_sync(const char *mode)
         }
     }
 
-    return(0);
+    return 0;
 
 error:
     log_warning("Error launching a service!\n");
-    return(1);
+    return 1;
 }
 
 int appsync_activate_sync_post(const char *mode)
@@ -365,11 +365,11 @@ int appsync_activate_sync_post(const char *mode)
         }
     }
 
-    return(0);
+    return 0;
 
 error:
     log_warning("Error launching a service!\n");
-    return(1);
+    return 1;
 }
 
 int appsync_mark_active(const gchar *name, int post)
@@ -511,5 +511,5 @@ int appsync_stop(gboolean force)
 #ifdef APP_SYNC_DBUS
     appsync_cancel_enumerate_usb_timer();
 #endif
-    return(0);
+    return 0;
 }

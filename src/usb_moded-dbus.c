@@ -802,7 +802,7 @@ EXIT:
 */
 int umdbus_send_state_signal(const char *state_ind)
 {
-    return(umdbus_send_signal_ex(USB_MODE_SIGNAL_NAME, state_ind));
+    return umdbus_send_signal_ex(USB_MODE_SIGNAL_NAME, state_ind);
 }
 
 /**
@@ -814,7 +814,7 @@ int umdbus_send_state_signal(const char *state_ind)
 */
 int umdbus_send_error_signal(const char *error)
 {
-    return(umdbus_send_signal_ex(USB_MODE_ERROR_SIGNAL_NAME, error));
+    return umdbus_send_signal_ex(USB_MODE_ERROR_SIGNAL_NAME, error);
 }
 
 /**
@@ -826,7 +826,7 @@ int umdbus_send_error_signal(const char *error)
 */
 int umdbus_send_supported_modes_signal(const char *supported_modes)
 {
-    return(umdbus_send_signal_ex(USB_MODE_SUPPORTED_MODES_SIGNAL_NAME, supported_modes));
+    return umdbus_send_signal_ex(USB_MODE_SUPPORTED_MODES_SIGNAL_NAME, supported_modes);
 }
 
 /**
@@ -838,7 +838,7 @@ int umdbus_send_supported_modes_signal(const char *supported_modes)
 */
 int umdbus_send_available_modes_signal(const char *available_modes)
 {
-    return(umdbus_send_signal_ex(USB_MODE_AVAILABLE_MODES_SIGNAL_NAME, available_modes));
+    return umdbus_send_signal_ex(USB_MODE_AVAILABLE_MODES_SIGNAL_NAME, available_modes);
 }
 
 /**
@@ -850,7 +850,7 @@ int umdbus_send_available_modes_signal(const char *available_modes)
 */
 int umdbus_send_hidden_modes_signal(const char *hidden_modes)
 {
-    return(umdbus_send_signal_ex(USB_MODE_HIDDEN_MODES_SIGNAL_NAME, hidden_modes));
+    return umdbus_send_signal_ex(USB_MODE_HIDDEN_MODES_SIGNAL_NAME, hidden_modes);
 }
 
 /**
@@ -861,7 +861,7 @@ int umdbus_send_hidden_modes_signal(const char *hidden_modes)
  */
 int umdbus_send_whitelisted_modes_signal(const char *whitelist)
 {
-    return(umdbus_send_signal_ex(USB_MODE_WHITELISTED_MODES_SIGNAL_NAME, whitelist));
+    return umdbus_send_signal_ex(USB_MODE_WHITELISTED_MODES_SIGNAL_NAME, whitelist);
 }
 
 /** Async reply handler for umdbus_get_name_owner_async()

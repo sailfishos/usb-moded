@@ -83,7 +83,7 @@ static int check_device_is_usb_power_supply(const char *syspath)
         printf("type property found\n");
     }
 
-    return(score);
+    return score;
 }
 
 int main (int argc, char **argv)
