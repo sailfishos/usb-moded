@@ -276,32 +276,40 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
         }
         else if(!strcmp(member, USB_MODE_STATE_SET))
         {
-            char *use = 0;
-            DBusError   err = DBUS_ERROR_INIT;
+            const char *mode = control_get_external_mode();
+            char       *use  = 0;
+            DBusError   err  = DBUS_ERROR_INIT;
 
-            if(!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &use, DBUS_TYPE_INVALID))
+            if(!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &use, DBUS_TYPE_INVALID)) {
+                log_err("parse error: %s: %s", err.name, err.message);
                 reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
-            else
-            {
-                /* check if usb is connected, since it makes no sense to change mode if it isn't */
-                if( control_get_cable_state() != CABLE_STATE_PC_CONNECTED ) {
-                    log_warning("USB not connected, not changing mode!\n");
-                    goto error_reply;
-                }
-                /* check if the mode exists */
-                if(common_valid_mode(use))
-                    goto error_reply;
-                /* do not change mode if the mode requested is the one already set */
-                if(strcmp(use, control_get_usb_mode()) != 0)
-                {
-                    control_set_usb_mode(use);
-                }
+            }
+            else if( control_get_cable_state() != CABLE_STATE_PC_CONNECTED ) {
+                /* Mode change makes no sence unless we have a PC connection */
+                log_warning("Mode '%s' requested while not connected to pc", use);
+            }
+            else if( common_valid_mode(use) ) {
+                /* Mode does not exist */
+                log_warning("Unknown mode '%s' requested", use);
+            }
+            else if( !g_strcmp0(mode, MODE_BUSY) ) {
+                /* In middle of a pending mode switch */
+                log_warning("Mode '%s' requested while busy", use);
+            }
+            else {
+                log_debug("Mode '%s' requested", use);
+                /* Initiate mode switch */
+                control_set_usb_mode(use);
+
+                /* Acknowledge that the mode request was accepted */
                 if((reply = dbus_message_new_method_return(msg)))
                     dbus_message_append_args (reply, DBUS_TYPE_STRING, &use, DBUS_TYPE_INVALID);
-                else
-                    error_reply:
-                    reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
             }
+
+            /* Default to returning a generic error reply */
+            if( !reply )
+                reply = dbus_message_new_error(msg, DBUS_ERROR_FAILED, member);
+
             dbus_error_free(&err);
         }
         else if(!strcmp(member, USB_MODE_CONFIG_SET))
