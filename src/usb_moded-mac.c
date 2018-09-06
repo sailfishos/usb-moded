@@ -21,9 +21,13 @@
  * 02110-1301 USA
  */
 
-#include <stdio.h>
 #include "usb_moded-mac.h"
+
 #include "usb_moded-log.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 /* ========================================================================= *
  * Prototypes
@@ -93,7 +97,7 @@ char * mac_read_mac(void)
     if(!g_ether)
     {
         log_warning("Failed to read mac address from /etc/modprobe.d/g_ether.conf\n");
-        return(NULL);
+        return NULL;
     }
     test = fseek(g_ether, 26, SEEK_SET);
     if(test == -1)
@@ -101,7 +105,7 @@ char * mac_read_mac(void)
         fclose(g_ether);
         return 0;
     }
-    mac = malloc(sizeof(char) *17);
+    mac = malloc(17);
     if(mac)
         read = fread(mac, 1, 17, g_ether);
     if(read == 17)
@@ -111,5 +115,5 @@ char * mac_read_mac(void)
 
     free(mac);
     fclose(g_ether);
-    return(ret);
+    return ret;
 }

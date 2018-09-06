@@ -27,24 +27,16 @@
  * 02110-1301 USA
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
-#include <locale.h>
-#include <unistd.h>
+#include "usb_moded-udev.h"
 
-#include <poll.h>
+#include "usb_moded-config-private.h"
+#include "usb_moded-control.h"
+#include "usb_moded-dbus-private.h"
+#include "usb_moded-log.h"
+
+#include <string.h>
 
 #include <libudev.h>
-
-#include <glib.h>
-
-#include "usb_moded-log.h"
-#include "usb_moded-config-private.h"
-#include "usb_moded-udev.h"
-#include "usb_moded.h"
-#include "usb_moded-modes.h"
-#include "usb_moded-dbus-private.h"
 
 /* ========================================================================= *
  * Prototypes
@@ -215,7 +207,7 @@ static void umudev_cable_state_changed(void)
     }
 
     /* Then act on usb mode */
-    usbmoded_set_cable_state(umudev_cable_state_active);
+    control_set_cable_state(umudev_cable_state_active);
 }
 
 static void umudev_cable_state_from_udev(cable_state_t curr)
@@ -251,8 +243,8 @@ static void umudev_cable_state_from_udev(cable_state_t curr)
         gint delay = 100;
 
         if( curr == CABLE_STATE_PC_CONNECTED && prev != CABLE_STATE_UNKNOWN ) {
-            if( delay < usbmoded_cable_connection_delay )
-                delay = usbmoded_cable_connection_delay;
+            if( delay < usbmoded_get_cable_connection_delay() )
+                delay = usbmoded_get_cable_connection_delay();
         }
 
         umudev_cable_state_start_timer(delay);
@@ -286,8 +278,8 @@ static gboolean umudev_io_input_cb(GIOChannel *iochannel, GIOCondition cond, gpo
 
     gboolean continue_watching = TRUE;
 
-    /* No code paths are allowed to bypass the usbmoded_release_wakelock() call below */
-    usbmoded_acquire_wakelock(USB_MODED_WAKELOCK_PROCESS_INPUT);
+    /* No code paths are allowed to bypass the common_release_wakelock() call below */
+    common_acquire_wakelock(USB_MODED_WAKELOCK_PROCESS_INPUT);
 
     if( cond & G_IO_IN )
     {
@@ -325,7 +317,7 @@ static gboolean umudev_io_input_cb(GIOChannel *iochannel, GIOCondition cond, gpo
         log_crit("udev io watch disabled");
     }
 
-    usbmoded_release_wakelock(USB_MODED_WAKELOCK_PROCESS_INPUT);
+    common_release_wakelock(USB_MODED_WAKELOCK_PROCESS_INPUT);
 
     return continue_watching;
 }
@@ -365,7 +357,7 @@ static void umudev_parse_properties(struct udev_device *dev, bool initial)
 
     /* Transition period = Connection status derived from udev
      * events disagrees with usb-moded side bookkeeping. */
-    if( connected != usbmoded_get_connection_state() ) {
+    if( connected != control_get_connection_state() ) {
         /* Enable udev property diagnostic logging */
         warnings = true;
         /* Block suspend briefly */
@@ -491,7 +483,7 @@ gboolean umudev_init(void)
     char                   *configured_device = NULL;
     char                   *configured_subsystem = NULL;
     struct udev_device     *dev = 0;
-    static GIOChannel      *iochannel  = 0;
+    GIOChannel             *iochannel = 0;
 
     int ret = 0;
 

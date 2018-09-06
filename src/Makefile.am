@@ -1,4 +1,5 @@
 USB_MODED_CFLAGS += -D_GNU_SOURCE
+USB_MODED_LIBS   += -lpthread
 
 sbin_PROGRAMS = usb_moded \
 		usb_moded_util 
@@ -24,6 +25,8 @@ usb_moded_SOURCES = \
 	usb_moded-modules.h \
 	usb_moded-log.h \
 	usb_moded-log.c \
+	usb_moded-common.c \
+	usb_moded-common.h \
 	usb_moded-config.c \
 	usb_moded-config.h \
 	usb_moded-network.c \
@@ -39,8 +42,14 @@ usb_moded_SOURCES = \
 	usb_moded-modules.c \
 	usb_moded-configfs.c \
 	usb_moded-configfs.h \
+	usb_moded-worker.h \
+	usb_moded-worker.c \
 	usb_moded-android.h \
-	usb_moded-android.c
+	usb_moded-android.c \
+	usb_moded-sigpipe.h \
+	usb_moded-sigpipe.c \
+	usb_moded-control.h \
+	usb_moded-control.c
 
 if USE_MER_SSU
 usb_moded_SOURCES += \

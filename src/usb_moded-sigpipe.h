@@ -1,11 +1,8 @@
 /**
- * @file usb_moded-trigger.h
+ * @file usb_moded-sigpipe.c
  *
- * Copyright (C) 2011 Nokia Corporation. All rights reserved.
- * Copyright (C) 2018 Jolla Ltd.
- *
- * @author: Philippe De Swert <philippe.de-swert@nokia.com>
- * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
+ * Copyright (C) 2010 Nokia Corporation. All rights reserved.
+ * Copyright (C) 2012-2018 Jolla. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the Lesser GNU General Public License
@@ -22,18 +19,13 @@
  * 02110-1301 USA
  */
 
-#ifndef  USB_MODED_TRIGGER_H_
-# define USB_MODED_TRIGGER_H_
+#ifndef  USB_MODED_SIGPIPE_H_
+# define USB_MODED_SIGPIPE_H_
 
-# include <stdbool.h>
+#include <stdbool.h>
 
-/* ========================================================================= *
- * Prototypes
- * ========================================================================= */
+/* -- sigpipe -- */
 
-/* -- trigger -- */
+bool sigpipe_init(void);
 
-bool     trigger_init(void);
-void     trigger_stop(void);
-
-#endif /* USB_MODED_TRIGGER_H_ */
+#endif /* USB_MODED_SIGPIPE_H_ */

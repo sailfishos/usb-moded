@@ -25,20 +25,14 @@
  * 02110-1301 USA
  */
 
-#include <stdio.h>
+#include "usb_moded-appsync-dbus-private.h"
+
+#include "usb_moded-appsync.h"
+#include "usb_moded-log.h"
+
 #include <string.h>
 
 #include <dbus/dbus.h>
-#include <dbus/dbus-glib.h>
-#include <dbus/dbus-glib-lowlevel.h>
-
-#include "usb_moded-dbus-private.h"
-#include "usb_moded.h"
-#include "usb_moded-log.h"
-#include "usb_moded-modes.h"
-#include "usb_moded-config-private.h"
-#include "usb_moded-appsync.h"
-#include "usb_moded-appsync-dbus-private.h"
 
 /* ========================================================================= *
  * Prototypes
@@ -183,7 +177,7 @@ static DBusHandlerResult dbusappsync_msg_handler(DBusConnection *const connectio
                 // could not parse method call args
                 reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
             }
-            else if( appsync_mark_active(use) < 0 )
+            else if( appsync_mark_active(use, 1) < 0 )
             {
                 // name could not be marked active
                 reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);

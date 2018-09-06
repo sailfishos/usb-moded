@@ -34,40 +34,38 @@
  * 02110-1301 USA
  */
 
-#include <getopt.h>
-#include <stdio.h>
-
-#include <sys/stat.h>
-#include <sys/wait.h>
-#include <signal.h>
-
-#include <libkmod.h>
-
-#ifdef SYSTEMD
-# include <systemd/sd-daemon.h>
-#endif
-
 #include "usb_moded.h"
-#include "usb_moded-modes.h"
+
+#include "usb_moded-android.h"
+#include "usb_moded-appsync.h"
+#include "usb_moded-config-private.h"
+#include "usb_moded-configfs.h"
+#include "usb_moded-control.h"
 #include "usb_moded-dbus-private.h"
-#include "usb_moded-udev.h"
-#include "usb_moded-modules.h"
-#include "usb_moded-log.h"
 #include "usb_moded-devicelock.h"
+#include "usb_moded-log.h"
+#include "usb_moded-mac.h"
 #include "usb_moded-modesetting.h"
 #include "usb_moded-modules.h"
-#include "usb_moded-appsync.h"
-#include "usb_moded-trigger.h"
-#include "usb_moded-config.h"
-#include "usb_moded-config-private.h"
 #include "usb_moded-network.h"
-#include "usb_moded-mac.h"
-#include "usb_moded-android.h"
-#include "usb_moded-configfs.h"
+#include "usb_moded-sigpipe.h"
 #include "usb_moded-systemd.h"
+#include "usb_moded-trigger.h"
+#include "usb_moded-udev.h"
+#include "usb_moded-worker.h"
 
 #ifdef MEEGOLOCK
 # include "usb_moded-dsme.h"
+#endif
+
+#include <unistd.h>
+#include <getopt.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <string.h>
+
+#ifdef SYSTEMD
+# include <systemd/sd-daemon.h>
 #endif
 
 /* ========================================================================= *
@@ -101,1134 +99,180 @@
 #define CABLE_CONNECTION_DELAY_MAXIMUM 4000
 
 /* ========================================================================= *
- * Types
- * ========================================================================= */
-
-/** A struct containing all the usb_moded info needed
- */
-typedef struct usb_mode
-{
-    /** Connection status
-     *
-     * Access only via:
-     * - usbmoded_set_cable_state()
-     * - usbmoded_get_connection_state()
-     */
-    cable_state_t cable_state;
-
-    /** Mount status, true for mounted -UNUSED atm- */
-    bool mounted;
-
-    /** The logical mode name
-     *
-     * Full set of valid modes can occur here
-     */
-    char *internal_mode;
-
-    /* The hardware mode name
-     *
-     * How the usb hardware has been configured.
-     *
-     * For example internal_mode=MODE_ASK gets
-     * mapped to hardware_mode=MODE_CHARGING */
-    char *hardware_mode;
-
-    /* The external mode;
-     *
-     * What was the last mode signaled over D-Bus.
-     */
-    char *external_mode;
-
-    /**< The module name for the specific mode */
-    char *module;
-
-    /**< Contains the mode data */
-    struct mode_list_elem *data;
-} usb_mode;
-
-/** Mapping usb mode from internal to hardware/broadcast use */
-typedef struct modemapping_t
-{
-    /** Any valid usb mode */
-    const char *internal_mode;
-
-    /** Mode to use for usb configuration, or NULL = internal */
-    const char *hardware_mode;
-
-    /** Mode to use for D-Bus broadcast, or NULL = internal */
-    const char *external_mode;
-} modemapping_t;
-
-/* ========================================================================= *
  * Prototypes
  * ========================================================================= */
 
-/* -- cable -- */
-const char *cable_state_repr(cable_state_t state);
-
 /* -- usbmoded -- */
 
-static const char *usbmoded_map_mode_to_hardware(const char *internal_mode);
-static const char *usbmoded_map_mode_to_external(const char *internal_mode);
-
-// ----------------------------------------------------------------
-void                   usbmoded_rethink_usb_charging_fallback(void);
-
-static bool            usbmoded_switch_to_charging           (void);
-static void            usbmoded_switch_to_mode               (const char *mode);
-static void            usbmoded_mode_switched                (const char *override);
-
-const char            *usbmoded_get_hardware_mode            (void);
-static void            usbmoded_update_hardware_mode         (void);
-
-const char            *usbmoded_get_external_mode            (void);
-static void            usbmoded_set_external_mode            (const char *mode);
-static void            usbmoded_update_external_mode         (void);
-
-const char            *usbmoded_get_usb_mode                 (void);
-void                   usbmoded_set_usb_mode                 (const char *internal_mode);
-void                   usbmoded_select_usb_mode              (void);
-
-void                   usbmoded_set_cable_state              (cable_state_t cable_state);
-cable_state_t          usbmoded_get_cable_state              (void);
-bool                   usbmoded_get_connection_state         (void);
-
-// ----------------------------------------------------------------
-// internal movements
-
-static void            usbmoded_set_cable_connection_delay   (int delay_ms);
-
-static bool            usbmoded_mode_in_list                 (const char *mode, char *const *modes);
-int                    usbmoded_valid_mode                   (const char *mode);
-gchar                 *usbmoded_get_mode_list                (mode_list_type_t type);
-
-const char            *usbmoded_get_usb_module               (void);
-bool                   usbmoded_set_usb_module               (const char *module);
-
-struct mode_list_elem *usbmoded_get_usb_mode_data            (void);
-void                   usbmoded_set_usb_mode_data            (struct mode_list_elem *data);
-
-void                   usbmoded_send_supported_modes_signal  (void);
-void                   usbmoded_send_available_modes_signal  (void);
-void                   usbmoded_send_hidden_modes_signal     (void);
-void                   usbmoded_send_whitelisted_modes_signal(void);
-
-static void            usbmoded_write_to_sysfs_file          (const char *path, const char *text);
-void                   usbmoded_acquire_wakelock             (const char *wakelock_name);
-void                   usbmoded_release_wakelock             (const char *wakelock_name);
-
-static gboolean        usbmoded_allow_suspend_timer_cb       (gpointer aptr);
-void                   usbmoded_allow_suspend                (void);
-void                   usbmoded_delay_suspend                (void);
-
-bool                   usbmoded_can_export                  (void);
-bool                   usbmoded_init_done_p                  (void);
-void                   usbmoded_set_init_done                (bool reached);
-void                   usbmoded_probe_init_done              (void);
-
-void                   usbmoded_exit_mainloop                (int exitcode);
-static void            usbmoded_handle_signal                (int signum);
-
-static void            usbmoded_init                         (void);
-static void            usbmoded_cleanup                      (void);
-
-int                    usbmoded_system_                      (const char *file, int line, const char *func, const char *command);
-FILE                  *usbmoded_popen_                       (const char *file, int line, const char *func, const char *command, const char *type);
-void                   usbmoded_usleep_                      (const char *file, int line, const char *func, useconds_t usec);
-
-static void            usbmoded_usage                        (void);
-
-/* -- sigpipe -- */
-
-static gboolean sigpipe_read_signal_cb (GIOChannel *channel, GIOCondition condition, gpointer data);
-static void     sigpipe_trap_signal_cb (int sig);
-static bool     sigpipe_crate_pipe     (void);
-static void     sigpipe_trap_signals   (void);
-static bool     sigpipe_init           (void);
+GList           *usbmoded_get_modelist              (void);
+void             usbmoded_load_modelist             (void);
+void             usbmoded_free_modelist             (void);
+bool             usbmoded_get_rescue_mode           (void);
+void             usbmoded_set_rescue_mode           (bool rescue_mode);
+bool             usbmoded_get_diag_mode             (void);
+void             usbmoded_set_diag_mode             (bool diag_mode);
+void             usbmoded_set_cable_connection_delay(int delay_ms);
+int              usbmoded_get_cable_connection_delay(void);
+static gboolean  usbmoded_allow_suspend_timer_cb    (gpointer aptr);
+void             usbmoded_allow_suspend             (void);
+void             usbmoded_delay_suspend             (void);
+bool             usbmoded_init_done_p               (void);
+void             usbmoded_set_init_done             (bool reached);
+void             usbmoded_probe_init_done           (void);
+bool             usbmoded_can_export                (void);
+void             usbmoded_exit_mainloop             (int exitcode);
+void             usbmoded_handle_signal             (int signum);
+static bool      usbmoded_init                      (void);
+static void      usbmoded_cleanup                   (void);
+static void      usbmoded_usage                     (void);
+static void      usbmoded_parse_options             (int argc, char *argv[]);
 
 /* ========================================================================= *
  * Data
  * ========================================================================= */
 
-static int usb_moded_exitcode = EXIT_FAILURE;
-static GMainLoop *usb_moded_mainloop = NULL;
+static int        usbmoded_exitcode       = EXIT_FAILURE;
+static GMainLoop *usbmoded_mainloop       = NULL;
 
-bool usbmoded_rescue_mode = false;
-static bool diag_mode = false;
-static bool hw_fallback = false;
+static bool       usbmoded_hw_fallback    = false;
 #ifdef SYSTEMD
-static bool systemd_notify = false;
+static bool       usbmoded_systemd_notify = false;
 #endif
-
-/** Currently allowed cable detection delay
- */
-int usbmoded_cable_connection_delay = CABLE_CONNECTION_DELAY_DEFAULT;
-
-static struct usb_mode current_mode = {
-    .cable_state   = CABLE_STATE_UNKNOWN,
-    .mounted       = false,
-    .internal_mode = NULL,
-    .hardware_mode = NULL,
-    .external_mode = NULL,
-    .module        = NULL,
-    .data          = NULL,
-};
-
-static GList *modelist = 0;
-
-/** Path to init-done flag file */
-static const char init_done_flagfile[] = "/run/systemd/boot-status/init-done";
-
-/** cached init-done-reached state */
-static bool init_done_reached = false;
-
-/** Flag for: USB_MODED_WAKELOCK_STATE_CHANGE has been acquired */
-static bool blocking_suspend = false;
-
-/** Timer for releasing USB_MODED_WAKELOCK_STATE_CHANGE */
-static guint allow_suspend_timer_id = 0;
-
-/** Pipe fd for transferring signals to mainloop context */
-static int sigpipe_fd = -1;
-
-static const modemapping_t modemapping[] =
-{
-    {
-        .internal_mode = MODE_UNDEFINED,
-        .hardware_mode = MODE_CHARGING,
-        .external_mode = 0,
-    },
-    {
-        .internal_mode = MODE_ASK,
-        .hardware_mode = MODE_CHARGING,
-        .external_mode = 0,
-    },
-    {
-        .internal_mode = MODE_MASS_STORAGE,
-        .hardware_mode = 0,
-        .external_mode = 0,
-    },
-    {
-        .internal_mode = MODE_DEVELOPER,
-        .hardware_mode = 0,
-        .external_mode = 0,
-    },
-    {
-        .internal_mode = MODE_MTP,
-        .hardware_mode = 0,
-        .external_mode = 0,
-    },
-    {
-        .internal_mode = MODE_HOST,
-        .hardware_mode = 0,
-        .external_mode = 0,
-    },
-    {
-        .internal_mode = MODE_CONNECTION_SHARING,
-        .hardware_mode = 0,
-        .external_mode = 0,
-    },
-    {
-        .internal_mode = MODE_DIAG,
-        .hardware_mode = 0,
-        .external_mode = 0,
-    },
-    {
-        .internal_mode = MODE_ADB,
-        .hardware_mode = 0,
-        .external_mode = 0,
-    },
-    {
-        .internal_mode = MODE_PC_SUITE,
-        .hardware_mode = 0,
-        .external_mode = 0,
-    },
-    {
-        .internal_mode = MODE_CHARGING,
-        .hardware_mode = MODE_CHARGING,
-        .external_mode = 0,
-    },
-    {
-        .internal_mode = MODE_CHARGING_FALLBACK,
-        .hardware_mode = MODE_CHARGING,
-        .external_mode = MODE_ASK,
-    },
-    {
-        .internal_mode = MODE_CHARGER,
-        .hardware_mode = MODE_CHARGING,
-        .external_mode = 0,
-    },
-    // sentinel
-    {
-        .internal_mode = 0,
-        .hardware_mode = 0,
-        .external_mode = 0,
-    }
-};
 
 /* ========================================================================= *
  * Functions
  * ========================================================================= */
 
-static bool usbmoded_mode_is_mtp_mode(const char *mode)
+/* ------------------------------------------------------------------------- *
+ * MODELIST
+ * ------------------------------------------------------------------------- */
+
+static GList *usbmoded_modelist = 0;
+
+GList *
+usbmoded_get_modelist(void)
 {
-    return mode && !strcmp(mode, "mtp_mode");
+    return usbmoded_modelist;
 }
 
-static bool usbmoded_is_mtpd_running(void)
-{
-    /* ep0 becomes available when /dev/mtp is mounted.
-     *
-     * ep1, ep2, ep3 exist while mtp daemon is running,
-     * has ep0 opened and has written config data to it.
-     */
-    static const char * const lut[] = {
-        "/dev/mtp/ep0",
-        "/dev/mtp/ep1",
-        "/dev/mtp/ep2",
-        "/dev/mtp/ep3",
-        0
-    };
-
-    bool ack = true;
-
-    for( size_t i = 0; lut[i]; ++i ) {
-        if( access(lut[i], F_OK) == -1 ) {
-            ack = false;
-            break;
-        }
-    }
-
-    return ack;
-}
-
-static bool
-usbmoded_stop_mtpd(void)
-{
-    bool ack = !usbmoded_is_mtpd_running();
-
-    if( ack ) {
-        log_debug("mtp daemon is not running");
-        goto EXIT;
-    }
-
-    int rc = usbmoded_system("systemctl-user stop buteo-mtp.service");
-    if( rc != 0 ) {
-        log_warning("failed to stop mtp daemon; exit code = %d", rc);
-        goto EXIT;
-    }
-
-    for( int attempts = 3; ; ) {
-        if( (ack = !usbmoded_is_mtpd_running()) ) {
-            log_debug("mtp daemon has stopped");
-            break;
-        }
-
-        if( --attempts <= 0) {
-            log_warning("failed to stop mtp daemon; giving up");
-            break;
-        }
-
-        log_debug("waiting for mtp daemon to stop");
-        usbmoded_msleep(2000);
-    }
-EXIT:
-
-    return ack;
-}
-
-static bool
-usbmoded_start_mtpd(void)
-{
-    bool ack = usbmoded_is_mtpd_running();
-
-    if( ack ) {
-        log_debug("mtp daemon is not running");
-        goto EXIT;
-    }
-
-    int rc = usbmoded_system("systemctl-user start buteo-mtp.service");
-    if( rc != 0 ) {
-        log_warning("failed to start mtp daemon; exit code = %d", rc);
-        goto EXIT;
-    }
-
-    for( int attempts = 15; ; ) {
-        if( (ack = usbmoded_is_mtpd_running()) ) {
-            log_debug("mtp daemon has started");
-            break;
-        }
-
-        if( --attempts <= 0) {
-            log_warning("failed to start mtp daemon; giving up");
-            break;
-        }
-
-        log_debug("waiting for mtp daemon to start");
-        usbmoded_msleep(2000);
-    }
-EXIT:
-
-    return ack;
-}
-
-const char *cable_state_repr(cable_state_t state)
-{
-    static const char * const lut[CABLE_STATE_NUMOF] = {
-        [CABLE_STATE_UNKNOWN]           = "unknown",
-        [CABLE_STATE_DISCONNECTED]      = "disconnected",
-        [CABLE_STATE_CHARGER_CONNECTED] = "charger_connected",
-        [CABLE_STATE_PC_CONNECTED]      = "pc_connected",
-    };
-    return lut[state];
-}
-
-static const char *
-usbmoded_map_mode_to_hardware(const char *internal_mode)
-{
-    const char *hardware_mode = 0;
-
-    for( size_t i = 0; modemapping[i].internal_mode; ++i ) {
-        if( strcmp(modemapping[i].internal_mode, internal_mode) )
-            continue;
-        hardware_mode = modemapping[i].hardware_mode;
-        break;
-    }
-    return hardware_mode ?: internal_mode;
-}
-
-static const char *
-usbmoded_map_mode_to_external(const char *internal_mode)
-{
-    const char *external_mode = 0;
-
-    for( size_t i = 0; modemapping[i].internal_mode; ++i ) {
-        if( strcmp(modemapping[i].internal_mode, internal_mode) )
-            continue;
-        external_mode = modemapping[i].external_mode;
-        break;
-    }
-    return external_mode ?: internal_mode;
-}
-
-/** Check if we can/should leave charging fallback mode
- *
- * Called when device lock status, or device status (dsme)
- * changes.
- */
 void
-usbmoded_rethink_usb_charging_fallback(void)
+usbmoded_load_modelist(void)
 {
-    /* Cable must be connected to a pc */
-    if( usbmoded_get_cable_state() != CABLE_STATE_PC_CONNECTED )
-        goto EXIT;
-
-    /* Switching can happen only from MODE_UNDEFINED
-     * or MODE_CHARGING_FALLBACK */
-    const char *usb_mode = usbmoded_get_usb_mode();
-
-    if( strcmp(usb_mode, MODE_UNDEFINED) &&
-        strcmp(usb_mode, MODE_CHARGING_FALLBACK) )
-        goto EXIT;
-
-    if( !usbmoded_can_export() ) {
-        log_notice("exporting data not allowed; stay in %s", usb_mode);
-        goto EXIT;
+    if( !usbmoded_modelist ) {
+        log_notice("load modelist");
+        usbmoded_modelist = dynconfig_read_mode_list(usbmoded_get_diag_mode());
     }
-
-    log_debug("attempt to leave %s", usb_mode);
-    usbmoded_select_usb_mode();
-
-EXIT:
-    return;
 }
 
-static bool usbmoded_switch_to_charging(void)
+void
+usbmoded_free_modelist(void)
 {
-    bool ack = true;
-
-    if( android_set_charging_mode() )
-        goto SUCCESS;
-
-    if( configfs_set_charging_mode() )
-        goto SUCCESS;
-
-    if( modules_in_use() ) {
-        if( usbmoded_set_usb_module(MODULE_MASS_STORAGE) )
-            goto SUCCESS;
-        usbmoded_set_usb_module(MODULE_NONE);
+    if( usbmoded_modelist ) {
+        log_notice("free modelist");
+        dynconfig_free_mode_list(usbmoded_modelist),
+            usbmoded_modelist = 0;
     }
-
-    log_err("switch to charging mode failed");
-
-    ack = false;
-SUCCESS:
-    return ack;
 }
 
-static void usbmoded_switch_to_mode(const char *mode)
-{
-    const char *override = 0;
+/* ------------------------------------------------------------------------- *
+ * RESCUE_MODE
+ * ------------------------------------------------------------------------- */
 
-    /* set return to 1 to be sure to error out if no matching mode is found either */
-
-    log_debug("Cleaning up previous mode");
-
-    if( !usbmoded_mode_is_mtp_mode(mode) )
-        usbmoded_stop_mtpd();
-
-    if( usbmoded_get_usb_mode_data() ) {
-        modesetting_leave_dynamic_mode();
-        usbmoded_set_usb_mode_data(NULL);
-    }
-
-    log_debug("Setting %s\n", mode);
-
-    /* Mode mapping should mean we only see MODE_CHARGING here, but just
-     * in case redirect fixed charging related things to charging ... */
-
-    if( !strcmp(mode, MODE_CHARGING) ||
-        !strcmp(mode, MODE_CHARGING_FALLBACK) ||
-        !strcmp(mode, MODE_CHARGER) ||
-        !strcmp(mode, MODE_UNDEFINED) ||
-        !strcmp(mode, MODE_ASK)) {
-        goto CHARGE;
-    }
-
-    if( !usbmoded_can_export() ) {
-        log_warning("Policy does not allow mode: %s", mode);
-        goto FAILED;
-    }
-
-    /* go through all the dynamic modes if the modelist exists*/
-    for( GList *iter = modelist; iter; iter = g_list_next(iter) )
-    {
-        struct mode_list_elem *data = iter->data;
-        if( strcmp(mode, data->mode_name) )
-            continue;
-
-        log_debug("Matching mode %s found.\n", mode);
-
-        /* set data before calling any of the dynamic mode functions
-         * as they will use the usbmoded_get_usb_mode_data function */
-        usbmoded_set_usb_mode_data(data);
-
-        if( usbmoded_mode_is_mtp_mode(mode) ) {
-            if( !usbmoded_start_mtpd() )
-                goto FAILED;
-        }
-
-        if( !usbmoded_set_usb_module(data->mode_module) )
-            goto FAILED;
-
-        if( !modesetting_enter_dynamic_mode() )
-            goto FAILED;
-
-        goto SUCCESS;
-    }
-
-    log_warning("Matching mode %s was not found.", mode);
-
-FAILED:
-    override = MODE_CHARGING;
-    log_warning("mode setting failed, try %s", override);
-    usbmoded_set_usb_mode_data(NULL);
-
-CHARGE:
-    if( usbmoded_switch_to_charging() )
-        goto SUCCESS;
-
-    log_crit("failed to activate charging, all bets are off");
-
-    /* FIXME: double check this error path */
-
-    /* If we get here then usb_module loading failed,
-     * no mode matched, and charging setup failed too.
-     */
-
-    override = MODE_UNDEFINED;
-    log_warning("mode setting failed, fallback to %s", override);
-    usbmoded_set_usb_module(MODULE_NONE);
-
-SUCCESS:
-    /* TODO: WORKER -> MAIN THREAD BARRIER */
-    usbmoded_mode_switched(override);
-
-    return;
-}
-
-const char *usbmoded_get_hardware_mode(void)
-{
-    return current_mode.hardware_mode ?: MODE_UNDEFINED;
-}
-
-static void usbmoded_update_hardware_mode(void)
-{
-    const char *internal_mode = usbmoded_get_usb_mode();
-    const char *hardware_mode = usbmoded_map_mode_to_hardware(internal_mode);
-
-    gchar *previous = current_mode.hardware_mode;
-    if( !g_strcmp0(previous, hardware_mode) ) {
-        usbmoded_mode_switched(0);
-        goto EXIT;
-    }
-
-    log_debug("hardware_mode: %s -> %s",
-              previous, hardware_mode);
-
-    current_mode.hardware_mode = g_strdup(hardware_mode);
-    g_free(previous);
-
-    // DO THE MODESWITCH
-
-    /* TODO: MAIN THREAD -> WORKERBARRIER */
-    usbmoded_switch_to_mode(current_mode.hardware_mode);
-
-EXIT:
-    return;
-}
-
-const char *usbmoded_get_external_mode(void)
-{
-    return current_mode.external_mode ?: MODE_UNDEFINED;
-}
-
-static void usbmoded_set_external_mode(const char *mode)
-{
-    gchar *previous = current_mode.external_mode;
-    if( !g_strcmp0(previous, mode) )
-        goto EXIT;
-
-    log_debug("external_mode: %s -> %s",
-              previous, mode);
-
-    current_mode.external_mode = g_strdup(mode);
-    g_free(previous);
-
-    // DO THE DBUS BROADCAST
-
-    if( !strcmp(current_mode.external_mode, MODE_ASK) ) {
-        /* send signal, mode will be set when the dialog service calls
-         * the set_mode method call. */
-        umdbus_send_state_signal(USB_CONNECTED_DIALOG_SHOW);
-    }
-
-    umdbus_send_state_signal(current_mode.external_mode);
-
-EXIT:
-    return;
-}
-
-static void usbmoded_update_external_mode(void)
-{
-    const char *internal_mode = usbmoded_get_usb_mode();
-    const char *external_mode = usbmoded_map_mode_to_external(internal_mode);
-
-    usbmoded_set_external_mode(external_mode);
-}
-
-/** get the usb mode
+/** Rescue mode flag
  *
- * @return the currently set mode
- *
+ * When enabled, usb-moded allows developer_mode etc when device is
+ * booted up with cable connected without requiring device unlock.
+ * Which can be useful if UI for some reason does not come up.
  */
-const char * usbmoded_get_usb_mode(void)
+static bool usbmoded_rescue_mode = false;
+
+bool usbmoded_get_rescue_mode(void)
 {
-    return current_mode.internal_mode;
+    return usbmoded_rescue_mode;
 }
 
-/** set the usb mode
+void usbmoded_set_rescue_mode(bool rescue_mode)
+{
+    if( usbmoded_rescue_mode != rescue_mode ) {
+        log_info("rescue_mode: %d -> %d",  usbmoded_rescue_mode, rescue_mode);
+        usbmoded_rescue_mode = rescue_mode;
+    }
+}
+
+/* ------------------------------------------------------------------------- *
+ * DIAG_MODE
+ * ------------------------------------------------------------------------- */
+
+/** Diagnostic mode active
  *
- * @param mode The requested USB mode
+ * In diag mode usb-moded uses separate mode configuration which
+ * should have exactly one mode defined / available.
  */
-void usbmoded_set_usb_mode(const char *mode)
+static bool usbmoded_diag_mode = false;
+
+bool usbmoded_get_diag_mode(void)
 {
-    gchar *previous = current_mode.internal_mode;
-    if( !g_strcmp0(previous, mode) )
-        goto EXIT;
-
-    log_debug("internal_mode: %s -> %s",
-              previous, mode);
-
-    current_mode.internal_mode = g_strdup(mode);
-    g_free(previous);
-
-    /* Invalidate current mode for the duration of mode transition */
-    usbmoded_set_external_mode(MODE_BUSY);
-
-    // PROPAGATE DOWN TO GADGET CONFIG
-    usbmoded_update_hardware_mode();
-
-EXIT:
-    return;
+    return usbmoded_diag_mode;
 }
 
-static void usbmoded_mode_switched(const char *override)
+void usbmoded_set_diag_mode(bool diag_mode)
 {
-    if( override ) {
-        /* Requested usb mode could not be activated at
-         * gadget control level. Update state info, but
-         * do not retrigger lower levels
-         */
-
-        log_debug("hardware_mode: %s -> %s (OVERRIDE)",
-                  current_mode.hardware_mode,
-                  override);
-
-        g_free(current_mode.hardware_mode),
-            current_mode.hardware_mode = g_strdup(override);
-
-        log_debug("internal_mode: %s -> %s (OVERRIDE)",
-                  current_mode.internal_mode,
-                  override);
-
-        g_free(current_mode.internal_mode),
-            current_mode.internal_mode = g_strdup(override);
+    if( usbmoded_diag_mode != diag_mode ) {
+        log_info("diag_mode: %d -> %d",  usbmoded_diag_mode, diag_mode);
+        usbmoded_diag_mode = diag_mode;
     }
-
-    // PROPAGATE UP DBUS
-    usbmoded_update_external_mode();
-
-    return;
 }
 
-/** set the chosen usb state
+/* ------------------------------------------------------------------------- *
+ * CABLE_CONNECT_DELAY
+ * ------------------------------------------------------------------------- */
+
+/** PC connection delay
  *
- * gauge what mode to enter and then call usbmoded_set_usb_mode()
- *
+ * Slow cable insert / similar physical issues can lead to a charger
+ * getting initially recognized as a pc connection. This defines how
+ * long we should wait and see if pc connection gets corrected to a
+ * charger kind.
  */
-void usbmoded_select_usb_mode(void)
-{
-    char *mode_to_set = 0;
-
-    if( usbmoded_rescue_mode ) {
-        log_debug("Entering rescue mode!\n");
-        usbmoded_set_usb_mode(MODE_DEVELOPER);
-        goto EXIT;
-    }
-
-    if( diag_mode ) {
-        log_debug("Entering diagnostic mode!\n");
-        if( modelist ) {
-            /* XXX 1st entry is just assumed to be diag mode??? */
-            GList *iter = modelist;
-            struct mode_list_elem *data = iter->data;
-            usbmoded_set_usb_mode(data->mode_name);
-        }
-        goto EXIT;
-    }
-
-    mode_to_set = config_get_mode_setting();
-
-    /* If there is only one allowed mode, use it without
-     * going through ask-mode */
-    if( !strcmp(MODE_ASK, mode_to_set) ) {
-        // FIXME free() vs g_free() conflict
-        gchar *available = usbmoded_get_mode_list(AVAILABLE_MODES_LIST);
-        if( *available && !strchr(available, ',') ) {
-            free(mode_to_set), mode_to_set = available, available = 0;
-        }
-        g_free(available);
-    }
-
-    if( mode_to_set && usbmoded_can_export() ) {
-        usbmoded_set_usb_mode(mode_to_set);
-    }
-    else {
-        /* config is corrupted or we do not have a mode configured, fallback to charging
-         * We also fall back here in case the device is locked and we do not
-         * export the system contents. Or if we are in acting dead mode.
-         */
-        usbmoded_set_usb_mode(MODE_CHARGING_FALLBACK);
-    }
-EXIT:
-    free(mode_to_set);
-}
-
-/** set the usb connection status
- *
- * @param cable_state CABLE_STATE_DISCONNECTED, ...
- */
-void usbmoded_set_cable_state(cable_state_t cable_state)
-{
-    cable_state_t prev = current_mode.cable_state;
-    current_mode.cable_state = cable_state;
-
-    if( current_mode.cable_state == prev )
-        goto EXIT;
-
-    log_debug("current_mode.cable_state: %s -> %s",
-              cable_state_repr(prev),
-              cable_state_repr(current_mode.cable_state));
-
-    switch( current_mode.cable_state ) {
-    default:
-    case CABLE_STATE_DISCONNECTED:
-        usbmoded_set_usb_mode(MODE_UNDEFINED);
-        break;
-    case CABLE_STATE_CHARGER_CONNECTED:
-        usbmoded_set_usb_mode(MODE_CHARGER);
-        break;
-    case CABLE_STATE_PC_CONNECTED:
-        usbmoded_select_usb_mode();
-        break;
-    }
-
-EXIT:
-    return;
-}
-
-/** get the usb connection status
- *
- * @return CABLE_STATE_DISCONNECTED, ...
- */
-cable_state_t usbmoded_get_cable_state(void)
-{
-    return current_mode.cable_state;
-}
-
-/** Get if the cable (pc or charger) is connected or not
- *
- * @ return true if connected, false if disconnected
- */
-bool usbmoded_get_connection_state(void)
-{
-    bool connected = false;
-    switch( usbmoded_get_cable_state() ) {
-    case CABLE_STATE_CHARGER_CONNECTED:
-    case CABLE_STATE_PC_CONNECTED:
-        connected = true;
-        break;
-    default:
-        break;
-    }
-    return connected;
-}
+static int usbmoded_cable_connection_delay = CABLE_CONNECTION_DELAY_DEFAULT;
 
 /** Helper for setting allowed cable detection delay
  *
  * Used for implementing --max-cable-delay=<ms> option.
  */
-static void usbmoded_set_cable_connection_delay(int delay_ms)
+void
+usbmoded_set_cable_connection_delay(int delay_ms)
 {
-    if( delay_ms < CABLE_CONNECTION_DELAY_MAXIMUM )
+    if( delay_ms > CABLE_CONNECTION_DELAY_MAXIMUM )
+        delay_ms = CABLE_CONNECTION_DELAY_MAXIMUM;
+    if( delay_ms < 0 )
+        delay_ms = 0;
+
+    if( usbmoded_cable_connection_delay != delay_ms ) {
+        log_info("cable_connection_delay: %d -> %d",
+                 usbmoded_cable_connection_delay,
+                 delay_ms);
         usbmoded_cable_connection_delay = delay_ms;
-    else {
-        usbmoded_cable_connection_delay = CABLE_CONNECTION_DELAY_MAXIMUM;
-        log_warning("using maximum connection delay: %d ms",
-                    usbmoded_cable_connection_delay);
     }
 }
 
-/* check if a mode is in a list */
-static bool usbmoded_mode_in_list(const char *mode, char * const *modes)
-{
-    int i;
-
-    if (!modes)
-        return false;
-
-    for(i = 0; modes[i] != NULL; i++)
-    {
-        if(!strcmp(modes[i], mode))
-            return true;
-    }
-    return false;
-}
-
-/** check if a given usb_mode exists
- *
- * @param mode The mode to look for
- * @return 0 if mode exists, 1 if it does not exist
- *
+/** Helper for getting allowed cable detection delay
  */
-int usbmoded_valid_mode(const char *mode)
+int
+usbmoded_get_cable_connection_delay(void)
 {
-    int valid = 1;
-    /* MODE_ASK, MODE_CHARGER and MODE_CHARGING_FALLBACK are not modes that are settable seen their special 'internal' status
-     * so we only check the modes that are announed outside. Only exception is the built in MODE_CHARGING */
-    if(!strcmp(MODE_CHARGING, mode))
-        valid = 0;
-    else
-    {
-        char *whitelist;
-        gchar **whitelist_split = NULL;
-
-        whitelist = config_get_mode_whitelist();
-        if (whitelist)
-        {
-            whitelist_split = g_strsplit(whitelist, ",", 0);
-            g_free(whitelist);
-        }
-
-        /* check dynamic modes */
-        if(modelist)
-        {
-            GList *iter;
-
-            for( iter = modelist; iter; iter = g_list_next(iter) )
-            {
-                struct mode_list_elem *data = iter->data;
-                if(!strcmp(mode, data->mode_name))
-                {
-                    if (!whitelist_split || usbmoded_mode_in_list(data->mode_name, whitelist_split))
-                        valid = 0;
-                    break;
-                }
-            }
-
-            g_strfreev(whitelist_split);
-        }
-    }
-    return valid;
-
+    return usbmoded_cable_connection_delay;
 }
 
-/** make a list of all available usb modes
- *
- * @param type The type of list to return. Supported or available.
- * @return a comma-separated list of modes (MODE_ASK not included as it is not a real mode)
- *
- */
-gchar *usbmoded_get_mode_list(mode_list_type_t type)
-{
-    GString *modelist_str;
+/* ------------------------------------------------------------------------- *
+ * SUSPEND_BLOCKING
+ * ------------------------------------------------------------------------- */
 
-    modelist_str = g_string_new(NULL);
+/** Flag for: USB_MODED_WAKELOCK_STATE_CHANGE has been acquired */
+static bool usbmoded_blocking_suspend = false;
 
-    if(!diag_mode)
-    {
-        /* check dynamic modes */
-        if(modelist)
-        {
-            GList *iter;
-            char *hidden_modes_list, *whitelist;
-            gchar **hidden_mode_split = NULL, **whitelist_split = NULL;
-
-            hidden_modes_list = config_get_hidden_modes();
-            if(hidden_modes_list)
-            {
-                hidden_mode_split = g_strsplit(hidden_modes_list, ",", 0);
-                g_free(hidden_modes_list);
-            }
-
-            if (type == AVAILABLE_MODES_LIST)
-            {
-                whitelist = config_get_mode_whitelist();
-                if (whitelist)
-                {
-                    whitelist_split = g_strsplit(whitelist, ",", 0);
-                    g_free(whitelist);
-                }
-            }
-
-            for( iter = modelist; iter; iter = g_list_next(iter) )
-            {
-                struct mode_list_elem *data = iter->data;
-
-                /* skip items in the hidden list */
-                if (usbmoded_mode_in_list(data->mode_name, hidden_mode_split))
-                    continue;
-
-                /* if there is a whitelist skip items not in the list */
-                if (whitelist_split && !usbmoded_mode_in_list(data->mode_name, whitelist_split))
-                    continue;
-
-                modelist_str = g_string_append(modelist_str, data->mode_name);
-                modelist_str = g_string_append(modelist_str, ", ");
-            }
-
-            g_strfreev(hidden_mode_split);
-            g_strfreev(whitelist_split);
-        }
-
-        /* end with charging mode */
-        g_string_append(modelist_str, MODE_CHARGING);
-        return g_string_free(modelist_str, false);
-    }
-    else
-    {
-        /* diag mode. there is only one active mode */
-        g_string_append(modelist_str, MODE_DIAG);
-        return g_string_free(modelist_str, false);
-    }
-}
-
-/** get the supposedly loaded module
- *
- * @return The name of the loaded module
- *
- */
-const char * usbmoded_get_usb_module(void)
-{
-    return current_mode.module ?: MODULE_NONE;
-}
-
-/** set the loaded module
- *
- * @param module The module name for the requested mode
- *
- */
-bool usbmoded_set_usb_module(const char *module)
-{
-    bool ack = false;
-
-    if( !module )
-        module = MODULE_NONE;
-
-    const char *current = usbmoded_get_usb_module();
-
-    log_debug("current module: %s -> %s", current, module);
-
-    if( !g_strcmp0(current, module) )
-        goto SUCCESS;
-
-    if( modules_unload_module(current) != 0 )
-        goto EXIT;
-
-    free(current_mode.module), current_mode.module = 0;
-
-    if( modules_load_module(module) != 0 )
-        goto EXIT;
-
-    if( g_strcmp0(module, MODULE_NONE) )
-        current_mode.module = strdup(module);
-
-SUCCESS:
-    ack = true;
-EXIT:
-    return ack;
-}
-
-/** get the usb mode data
- *
- * @return a pointer to the usb mode data
- *
- */
-struct mode_list_elem * usbmoded_get_usb_mode_data(void)
-{
-    return current_mode.data;
-}
-
-/** set the mode_list_elem data
- *
- * @param data mode_list_element pointer
- *
- */
-void usbmoded_set_usb_mode_data(struct mode_list_elem *data)
-{
-    current_mode.data = data;
-}
-
-/** Send supported modes signal
- */
-void usbmoded_send_supported_modes_signal(void)
-{
-    gchar *mode_list = usbmoded_get_mode_list(SUPPORTED_MODES_LIST);
-    umdbus_send_supported_modes_signal(mode_list);
-    g_free(mode_list);
-}
-
-/** Send available modes signal
- */
-void usbmoded_send_available_modes_signal(void)
-{
-    gchar *mode_list = usbmoded_get_mode_list(AVAILABLE_MODES_LIST);
-    umdbus_send_available_modes_signal(mode_list);
-    g_free(mode_list);
-}
-
-/** Send hidden modes signal
- */
-void usbmoded_send_hidden_modes_signal(void)
-{
-    gchar *mode_list = config_get_hidden_modes();
-    if(mode_list) {
-        // TODO: cleared list not signaled?
-        umdbus_send_hidden_modes_signal(mode_list);
-        g_free(mode_list);
-    }
-}
-
-/** Send whitelisted modes signal
- */
-void usbmoded_send_whitelisted_modes_signal(void)
-{
-    gchar *mode_list = config_get_mode_whitelist();
-    if(mode_list) {
-        // TODO: cleared list not signaled?
-        umdbus_send_whitelisted_modes_signal(mode_list);
-        g_free(mode_list);
-    }
-}
-
-/** Write string to already existing sysfs file
- *
- * Note: Attempts to write to nonexisting files are silently ignored.
- *
- * @param path Where to write
- * @param text What to write
- */
-static void usbmoded_write_to_sysfs_file(const char *path, const char *text)
-{
-    int fd = -1;
-
-    if (!path || !text)
-        goto EXIT;
-
-    if ((fd = open(path, O_WRONLY)) == -1) {
-        if (errno != ENOENT) {
-            log_warning("%s: open for writing failed: %m", path);
-        }
-        goto EXIT;
-    }
-
-    if (write(fd, text, strlen(text)) == -1) {
-        log_warning("%s: write failed : %m", path);
-        goto EXIT;
-    }
-EXIT:
-    if (fd != -1)
-        close(fd);
-}
-
-/** Acquire wakelock via sysfs
- *
- * Wakelock must be released via usbmoded_release_wakelock().
- *
- * Automatically terminating wakelock is used, so that we
- * do not block suspend  indefinately in case usb_moded
- * gets stuck or crashes.
- *
- * Note: The name should be unique within the system.
- *
- * @param wakelock_name Wake lock to be acquired
- */
-void usbmoded_acquire_wakelock(const char *wakelock_name)
-{
-    char buff[256];
-    snprintf(buff, sizeof buff, "%s %lld",
-             wakelock_name,
-             USB_MODED_SUSPEND_DELAY_MAXIMUM_MS * 1000000LL);
-    usbmoded_write_to_sysfs_file("/sys/power/wake_lock", buff);
-
-#if VERBOSE_WAKELOCKING
-    log_debug("usbmoded_acquire_wakelock %s", wakelock_name);
-#endif
-}
-
-/** Release wakelock via sysfs
- *
- * @param wakelock_name Wake lock to be released
- */
-void usbmoded_release_wakelock(const char *wakelock_name)
-{
-#if VERBOSE_WAKELOCKING
-    log_debug("usbmoded_release_wakelock %s", wakelock_name);
-#endif
-
-    usbmoded_write_to_sysfs_file("/sys/power/wake_unlock", wakelock_name);
-}
+/** Timer for releasing USB_MODED_WAKELOCK_STATE_CHANGE */
+static guint usbmoded_allow_suspend_timer_id = 0;
 
 /** Timer callback for releasing wakelock acquired via usbmoded_delay_suspend()
  *
@@ -1238,7 +282,7 @@ static gboolean usbmoded_allow_suspend_timer_cb(gpointer aptr)
 {
     (void)aptr;
 
-    allow_suspend_timer_id = 0;
+    usbmoded_allow_suspend_timer_id = 0;
 
     usbmoded_allow_suspend();
 
@@ -1252,14 +296,14 @@ static gboolean usbmoded_allow_suspend_timer_cb(gpointer aptr)
  */
 void usbmoded_allow_suspend(void)
 {
-    if( allow_suspend_timer_id ) {
-        g_source_remove(allow_suspend_timer_id),
-            allow_suspend_timer_id = 0;
+    if( usbmoded_allow_suspend_timer_id ) {
+        g_source_remove(usbmoded_allow_suspend_timer_id),
+            usbmoded_allow_suspend_timer_id = 0;
     }
 
-    if( blocking_suspend ) {
-        blocking_suspend = false;
-        usbmoded_release_wakelock(USB_MODED_WAKELOCK_STATE_CHANGE);
+    if( usbmoded_blocking_suspend ) {
+        usbmoded_blocking_suspend = false;
+        common_release_wakelock(USB_MODED_WAKELOCK_STATE_CHANGE);
     }
 }
 
@@ -1277,17 +321,21 @@ void usbmoded_delay_suspend(void)
 {
     /* Use of automatically terminating wakelocks also means we need
      * to renew the wakelock when extending the suspend delay. */
-    usbmoded_acquire_wakelock(USB_MODED_WAKELOCK_STATE_CHANGE);
+    common_acquire_wakelock(USB_MODED_WAKELOCK_STATE_CHANGE);
 
-    blocking_suspend = true;
+    usbmoded_blocking_suspend = true;
 
-    if( allow_suspend_timer_id )
-        g_source_remove(allow_suspend_timer_id);
+    if( usbmoded_allow_suspend_timer_id )
+        g_source_remove(usbmoded_allow_suspend_timer_id);
 
-    allow_suspend_timer_id =
+    usbmoded_allow_suspend_timer_id =
         g_timeout_add(USB_MODED_SUSPEND_DELAY_DEFAULT_MS,
                       usbmoded_allow_suspend_timer_cb, 0);
 }
+
+/* ------------------------------------------------------------------------- *
+ * CAN_EXPORT
+ * ------------------------------------------------------------------------- */
 
 /** Check if exposing device data is currently allowed
  *
@@ -1304,12 +352,22 @@ bool usbmoded_can_export(void)
                   devicelock_have_export_permission());
 
     /* Having bootup rescue mode active is an exception */
-    if( usbmoded_rescue_mode )
+    if( usbmoded_get_rescue_mode() )
         can_export = true;
 #endif
 
     return can_export;
 }
+
+/* ------------------------------------------------------------------------- *
+ * INIT_DONE
+ * ------------------------------------------------------------------------- */
+
+/** Path to init-done flag file */
+static const char usbmoded_init_done_flagfile[] = "/run/systemd/boot-status/init-done";
+
+/** cached init-done-reached state */
+static bool usbmoded_init_done_reached = false;
 
 /** Check if system has already been successfully booted up
  *
@@ -1317,24 +375,28 @@ bool usbmoded_can_export(void)
  */
 bool usbmoded_init_done_p(void)
 {
-    return init_done_reached;
+    return usbmoded_init_done_reached;
 }
 
 /** Update cached init-done-reached state */
 void usbmoded_set_init_done(bool reached)
 {
-    if( init_done_reached != reached ) {
-        init_done_reached = reached;
+    if( usbmoded_init_done_reached != reached ) {
+        usbmoded_init_done_reached = reached;
         log_warning("init_done -> %s",
-                    init_done_reached ? "reached" : "not reached");
+                    usbmoded_init_done_reached ? "reached" : "not reached");
     }
 }
 
 /** Check whether init-done flag file exists */
 void usbmoded_probe_init_done(void)
 {
-    usbmoded_set_init_done(access(init_done_flagfile, F_OK) == 0);
+    usbmoded_set_init_done(access(usbmoded_init_done_flagfile, F_OK) == 0);
 }
+
+/* ------------------------------------------------------------------------- *
+ * MAINLOOP
+ * ------------------------------------------------------------------------- */
 
 /** Request orderly exit from mainloop
  */
@@ -1342,22 +404,22 @@ void usbmoded_exit_mainloop(int exitcode)
 {
     /* In case multiple exit request get done, retain the
      * highest exit code used. */
-    if( usb_moded_exitcode < exitcode )
-        usb_moded_exitcode = exitcode;
+    if( usbmoded_exitcode < exitcode )
+        usbmoded_exitcode = exitcode;
 
     /* If there is no mainloop to exit, terminate immediately */
-    if( !usb_moded_mainloop )
+    if( !usbmoded_mainloop )
     {
         log_warning("exit requested outside mainloop; exit(%d) now",
-                    usb_moded_exitcode);
-        exit(usb_moded_exitcode);
+                    usbmoded_exitcode);
+        exit(usbmoded_exitcode);
     }
 
     log_debug("stopping usb-moded mainloop");
-    g_main_loop_quit(usb_moded_mainloop);
+    g_main_loop_quit(usbmoded_mainloop);
 }
 
-static void usbmoded_handle_signal(int signum)
+void usbmoded_handle_signal(int signum)
 {
     log_debug("handle signal: %s\n", strsignal(signum));
 
@@ -1369,12 +431,11 @@ static void usbmoded_handle_signal(int signum)
     else if( signum == SIGHUP )
     {
         /* free and read in modelist again */
-        dynconfig_free_mode_list(modelist);
+        usbmoded_free_modelist();
+        usbmoded_load_modelist();
 
-        modelist = dynconfig_read_mode_list(diag_mode);
-
-        usbmoded_send_supported_modes_signal();
-        usbmoded_send_available_modes_signal();
+        common_send_supported_modes_signal();
+        common_send_available_modes_signal();
 
         // FIXME invalidate current mode
     }
@@ -1384,29 +445,72 @@ static void usbmoded_handle_signal(int signum)
     }
 }
 
-/* set default values for usb_moded */
-static void usbmoded_init(void)
+/* Prepare usb-moded for running the mainloop */
+static bool usbmoded_init(void)
 {
-    current_mode.cable_state   = CABLE_STATE_UNKNOWN;
-    current_mode.mounted       = false;
-    current_mode.internal_mode = strdup(MODE_UNDEFINED);
-    current_mode.hardware_mode = NULL;
-    current_mode.external_mode = NULL;
-    current_mode.module        = NULL;
+    bool ack = false;
+
+    /* Check if we are in mid-bootup */
+    usbmoded_probe_init_done();
+
+    if( !worker_init() ) {
+        log_crit("worker thread init failed");
+      goto EXIT;
+    }
+
+    if( !sigpipe_init() ) {
+        log_crit("signal handler init failed");
+        goto EXIT;
+    }
+
+    if( usbmoded_get_rescue_mode() && usbmoded_init_done_p() ) {
+        usbmoded_set_rescue_mode(false);
+        log_warning("init done passed; rescue mode ignored");
+    }
+
+    /* Connect to SystemBus */
+    if( !umdbus_init_connection() ) {
+        log_crit("dbus systembus connection failed");
+        goto EXIT;
+    }
+
+    /* Start DBus trackers that do async initialization
+     * so that initial method calls are on the way while
+     * we do initialization actions that might block. */
+
+    /* DSME listener maintains in-user-mode state and is relevant
+     * only when MEEGOLOCK configure option has been chosen. */
+#ifdef MEEGOLOCK
+    if( !dsme_listener_start() ) {
+        log_crit("dsme tracking could not be started");
+        goto EXIT;
+    }
+#endif
+
+    /* Devicelock listener maintains devicelock state and is relevant
+     * only when MEEGOLOCK configure option has been chosen. */
+#ifdef MEEGOLOCK
+    if( !devicelock_start_listener() ) {
+        log_crit("devicelock tracking could not be started");
+        goto EXIT;
+    }
+#endif
+
+    /* Set daemon config/state data to sane state */
+    modesetting_init();
 
     /* check config, merge or create if outdated */
-    if(config_merge_conf_file() != 0)
-    {
-        log_err("Cannot create or find a valid configuration. Exiting.\n");
-        exit(1);
+    if( config_merge_conf_file() != 0 ) {
+        log_crit("Cannot create or find a valid configuration");
+        goto EXIT;
     }
 
 #ifdef APP_SYNC
-    appsync_read_list(diag_mode);
+    appsync_read_list(usbmoded_get_diag_mode());
 #endif
 
     /* always read dyn modes even if appsync is not used */
-    modelist = dynconfig_read_mode_list(diag_mode);
+    usbmoded_load_modelist();
 
     if(config_check_trigger())
         trigger_init();
@@ -1429,7 +533,7 @@ static void usbmoded_init(void)
         if( android_init_values() )
             break;
 
-        /* Must probe /pollsince we're not yet running mainloop */
+        /* Must probe / poll since we're not yet running mainloop */
         usbmoded_probe_init_done();
 
         if( usbmoded_init_done_p() || --i <= 0 ) {
@@ -1438,24 +542,111 @@ static void usbmoded_init(void)
             break;
         }
 
-        usbmoded_msleep(1000);
+        common_msleep(1000);
     }
 
-    /* TODO: add more start-up clean-up and init here if needed */
+    /* Allow making systemd control ipc */
+    if( !systemd_control_start() ) {
+        log_crit("systemd control could not be started");
+        goto EXIT;
+    }
+
+    /* If usb-moded happens to crash, it could leave appsync processes
+     * running. To make sure things are in the order expected by usb-moded
+     * force stopping of appsync processes during usb-moded startup.
+     *
+     * The exception is: When usb-moded starts as a part of bootup. Then
+     * we can be relatively sure that usb-moded has not been running yet
+     * and therefore no appsync processes have been started and we can
+     * skip the blocking ipc required to stop the appsync systemd units. */
+#ifdef APP_SYNC
+    if( usbmoded_init_done_p() ) {
+        log_warning("usb-moded started after init-done; "
+                    "forcing appsync stop");
+        appsync_stop(true);
+    }
+#endif
+
+    /* Claim D-Bus service name before proceeding with things that
+     * could result in dbus signal broadcasts from usb-moded interface.
+     */
+    if( !umdbus_init_service() ) {
+        log_crit("usb-moded dbus service init failed");
+        goto EXIT;
+    }
+
+    /* Initialize udev listener. Can cause mode changes.
+     *
+     * Failing here is allowed if '--fallback' commandline option is used.
+     */
+    if( !umudev_init() && !usbmoded_hw_fallback ) {
+        log_crit("hwal init failed");
+        goto EXIT;
+    }
+
+    /* Broadcast supported / hidden modes */
+    // TODO: should this happen before umudev_init()?
+    common_send_supported_modes_signal();
+    common_send_available_modes_signal();
+    common_send_hidden_modes_signal();
+    common_send_whitelisted_modes_signal();
+
+    /* Act on '--fallback' commandline option */
+    if( usbmoded_hw_fallback ) {
+        log_warning("Forcing USB state to connected always. ASK mode non functional!");
+        /* Since there will be no disconnect signals coming from hw the state should not change */
+        control_set_cable_state(CABLE_STATE_PC_CONNECTED);
+    }
+
+    ack = true;
+
+EXIT:
+    return ack;
 }
 
 /** Release resources allocated by usbmoded_init()
  */
 static void usbmoded_cleanup(void)
 {
+    /* Stop the worker thread first to avoid confusion about shared
+     * resources we are just about to release. */
+    worker_quit();
+
+    /* Detach from SystemBus. Components that hold reference to the
+     * shared bus connection can still perform cleanup tasks, but new
+     * references can't be obtained anymore and usb-moded method call
+     * processing no longer occurs. */
+    umdbus_cleanup();
+
+    /* Stop appsync processes that have been started by usb-moded */
+#ifdef APP_SYNC
+    appsync_stop(false);
+#endif
+
+    /* Deny making systemd control ipc */
+    systemd_control_stop();
+
+    /* Stop tracking devicelock status */
+#ifdef MEEGOLOCK
+    devicelock_stop_listener();
+#endif
+
+    /* Stop tracking device state */
+#ifdef MEEGOLOCK
+    dsme_listener_stop();
+#endif
+
+    /* Stop udev listener */
+    umudev_quit();
+
     /* Undo modules_init() */
     modules_quit();
 
     /* Undo trigger_init() */
     trigger_stop();
 
-    /* Undo dynconfig_read_mode_list() */
-    dynconfig_free_mode_list(modelist);
+    /* Undo usbmoded_load_modelist() */
+    usbmoded_free_modelist();
 
 #ifdef APP_SYNC
     /* Undo appsync_read_list() */
@@ -1463,313 +654,104 @@ static void usbmoded_cleanup(void)
 #endif
 
     /* Release dynamic memory */
-    free(current_mode.module),
-        current_mode.module = 0;
+    worker_clear_kernel_module();
+    worker_clear_hardware_mode();
+    control_clear_cable_state();
+    control_clear_internal_mode();
+    control_clear_external_mode();
 
-    free(current_mode.internal_mode),
-        current_mode.internal_mode = 0;
+    modesetting_quit();
 
-    free(current_mode.hardware_mode),
-        current_mode.hardware_mode = 0;
-
-    free(current_mode.external_mode),
-        current_mode.external_mode = 0;
-}
-
-/** Wrapper to give visibility to blocking system() calls usb-moded is making
- */
-int
-usbmoded_system_(const char *file, int line, const char *func,
-                 const char *command)
-{
-    log_debug("EXEC %s; from %s:%d: %s()",
-              command, file, line, func);
-
-    int rc = system(command);
-
-    if( rc != 0 )
-        log_warning("EXEC %s; exit code is %d", command, rc);
-
-    return rc;
-}
-
-/** Wrapper to give visibility subprocesses usb-moded is invoking via popen()
- */
-FILE *
-usbmoded_popen_(const char *file, int line, const char *func,
-                const char *command, const char *type)
-{
-    log_debug("EXEC %s; from %s:%d: %s()",
-              command, file, line, func);
-
-    return popen(command, type);
-}
-
-/** Wrapper to give visibility to blocking sleeps usb-moded is making
- */
-void
-usbmoded_usleep_(const char *file, int line, const char *func,
-                 useconds_t usec)
-{
-    struct timespec ts = {
-        .tv_sec  = (usec / 1000000),
-        .tv_nsec = (usec % 1000000) * 1000
-    };
-
-    long ms = (ts.tv_nsec + 1000000 - 1) / 1000000;
-
-    if( !ms ) {
-        log_debug("SLEEP %ld seconds; from %s:%d: %s()",
-                  (long)ts.tv_sec, file, line, func);
-    }
-    else if( ts.tv_sec ) {
-        log_debug("SLEEP %ld.%03ld seconds; from %s:%d: %s()",
-                  (long)ts.tv_sec, ms, file, line, func);
-    }
-    else {
-        log_debug("SLEEP %ld milliseconds; from %s:%d: %s()",
-                  ms, file, line, func);
-    }
-
-    do { } while( nanosleep(&ts, &ts) == -1 && errno != EINTR );
-}
-
-/** Glib io watch callback for reading signals from signal pipe
- *
- * @param channel   glib io channel
- * @param condition wakeup reason
- * @param data      user data (unused)
- *
- * @return TRUE to keep the iowatch, or FALSE to disable it
- */
-static gboolean
-sigpipe_read_signal_cb(GIOChannel *channel,
-                       GIOCondition condition,
-                       gpointer data)
-{
-    gboolean keep_watch = FALSE;
-
-    int fd, rc, sig;
-
-    (void)data;
-
-    /* Should never happen, but we must disable the io watch
-     * if the pipe fd still goes into unexpected state ... */
-    if( condition & (G_IO_ERR | G_IO_HUP | G_IO_NVAL) )
-        goto EXIT;
-
-    if( (fd = g_io_channel_unix_get_fd(channel)) == -1 )
-        goto EXIT;
-
-    /* If the actual read fails, terminate with core dump */
-    rc = TEMP_FAILURE_RETRY(read(fd, &sig, sizeof sig));
-    if( rc != (int)sizeof sig )
-        abort();
-
-    /* handle the signal */
-    usbmoded_handle_signal(sig);
-
-    keep_watch = TRUE;
-
-EXIT:
-    if( !keep_watch )
-        log_crit("disabled signal handler io watch\n");
-
-    return keep_watch;
-}
-
-/** Async signal handler for writing signals to signal pipe
- *
- * @param sig the signal number to pass to mainloop via pipe
- */
-static void
-sigpipe_trap_signal_cb(int sig)
-{
-    /* NOTE: This function *MUST* be kept async-signal-safe! */
-
-    static volatile int exit_tries = 0;
-
-    int rc;
-
-    /* Restore signal handler */
-    signal(sig, sigpipe_trap_signal_cb);
-
-    switch( sig )
-    {
-    case SIGINT:
-    case SIGQUIT:
-    case SIGTERM:
-        /* If we receive multiple signals that should have
-         * caused the process to exit, assume that mainloop
-         * is stuck and terminate with core dump. */
-        if( ++exit_tries >= 2 )
-            abort();
-        break;
-
-    default:
-        break;
-    }
-
-    /* Transfer the signal to mainloop via pipe ... */
-    rc = TEMP_FAILURE_RETRY(write(sigpipe_fd, &sig, sizeof sig));
-
-    /* ... or terminate with core dump in case of failures */
-    if( rc != (int)sizeof sig )
-        abort();
-}
-
-/** Create a pipe and io watch for handling signal from glib mainloop
- *
- * @return true on success, or false in case of errors
- */
-static bool
-sigpipe_crate_pipe(void)
-{
-    bool        res    = false;
-    GIOChannel *chn    = 0;
-    int         pfd[2] = { -1, -1 };
-
-    if( pipe2(pfd, O_CLOEXEC) == -1 )
-        goto EXIT;
-
-    if( (chn = g_io_channel_unix_new(pfd[0])) == 0 )
-        goto EXIT;
-
-    if( !g_io_add_watch(chn, G_IO_IN | G_IO_ERR | G_IO_HUP | G_IO_NVAL,
-                        sigpipe_read_signal_cb, 0) )
-        goto EXIT;
-
-    g_io_channel_set_close_on_unref(chn, true), pfd[0] = -1;
-    sigpipe_fd = pfd[1], pfd[1] = -1;
-
-    res = true;
-
-EXIT:
-    if( chn ) g_io_channel_unref(chn);
-    if( pfd[0] != -1 ) close(pfd[0]);
-    if( pfd[1] != -1 ) close(pfd[1]);
-
-    return res;
-}
-
-/** Install async signal handlers
- */
-static void
-sigpipe_trap_signals(void)
-{
-    static const int sig[] =
-    {
-        SIGINT,
-        SIGQUIT,
-        SIGTERM,
-        SIGHUP,
-        -1
-    };
-
-    for( size_t i = 0; sig[i] != -1; ++i )
-    {
-        signal(sig[i], sigpipe_trap_signal_cb);
-    }
-}
-
-/** Initialize signal trapping
- *
- * @return true on success, or false in case of errors
- */
-static bool
-sigpipe_init(void)
-{
-    bool success = false;
-
-    if( !sigpipe_crate_pipe() )
-        goto EXIT;
-
-    sigpipe_trap_signals();
-
-    success = true;
-
-EXIT:
-    return success;
+    /* Detach from SessionBus connection used for APP_SYNC_DBUS.
+     *
+     * Can be handled separately from SystemBus side wind down. */
+#ifdef APP_SYNC
+# ifdef APP_SYNC_DBUS
+    dbusappsync_cleanup();
+# endif
+#endif
 }
 
 /* ========================================================================= *
  * MAIN ENTRY
  * ========================================================================= */
 
+static const char usbmoded_usage_info[] =
+"Usage: usb_moded [OPTION]...\n"
+"USB mode daemon\n"
+"\n"
+"  -a,  --android_usb_broken\n"
+"      keep gadget active on broken android kernels\n"
+"  -i,  --android_usb_broken_udev_events\n"
+"      ignore incorrect disconnect events after mode setting\n"
+"  -f,  --fallback       \n"
+"      assume always connected\n"
+"  -s,  --force-syslog \n"
+"      log to syslog\n"
+"  -T,  --force-stderr \n"
+"      log to stderr\n"
+"  -l,  --log-line-info\n"
+"      log to stderr and show origin of logging\n"
+"  -D,  --debug  \n"
+"      turn on debug printing\n"
+"  -d,  --diag   \n"
+"      turn on diag mode\n"
+"  -h,  --help         \n"
+"      display this help and exit\n"
+"  -r,  --rescue         \n"
+"      rescue mode\n"
+#ifdef SYSTEMD
+"  -n,  --systemd      \n"
+"      notify systemd when started up\n"
+#endif
+"  -v,  --version      \n"
+"      output version information and exit\n"
+"  -m,  --max-cable-delay=<ms>\n"
+"      maximum delay before accepting cable connection\n"
+"  -b,  --android-bootup-function=<function>\n"
+"      Setup given function during bootup. Might be required\n"
+"      on some devices to make enumeration work on the 1st\n"
+"      cable connect.\n"
+"\n";
+
+static const struct option const usbmoded_long_options[] =
+{
+    { "android_usb_broken",             no_argument,       0, 'a' },
+    { "android_usb_broken_udev_events", no_argument,       0, 'i' },
+    { "fallback",                       no_argument,       0, 'd' },
+    { "force-syslog",                   no_argument,       0, 's' },
+    { "force-stderr",                   no_argument,       0, 'T' },
+    { "log-line-info",                  no_argument,       0, 'l' },
+    { "debug",                          no_argument,       0, 'D' },
+    { "diag",                           no_argument,       0, 'd' },
+    { "help",                           no_argument,       0, 'h' },
+    { "rescue",                         no_argument,       0, 'r' },
+    { "systemd",                        no_argument,       0, 'n' },
+    { "version",                        no_argument,       0, 'v' },
+    { "max-cable-delay",                required_argument, 0, 'm' },
+    { "android-bootup-function",        required_argument, 0, 'b' },
+    { 0, 0, 0, 0 }
+};
+
+static const char usbmoded_short_options[] = "aifsTlDdhrnvm:b:";
+
 /* Display usbmoded_usage information */
 static void usbmoded_usage(void)
 {
-    fprintf(stdout,
-            "Usage: usb_moded [OPTION]...\n"
-            "USB mode daemon\n"
-            "\n"
-            "  -a,  --android_usb_broken\n"
-            "      keep gadget active on broken android kernels\n"
-            "  -i,  --android_usb_broken_udev_events\n"
-            "      ignore incorrect disconnect events after mode setting\n"
-            "  -f,  --fallback       \n"
-            "      assume always connected\n"
-            "  -s,  --force-syslog \n"
-            "      log to syslog\n"
-            "  -T,  --force-stderr \n"
-            "      log to stderr\n"
-            "  -l,  --log-line-info\n"
-            "      log to stderr and show origin of logging\n"
-            "  -D,  --debug  \n"
-            "      turn on debug printing\n"
-            "  -d,  --diag   \n"
-            "      turn on diag mode\n"
-            "  -h,  --help         \n"
-            "      display this help and exit\n"
-            "  -r,  --rescue         \n"
-            "      rescue mode\n"
-#ifdef SYSTEMD
-            "  -n,  --systemd      \n"
-            "      notify systemd when started up\n"
-#endif
-            "  -v,  --version      \n"
-            "      output version information and exit\n"
-            "  -m,  --max-cable-delay=<ms>\n"
-            "      maximum delay before accepting cable connection\n"
-            "  -b,  --android-bootup-function=<function>\n"
-            "      Setup given function during bootup. Might be required\n"
-            "      on some devices to make enumeration work on the 1st\n"
-            "      cable connect.\n"
-            "\n");
+    fprintf(stdout, "%s", usbmoded_usage_info);
 }
 
-int main(int argc, char* argv[])
+static void usbmoded_parse_options(int argc, char* argv[])
 {
-    int opt = 0, opt_idx = 0;
-
-    struct option const options[] = {
-        { "android_usb_broken", no_argument, 0, 'a' },
-        { "android_usb_broken_udev_events", no_argument, 0, 'i' },
-        { "fallback", no_argument, 0, 'd' },
-        { "force-syslog", no_argument, 0, 's' },
-        { "force-stderr", no_argument, 0, 'T' },
-        { "log-line-info", no_argument, 0, 'l' },
-        { "debug", no_argument, 0, 'D' },
-        { "diag", no_argument, 0, 'd' },
-        { "help", no_argument, 0, 'h' },
-        { "rescue", no_argument, 0, 'r' },
-        { "systemd", no_argument, 0, 'n' },
-        { "version", no_argument, 0, 'v' },
-        { "max-cable-delay", required_argument, 0, 'm' },
-        { "android-bootup-function", required_argument, 0, 'b' },
-        { 0, 0, 0, 0 }
-    };
-
-    log_init();
-    log_set_name(basename(*argv));
-
-    /* - - - - - - - - - - - - - - - - - - - *
-     * OPTIONS
-     * - - - - - - - - - - - - - - - - - - - */
-
     /* Parse the command-line options */
-    while ((opt = getopt_long(argc, argv, "aifsTlDdhrnvm:b:", options, &opt_idx)) != -1)
-    {
+    for( ;; ) {
+        int opt = getopt_long(argc, argv,
+                              usbmoded_short_options,
+                              usbmoded_long_options,
+                              0);
+        if( opt == -1 )
+            break;
+
         switch (opt)
         {
         case 'a':
@@ -1779,7 +761,7 @@ int main(int argc, char* argv[])
             log_warning("Deprecated option: --android_usb_broken_udev_events");
             break;
         case 'f':
-            hw_fallback = true;
+            usbmoded_hw_fallback = true;
             break;
         case 's':
             log_set_type(LOG_TO_SYSLOG);
@@ -1799,24 +781,24 @@ int main(int argc, char* argv[])
             break;
 
         case 'd':
-            diag_mode = true;
+            usbmoded_set_diag_mode(true);
             break;
 
         case 'h':
             usbmoded_usage();
-            exit(0);
+            exit(EXIT_SUCCESS);
 
         case 'r':
-            usbmoded_rescue_mode = true;
+            usbmoded_set_rescue_mode(true);
             break;
 #ifdef SYSTEMD
         case 'n':
-            systemd_notify = true;
+            usbmoded_systemd_notify = true;
             break;
 #endif
         case 'v':
             printf("USB mode daemon version: %s\n", VERSION);
-            exit(0);
+            exit(EXIT_SUCCESS);
 
         case 'm':
             usbmoded_set_cable_connection_delay(strtol(optarg, 0, 0));
@@ -1828,18 +810,39 @@ int main(int argc, char* argv[])
 
         default:
             usbmoded_usage();
-            exit(0);
+            exit(EXIT_FAILURE);
         }
     }
+}
+
+int main(int argc, char* argv[])
+{
+    /* Library init calls that should be made before
+     * using library functionality.
+     */
+#if !GLIB_CHECK_VERSION(2, 36, 0)
+    g_type_init();
+#endif
+#if !GLIB_CHECK_VERSION(2, 31, 0)
+    g_thread_init(NULL);
+#endif
+    dbus_threads_init_default();
+
+    /* - - - - - - - - - - - - - - - - - - - *
+     * OPTIONS
+     * - - - - - - - - - - - - - - - - - - - */
+
+    /* Set logging defaults */
+    log_init();
+    log_set_name(basename(*argv));
+
+    /* Parse command line options */
+    usbmoded_parse_options(argc, argv);
 
     fprintf(stderr, "usb_moded %s starting\n", VERSION);
     fflush(stderr);
 
-    /* - - - - - - - - - - - - - - - - - - - *
-     * INITIALIZE
-     * - - - - - - - - - - - - - - - - - - - */
-
-    /* silence usbmoded_system() calls */
+    /* Silence common_system() calls */
     if( log_get_type() != LOG_TO_STDERR && log_get_level() != LOG_DEBUG )
     {
         if( !freopen("/dev/null", "a", stdout) ) {
@@ -1850,119 +853,12 @@ int main(int argc, char* argv[])
         }
     }
 
-#if !GLIB_CHECK_VERSION(2, 36, 0)
-    g_type_init();
-#endif
-#if !GLIB_CHECK_VERSION(2, 31, 0)
-    g_thread_init(NULL);
-#endif
+    /* - - - - - - - - - - - - - - - - - - - *
+     * INITIALIZE
+     * - - - - - - - - - - - - - - - - - - - */
 
-    /* Check if we are in mid-bootup */
-    usbmoded_probe_init_done();
-
-    /* Must be the 1st libdbus call that is made */
-    dbus_threads_init_default();
-
-    /* signal handling */
-    if( !sigpipe_init() )
-    {
-        log_crit("signal handler init failed\n");
+    if( !usbmoded_init() )
         goto EXIT;
-    }
-
-    if (usbmoded_rescue_mode && usbmoded_init_done_p())
-    {
-        usbmoded_rescue_mode = false;
-        log_warning("init done passed; rescue mode ignored");
-    }
-
-    /* Connect to SystemBus */
-    if( !umdbus_init_connection() )
-    {
-        log_crit("dbus systembus connection failed\n");
-        goto EXIT;
-    }
-
-    /* Start DBus trackers that do async initialization
-     * so that initial method calls are on the way while
-     * we do initialization actions that might block. */
-
-    /* DSME listener maintains in-user-mode state and is relevant
-     * only when MEEGOLOCK configure option has been chosen. */
-#ifdef MEEGOLOCK
-    if( !dsme_listener_start() ) {
-        log_crit("dsme tracking could not be started");
-        goto EXIT;
-    }
-#endif
-    /* Devicelock listener maintains devicelock state and is relevant
-     * only when MEEGOLOCK configure option has been chosen. */
-#ifdef MEEGOLOCK
-    if( !devicelock_start_listener() ) {
-        log_crit("devicelock tracking could not be started");
-        goto EXIT;
-    }
-#endif
-
-    /* Set daemon config/state data to sane state */
-    modesetting_init();
-    usbmoded_init();
-
-    /* Allos making systemd control ipc */
-    if( !systemd_control_start() ) {
-        log_crit("systemd control could not be started");
-        goto EXIT;
-    }
-
-    /* If usb-moded happens to crash, it could leave appsync processes
-     * running. To make sure things are in the order expected by usb-moded
-     * force stopping of appsync processes during usb-moded startup.
-     *
-     * The exception is: When usb-moded starts as a part of bootup. Then
-     * we can be relatively sure that usb-moded has not been running yet
-     * and therefore no appsync processes have been started and we can
-     * skip the blocking ipc required to stop the appsync systemd units. */
-#ifdef APP_SYNC
-    if( usbmoded_init_done_p() )
-    {
-        log_warning("usb-moded started after init-done; "
-                    "forcing appsync stop");
-        appsync_stop(true);
-    }
-#endif
-
-    /* Claim D-Bus service name before proceeding with things that
-     * could result in dbus signals from usb-moded interfaces to
-     * be broadcast */
-    if( !umdbus_init_service() )
-    {
-        log_crit("usb-moded dbus service init failed\n");
-        goto EXIT;
-    }
-
-    /* Initialize udev listener. Can cause mode changes.
-     *
-     * Failing here is allowed if '--fallback' commandline option is used. */
-    if( !umudev_init() && !hw_fallback )
-    {
-        log_crit("hwal init failed\n");
-        goto EXIT;
-    }
-
-    /* Broadcast supported / hidden modes */
-    // TODO: should this happen before umudev_init()?
-    usbmoded_send_supported_modes_signal();
-    usbmoded_send_available_modes_signal();
-    usbmoded_send_hidden_modes_signal();
-    usbmoded_send_whitelisted_modes_signal();
-
-    /* Act on '--fallback' commandline option */
-    if(hw_fallback)
-    {
-        log_warning("Forcing USB state to connected always. ASK mode non functional!\n");
-        /* Since there will be no disconnect signals coming from hw the state should not change */
-        usbmoded_set_cable_state(CABLE_STATE_PC_CONNECTED);
-    }
 
     /* - - - - - - - - - - - - - - - - - - - *
      * EXECUTE
@@ -1970,72 +866,43 @@ int main(int argc, char* argv[])
 
     /* Tell systemd that we have started up */
 #ifdef SYSTEMD
-    if( systemd_notify )
-    {
-        log_debug("notifying systemd\n");
+    if( usbmoded_systemd_notify ) {
+        log_debug("notifying systemd");
         sd_notify(0, "READY=1");
     }
 #endif
 
     /* init succesful, run main loop */
-    usb_moded_exitcode = EXIT_SUCCESS;
-    usb_moded_mainloop = g_main_loop_new(NULL, FALSE);
+    usbmoded_exitcode = EXIT_SUCCESS;
+    usbmoded_mainloop = g_main_loop_new(NULL, FALSE);
 
     log_debug("enter usb-moded mainloop");
-    g_main_loop_run(usb_moded_mainloop);
+    g_main_loop_run(usbmoded_mainloop);
     log_debug("leave usb-moded mainloop");
 
-    g_main_loop_unref(usb_moded_mainloop),
-        usb_moded_mainloop = 0;
+    g_main_loop_unref(usbmoded_mainloop),
+        usbmoded_mainloop = 0;
 
     /* - - - - - - - - - - - - - - - - - - - *
      * CLEANUP
      * - - - - - - - - - - - - - - - - - - - */
 EXIT:
-    /* Detach from SystemBus. Components that hold reference to the
-     * shared bus connection can still perform cleanup tasks, but new
-     * references can't be obtained anymore and usb-moded method call
-     * processing no longer occurs. */
-    umdbus_cleanup();
-
-    /* Stop appsync processes that have been started by usb-moded */
-#ifdef APP_SYNC
-    appsync_stop(false);
-#endif
-
-    /* Deny making systemd control ipc */
-    systemd_control_stop();
-
-    /* Stop tracking devicelock status */
-#ifdef MEEGOLOCK
-    devicelock_stop_listener();
-#endif
-    /* Stop tracking device state */
-#ifdef MEEGOLOCK
-    dsme_listener_stop();
-#endif
-
-    /* Stop udev listener */
-    umudev_quit();
-
-    /* Release dynamically allocated config/state data */
     usbmoded_cleanup();
-    modesetting_quit();
 
-    /* Detach from SessionBus connection used for APP_SYNC_DBUS.
-     *
-     * Can be handled separately from SystemBus side wind down. */
-#ifdef APP_SYNC
-# ifdef APP_SYNC_DBUS
-    dbusappsync_cleanup();
-# endif
+    /* Memory leak debugging - instruct libdbus to flush resources. */
+#if 0
+    dbus_shutdown();
 #endif
+
+    /* - - - - - - - - - - - - - - - - - - - *
+     * EXIT
+     * - - - - - - - - - - - - - - - - - - - */
 
     /* Must be done just before exit to make sure no more wakelocks
      * are taken and left behind on exit path */
     usbmoded_allow_suspend();
 
     log_debug("usb-moded return from main, with exit code %d",
-              usb_moded_exitcode);
-    return usb_moded_exitcode;
+              usbmoded_exitcode);
+    return usbmoded_exitcode;
 }

@@ -22,20 +22,20 @@
 
 #include "usb_moded-configfs.h"
 
-#include <sys/types.h>
-
-#include <stdio.h>
-#include <dirent.h>
-#include <errno.h>
-
-#include <glib.h>
-
 #include "usb_moded.h"
 #include "usb_moded-android.h"
-#include "usb_moded-log.h"
-#include "usb_moded-modesetting.h"
+#include "usb_moded-common.h"
 #include "usb_moded-config-private.h"
+#include "usb_moded-log.h"
 #include "usb_moded-mac.h"
+
+#include <sys/stat.h>
+
+#include <string.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <unistd.h>
+#include <fcntl.h>
 
 /* ========================================================================= *
  * Constants
@@ -598,7 +598,7 @@ configfs_init_values(void)
     /* Prep: mtp_mode */
     configfs_register_function(FUNCTION_MTP);
     if( access("/dev/mtp/ep0", F_OK) == -1 ) {
-        usbmoded_system("/bin/mount -o uid=100000,gid=100000 -t functionfs mtp /dev/mtp");
+        common_system("/bin/mount -o uid=100000,gid=100000 -t functionfs mtp /dev/mtp");
     }
 
     /* Prep: developer_mode */

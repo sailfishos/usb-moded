@@ -25,26 +25,16 @@
  * 02110-1301 USA
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <locale.h>
-#include <unistd.h>
+#include "usb_moded-trigger.h"
 
-#include <poll.h>
+#include "usb_moded-config-private.h"
+#include "usb_moded-control.h"
+#include "usb_moded-log.h"
+
+#include <stdlib.h>
+#include <string.h>
 
 #include <libudev.h>
-
-#include <glib.h>
-
-#include "usb_moded.h"
-#include "usb_moded-log.h"
-#include "usb_moded-config-private.h"
-#include "usb_moded-udev.h"
-#include "usb_moded-modesetting.h"
-#include "usb_moded-trigger.h"
-#if defined MEEGOLOCK
-# include "usb_moded-devicelock.h"
-#endif /* MEEGOLOCK */
 
 /* ========================================================================= *
  * Prototypes
@@ -257,7 +247,7 @@ static void trigger_parse_udev_properties(struct udev_device *dev)
             goto EXIT;
     }
 
-    usbmoded_set_usb_mode(trigger_mode);
+    control_set_usb_mode(trigger_mode);
 
 EXIT:
     free(trigger_value);

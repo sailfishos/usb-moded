@@ -25,15 +25,12 @@
  * 02110-1301 USA
  */
 
-#include <stdlib.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <string.h>
-#include <sys/time.h>
-#include <errno.h>
-#include <ctype.h>
-
 #include "usb_moded-log.h"
+
+#include <sys/time.h>
+
+#include <stdio.h>
+#include <errno.h>
 
 /* ========================================================================= *
  * Prototypes

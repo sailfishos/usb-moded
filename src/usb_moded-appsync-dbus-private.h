@@ -25,7 +25,9 @@
 #ifndef  USB_MODED_APPSYNC_DBUS_PRIVATE_H_
 # define USB_MODED_APPSYNC_DBUS_PRIVATE_H_
 
-#include "usb_moded-appsync-dbus.h"
+# include "usb_moded-appsync-dbus.h" // NOTRIM
+
+# include <glib.h>
 
 /* ========================================================================= *
  * Prototypes

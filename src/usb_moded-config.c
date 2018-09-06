@@ -31,29 +31,26 @@
  * 02110-1301 USA
  */
 
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <stdio.h>
-#include <fcntl.h>
-
-#include <sys/stat.h>
-#include <sys/types.h>
-
-#include <glib.h>
-#include <glob.h>
-
-#include "usb_moded.h"
-#include "usb_moded-config.h"
 #include "usb_moded-config-private.h"
+
+#include "usb_moded-control.h"
+#include "usb_moded-dbus-private.h"
+#include "usb_moded-dyn-config.h"
 #include "usb_moded-log.h"
 #include "usb_moded-modes.h"
-#include "usb_moded-modesetting.h"
-#include "usb_moded-dbus-private.h"
+#include "usb_moded-worker.h"
 
 #ifdef USE_MER_SSU
 # include "usb_moded-ssu.h"
 #endif
+
+#include <sys/stat.h>
+
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <fcntl.h>
+#include <glob.h>
 
 /* ========================================================================= *
  * Prototypes
@@ -116,12 +113,12 @@ static int config_validate_ip(const char *ipadd)
     unsigned char c;
 
     if (sscanf(ipadd, "%3u.%3u.%3u.%3u%c", &b1, &b2, &b3, &b4, &c) != 4)
-        return(-1);
+        return -1;
 
     if ((b1 | b2 | b3 | b4) > 255)
-        return(-1);
+        return -1;
     if (strspn(ipadd, "0123456789.") < strlen(ipadd))
-        return(-1);
+        return -1;
     /* all ok */
     return 0;
 }
@@ -137,53 +134,53 @@ char *config_find_mounts(void)
         ret = g_strdup(FS_MOUNT_DEFAULT);
         log_debug("Default mount = %s\n", ret);
     }
-    return(ret);
+    return ret;
 }
 
 int config_find_sync(void)
 {
 
-    return(config_get_conf_int(FS_SYNC_ENTRY, FS_SYNC_KEY));
+    return config_get_conf_int(FS_SYNC_ENTRY, FS_SYNC_KEY);
 }
 
 char * config_find_alt_mount(void)
 {
-    return(config_get_conf_string(ALT_MOUNT_ENTRY, ALT_MOUNT_KEY));
+    return config_get_conf_string(ALT_MOUNT_ENTRY, ALT_MOUNT_KEY);
 }
 
 char * config_find_udev_path(void)
 {
-    return(config_get_conf_string(UDEV_PATH_ENTRY, UDEV_PATH_KEY));
+    return config_get_conf_string(UDEV_PATH_ENTRY, UDEV_PATH_KEY);
 }
 
 char * config_find_udev_subsystem(void)
 {
-    return(config_get_conf_string(UDEV_PATH_ENTRY, UDEV_SUBSYSTEM_KEY));
+    return config_get_conf_string(UDEV_PATH_ENTRY, UDEV_SUBSYSTEM_KEY);
 }
 
 char * config_check_trigger(void)
 {
-    return(config_get_conf_string(TRIGGER_ENTRY, TRIGGER_PATH_KEY));
+    return config_get_conf_string(TRIGGER_ENTRY, TRIGGER_PATH_KEY);
 }
 
 char * config_get_trigger_subsystem(void)
 {
-    return(config_get_conf_string(TRIGGER_ENTRY, TRIGGER_UDEV_SUBSYSTEM));
+    return config_get_conf_string(TRIGGER_ENTRY, TRIGGER_UDEV_SUBSYSTEM);
 }
 
 char * config_get_trigger_mode(void)
 {
-    return(config_get_conf_string(TRIGGER_ENTRY, TRIGGER_MODE_KEY));
+    return config_get_conf_string(TRIGGER_ENTRY, TRIGGER_MODE_KEY);
 }
 
 char * config_get_trigger_property(void)
 {
-    return(config_get_conf_string(TRIGGER_ENTRY, TRIGGER_PROPERTY_KEY));
+    return config_get_conf_string(TRIGGER_ENTRY, TRIGGER_PROPERTY_KEY);
 }
 
 char * config_get_trigger_value(void)
 {
-    return(config_get_conf_string(TRIGGER_ENTRY, TRIGGER_PROPERTY_VALUE_KEY));
+    return config_get_conf_string(TRIGGER_ENTRY, TRIGGER_PROPERTY_VALUE_KEY);
 }
 
 static char * config_get_network_ip(void)
@@ -191,37 +188,37 @@ static char * config_get_network_ip(void)
     char * ip = config_get_kcmdline_string(NETWORK_IP_KEY);
     if (ip != NULL)
         if(!config_validate_ip(ip))
-            return(ip);
+            return ip;
 
-    return(config_get_conf_string(NETWORK_ENTRY, NETWORK_IP_KEY));
+    return config_get_conf_string(NETWORK_ENTRY, NETWORK_IP_KEY);
 }
 
 static char * config_get_network_interface(void)
 {
-    return(config_get_conf_string(NETWORK_ENTRY, NETWORK_INTERFACE_KEY));
+    return config_get_conf_string(NETWORK_ENTRY, NETWORK_INTERFACE_KEY);
 }
 
 static char * config_get_network_gateway(void)
 {
     char * gw = config_get_kcmdline_string(NETWORK_GATEWAY_KEY);
     if (gw != NULL)
-        return(gw);
+        return gw;
 
-    return(config_get_conf_string(NETWORK_ENTRY, NETWORK_GATEWAY_KEY));
+    return config_get_conf_string(NETWORK_ENTRY, NETWORK_GATEWAY_KEY);
 }
 
 static char * config_get_network_netmask(void)
 {
     char * netmask = config_get_kcmdline_string(NETWORK_NETMASK_KEY);
     if (netmask != NULL)
-        return(netmask);
+        return netmask;
 
-    return(config_get_conf_string(NETWORK_ENTRY, NETWORK_NETMASK_KEY));
+    return config_get_conf_string(NETWORK_ENTRY, NETWORK_NETMASK_KEY);
 }
 
 static char * config_get_network_nat_interface(void)
 {
-    return(config_get_conf_string(NETWORK_ENTRY, NETWORK_NAT_INTERFACE_KEY));
+    return config_get_conf_string(NETWORK_ENTRY, NETWORK_NAT_INTERFACE_KEY);
 }
 
 /* create basic conffile with sensible defaults */
@@ -284,7 +281,7 @@ static int config_get_conf_int(const gchar *entry, const gchar *key)
     }
     g_strfreev(origkeys);
     g_key_file_free(settingsfile);
-    return(ret);
+    return ret;
 
 }
 
@@ -321,7 +318,7 @@ static char * config_get_conf_string(const gchar *entry, const gchar *key)
     g_strfreev(origkeys);
 end:
     g_key_file_free(settingsfile);
-    return(tmp_char);
+    return tmp_char;
 
 }
 
@@ -340,16 +337,16 @@ static char * config_get_kcmdline_string(const char *entry)
     if ((fd = open("/proc/cmdline", O_RDONLY)) < 0)
     {
         log_debug("could not read /proc/cmdline");
-        return(ret);
+        return ret;
     }
 
-    len = read(fd, cmdLine, sizeof(cmdLine) - 1);
+    len = read(fd, cmdLine, sizeof cmdLine - 1);
     close(fd);
 
     if (len <= 0)
     {
         log_debug("kernel command line was empty");
-        return(ret);
+        return ret;
     }
 
     cmdLine[len] = '\0';
@@ -359,7 +356,7 @@ static char * config_get_kcmdline_string(const char *entry)
     if (!g_shell_parse_argv(cmdLine, &argc, &argv, &optErr))
     {
         g_error_free(optErr);
-        return(ret);
+        return ret;
     }
 
     /* find the ip token */
@@ -398,16 +395,25 @@ static char * config_get_kcmdline_string(const char *entry)
     g_strfreev(argv);
     g_strfreev(network_tokens);
 
-    return(ret);
+    return ret;
 }
 
 char * config_get_mode_setting(void)
 {
-    char * mode = config_get_kcmdline_string(MODE_SETTING_KEY);
-    if (mode != NULL)
-        return(mode);
+    char *mode = 0;
 
-    return(config_get_conf_string(MODE_SETTING_ENTRY, MODE_SETTING_KEY));
+    /* Kernel command line can be used to override settings */
+    if( (mode = config_get_kcmdline_string(MODE_SETTING_KEY)) )
+        goto EXIT;
+
+    if( (mode = config_get_conf_string(MODE_SETTING_ENTRY, MODE_SETTING_KEY)) )
+        goto EXIT;
+
+    /* If no default mode is configured, treat it as charging only */
+    mode = g_strdup(MODE_CHARGING);
+
+EXIT:
+    return mode;
 }
 /*
  *  @param settingsfile: already opened settingsfile we want to read an entry from
@@ -458,14 +464,14 @@ set_config_result_t config_set_config_setting(const char *entry, const char *key
         ret = SET_CONFIG_UPDATED;
     g_free(keyfile);
 
-    return (ret);
+    return ret;
 }
 
 set_config_result_t config_set_mode_setting(const char *mode)
 {
-    if (strcmp(mode, MODE_ASK) && usbmoded_valid_mode(mode))
+    if (strcmp(mode, MODE_ASK) && common_valid_mode(mode))
         return SET_CONFIG_ERROR;
-    return (config_set_config_setting(MODE_SETTING_ENTRY, MODE_SETTING_KEY, mode));
+    return config_set_config_setting(MODE_SETTING_ENTRY, MODE_SETTING_KEY, mode);
 }
 
 /* Builds the string used for hidden modes, when hide set to one builds the
@@ -540,14 +546,14 @@ set_config_result_t config_set_hide_mode_setting(const char *mode)
     }
 
     if(ret == SET_CONFIG_UPDATED) {
-        usbmoded_send_hidden_modes_signal();
-        usbmoded_send_supported_modes_signal();
-        usbmoded_send_available_modes_signal();
+        common_send_hidden_modes_signal();
+        common_send_supported_modes_signal();
+        common_send_available_modes_signal();
     }
 
     g_free(hidden_modes);
 
-    return(ret);
+    return ret;
 }
 
 set_config_result_t config_set_unhide_mode_setting(const char *mode)
@@ -561,14 +567,14 @@ set_config_result_t config_set_unhide_mode_setting(const char *mode)
     }
 
     if(ret == SET_CONFIG_UPDATED) {
-        usbmoded_send_hidden_modes_signal();
-        usbmoded_send_supported_modes_signal();
-        usbmoded_send_available_modes_signal();
+        common_send_hidden_modes_signal();
+        common_send_supported_modes_signal();
+        common_send_available_modes_signal();
     }
 
     g_free(hidden_modes);
 
-    return(ret);
+    return ret;
 }
 
 set_config_result_t config_set_mode_whitelist(const char *whitelist)
@@ -580,22 +586,22 @@ set_config_result_t config_set_mode_whitelist(const char *whitelist)
         const char *current_mode;
 
         mode_setting = config_get_mode_setting();
-        if (strcmp(mode_setting, MODE_ASK) && usbmoded_valid_mode(mode_setting))
+        if (strcmp(mode_setting, MODE_ASK) && common_valid_mode(mode_setting))
             config_set_mode_setting(MODE_ASK);
         g_free(mode_setting);
 
-        current_mode = usbmoded_get_usb_mode();
+        current_mode = control_get_usb_mode();
         if (!strcmp(current_mode, MODE_UNDEFINED)) {
             /* Disconnected -> do nothing */
         }
-        else if (strcmp(current_mode, MODE_CHARGING_FALLBACK) && strcmp(current_mode, MODE_ASK) && usbmoded_valid_mode(current_mode)) {
+        else if (strcmp(current_mode, MODE_CHARGING_FALLBACK) && strcmp(current_mode, MODE_ASK) && common_valid_mode(current_mode)) {
             /* Invalid mode that is not MODE_ASK or MODE_CHARGING_FALLBACK
              * -> switch to MODE_CHARGING_FALLBACK */
-            usbmoded_set_usb_mode(MODE_CHARGING_FALLBACK);
+            control_set_usb_mode(MODE_CHARGING_FALLBACK);
         }
 
         umdbus_send_whitelisted_modes_signal(whitelist);
-        usbmoded_send_available_modes_signal();
+        common_send_available_modes_signal();
     }
 
     return ret;
@@ -613,7 +619,7 @@ set_config_result_t config_set_mode_in_whitelist(const char *mode, int allowed)
 
     g_free(whitelist);
 
-    return(ret);
+    return ret;
 }
 
 /*
@@ -671,7 +677,7 @@ set_config_result_t config_set_network_setting(const char *config, const char *s
 char * config_get_network_setting(const char *config)
 {
     char * ret = 0;
-    struct mode_list_elem *data;
+    mode_list_elem_t *data;
 
     if(!strcmp(config, NETWORK_IP_KEY))
     {
@@ -690,7 +696,7 @@ char * config_get_network_setting(const char *config)
             goto end;
         /* no interface override specified, let's use the one
          * from the mode config */
-        data = usbmoded_get_usb_mode_data();
+        data = worker_get_usb_mode_data();
         if(data)
         {
             if(data->network_interface)
@@ -702,7 +708,7 @@ char * config_get_network_setting(const char *config)
         ret = strdup("usb0");
     }
     else if(!strcmp(config, NETWORK_GATEWAY_KEY))
-        return(config_get_network_gateway());
+        return config_get_network_gateway();
     else if(!strcmp(config, NETWORK_NETMASK_KEY))
     {
         ret = config_get_network_netmask();
@@ -710,12 +716,12 @@ char * config_get_network_setting(const char *config)
             ret = strdup("255.255.255.0");
     }
     else if(!strcmp(config, NETWORK_NAT_INTERFACE_KEY))
-        return(config_get_network_nat_interface());
+        return config_get_network_nat_interface();
     else
         /* no matching keys, return error */
-        return(NULL);
+        return NULL;
 end:
-    return(ret);
+    return ret;
 }
 
 /**
@@ -890,7 +896,7 @@ char * config_get_android_manufacturer(void)
 
 char * config_get_android_vendor_id(void)
 {
-    return(config_get_conf_string(ANDROID_ENTRY, ANDROID_VENDOR_ID_KEY));
+    return config_get_conf_string(ANDROID_ENTRY, ANDROID_VENDOR_ID_KEY);
 }
 
 char * config_get_android_product(void)
@@ -910,19 +916,19 @@ char * config_get_android_product(void)
 
 char * config_get_android_product_id(void)
 {
-    return(config_get_conf_string(ANDROID_ENTRY, ANDROID_PRODUCT_ID_KEY));
+    return config_get_conf_string(ANDROID_ENTRY, ANDROID_PRODUCT_ID_KEY);
 }
 
 char * config_get_hidden_modes(void)
 {
-    return(config_get_conf_string(MODE_SETTING_ENTRY, MODE_HIDE_KEY));
+    return config_get_conf_string(MODE_SETTING_ENTRY, MODE_HIDE_KEY);
 }
 char * config_get_mode_whitelist(void)
 {
-    return(config_get_conf_string(MODE_SETTING_ENTRY, MODE_WHITELIST_KEY));
+    return config_get_conf_string(MODE_SETTING_ENTRY, MODE_WHITELIST_KEY);
 }
 
 int config_is_roaming_not_allowed(void)
 {
-    return(config_get_conf_int(NETWORK_ENTRY, NO_ROAMING_KEY));
+    return config_get_conf_int(NETWORK_ENTRY, NO_ROAMING_KEY);
 }

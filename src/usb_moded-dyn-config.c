@@ -26,16 +26,11 @@
  * 02110-1301 USA
  */
 
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <stdio.h>
-
-#include <glib.h>
-#include <glib/gstdio.h>
-
 #include "usb_moded-dyn-config.h"
+
 #include "usb_moded-log.h"
+
+#include <stdlib.h>
 
 /* ========================================================================= *
  * Prototypes
@@ -43,17 +38,17 @@
 
 /* -- dynconfig -- */
 
-void                          dynconfig_free_list_item(mode_list_elem *list_item);
+void                          dynconfig_free_list_item(mode_list_elem_t *list_item);
 void                          dynconfig_free_mode_list(GList *modelist);
 static gint                   dynconfig_compare_modes (gconstpointer a, gconstpointer b);
 GList                        *dynconfig_read_mode_list(int diag);
-static struct mode_list_elem *dynconfig_read_mode_file(const gchar *filename);
+static mode_list_elem_t      *dynconfig_read_mode_file(const gchar *filename);
 
 /* ========================================================================= *
  * Functions
  * ========================================================================= */
 
-void dynconfig_free_list_item(mode_list_elem *list_item)
+void dynconfig_free_list_item(mode_list_elem_t *list_item)
 {
     if( list_item ) {
         free(list_item->mode_name);
@@ -91,8 +86,8 @@ void dynconfig_free_mode_list(GList *modelist)
 
 static gint dynconfig_compare_modes(gconstpointer a, gconstpointer b)
 {
-    struct mode_list_elem *aa = (struct mode_list_elem *)a;
-    struct mode_list_elem *bb = (struct mode_list_elem *)b;
+    mode_list_elem_t *aa = (mode_list_elem_t *)a;
+    mode_list_elem_t *bb = (mode_list_elem_t *)b;
 
     return g_strcmp0(aa->mode_name, bb->mode_name);
 }
@@ -102,7 +97,7 @@ GList *dynconfig_read_mode_list(int diag)
     GDir *confdir;
     GList *modelist = NULL;
     const gchar *dirname;
-    struct mode_list_elem *list_item;
+    mode_list_elem_t *list_item;
     gchar *full_filename = NULL;
 
     if(diag)
@@ -130,14 +125,14 @@ GList *dynconfig_read_mode_list(int diag)
         log_debug("Mode confdir open failed or file is incomplete/invalid.\n");
 
     modelist = g_list_sort (modelist, dynconfig_compare_modes);
-    return(modelist);
+    return modelist;
 }
 
-static struct mode_list_elem *dynconfig_read_mode_file(const gchar *filename)
+static mode_list_elem_t *dynconfig_read_mode_file(const gchar *filename)
 {
     bool success = false;
     GKeyFile *settingsfile = g_key_file_new();
-    struct mode_list_elem *list_item = NULL;
+    mode_list_elem_t *list_item = NULL;
 
     if( !g_key_file_load_from_file(settingsfile, filename, G_KEY_FILE_NONE, NULL) ) {
         log_err("%s: can't read mode configuration file", filename);

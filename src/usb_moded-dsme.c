@@ -22,15 +22,15 @@
  * 02110-1301 USA
  */
 
-#include <stdbool.h>
-
-#include <dbus/dbus.h>
-
-#include "usb_moded.h"
 #include "usb_moded-dsme.h"
-#include "usb_moded-modesetting.h"
+
+#include "usb_moded-control.h"
 #include "usb_moded-dbus-private.h"
 #include "usb_moded-log.h"
+#include "usb_moded-modesetting.h"
+
+#include <stdlib.h>
+#include <unistd.h>
 
 #include <dsme/state.h>
 #include <dsme/protocol.h>
@@ -133,7 +133,7 @@ static const struct
 } dsme_states[] =
 {
 #define DSME_STATE(NAME, VALUE) { #NAME, DSME_STATE_##NAME },
-#include <dsme/state_states.h>
+#include <dsme/state_states.h> // NOTRIM
 #undef  DSME_STATE
 };
 
@@ -200,7 +200,7 @@ dsme_state_update(dsme_state_t state)
         dsme_user_state = user_state;
         log_debug("in user state: %s", dsme_user_state ? "true" : "false");
 
-        usbmoded_rethink_usb_charging_fallback();
+        control_rethink_usb_charging_fallback();
     }
 
     /* Handle entry to / exit from SHUTDOWN / REBOOT state */

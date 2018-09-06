@@ -28,26 +28,22 @@
 
 /*============================================================================= */
 
-#include <stdio.h>
+#include "usb_moded-network.h"
+
+#include "usb_moded-config-private.h"
+#include "usb_moded-control.h"
+#include "usb_moded-log.h"
+#include "usb_moded-modesetting.h"
+#include "usb_moded-worker.h"
+
+#include <sys/stat.h>
+
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-#include <sys/stat.h>
-#include <sys/types.h>
-
-#include <glib.h>
-
-#include "usb_moded.h"
-#include "usb_moded-network.h"
-#include "usb_moded-config-private.h"
-#include "usb_moded-log.h"
-#include "usb_moded-modesetting.h"
-
 #if CONNMAN || OFONO
 # include <dbus/dbus.h>
-# include <dbus/dbus-glib.h>
-# include <dbus/dbus-glib-lowlevel.h>
 #endif
 
 /* ========================================================================= *
@@ -63,7 +59,7 @@
  * ========================================================================= */
 
 /** IP forwarding configuration block */
-typedef struct ipforward_data
+typedef struct ipforward_data_t
 {
     /** Address of primary DNS */
     char *dns1;
@@ -71,7 +67,7 @@ typedef struct ipforward_data
     char *dns2;
     /** Interface from which packets should be forwarded */
     char *nat_interface;
-}ipforward_data;
+}ipforward_data_t;
 
 /* ========================================================================= *
  * Prototypes
@@ -79,16 +75,16 @@ typedef struct ipforward_data
 
 /* -- network -- */
 
-static void  network_free_ipforward_data (struct ipforward_data *ipforward);
+static void  network_free_ipforward_data (ipforward_data_t *ipforward);
 static int   network_check_interface     (char *interface);
-static char *network_get_interface       (struct mode_list_elem *data);
-static int   network_set_usb_ip_forward  (struct mode_list_elem *data, struct ipforward_data *ipforward);
+static char *network_get_interface       (mode_list_elem_t *data);
+static int   network_set_usb_ip_forward  (mode_list_elem_t *data, ipforward_data_t *ipforward);
 static void  network_clean_usb_ip_forward(void);
 static int   network_checklink           (void);
-static int   network_write_udhcpd_conf   (struct ipforward_data *ipforward, struct mode_list_elem *data);
-int          network_set_up_dhcpd        (struct mode_list_elem *data);
-int          network_up                  (struct mode_list_elem *data);
-int          network_down                (struct mode_list_elem *data);
+static int   network_write_udhcpd_conf   (ipforward_data_t *ipforward, mode_list_elem_t *data);
+int          network_set_up_dhcpd        (mode_list_elem_t *data);
+int          network_up                  (mode_list_elem_t *data);
+int          network_down                (mode_list_elem_t *data);
 int          network_update              (void);
 
 /* -- connman -- */
@@ -97,10 +93,10 @@ int          network_update              (void);
 static gboolean  connman_try_set_tethering   (DBusConnection *connection, const char *path, gboolean on);
 gboolean         connman_set_tethering       (const char *path, gboolean on);
 static char     *connman_parse_manager_reply (DBusMessage *reply, const char *req_service);
-static int       connman_fill_connection_data(DBusMessage *reply, struct ipforward_data *ipforward);
+static int       connman_fill_connection_data(DBusMessage *reply, ipforward_data_t *ipforward);
 static int       connman_set_cellular_online (DBusConnection *dbus_conn_connman, const char *service, int retry);
 static int       connman_wifi_power_control  (DBusConnection *dbus_conn_connman, int on);
-static int       connman_get_connection_data (struct ipforward_data *ipforward);
+static int       connman_get_connection_data (ipforward_data_t *ipforward);
 static int       connman_reset_state         (void);
 #endif
 
@@ -114,7 +110,7 @@ static const char default_interface[] = "usb0";
  * Functions
  * ========================================================================= */
 
-static void network_free_ipforward_data (struct ipforward_data *ipforward)
+static void network_free_ipforward_data (ipforward_data_t *ipforward)
 {
     if(ipforward)
     {
@@ -143,7 +139,7 @@ static int network_check_interface(char *interface)
     return ret;
 }
 
-static char* network_get_interface(struct mode_list_elem *data)
+static char* network_get_interface(mode_list_elem_t *data)
 {
     (void)data; // FIXME: why is this passed in the 1st place?
 
@@ -178,14 +174,14 @@ static char* network_get_interface(struct mode_list_elem *data)
  * Turn on ip forwarding on the usb interface
  * @return: 0 on success, 1 on failure
  */
-static int network_set_usb_ip_forward(struct mode_list_elem *data, struct ipforward_data *ipforward)
+static int network_set_usb_ip_forward(mode_list_elem_t *data, ipforward_data_t *ipforward)
 {
     char *interface, *nat_interface;
     char command[128];
 
     interface = network_get_interface(data);
     if(interface == NULL)
-        return(1);
+        return 1;
     nat_interface = config_get_network_setting(NETWORK_NAT_INTERFACE_KEY);
     if((nat_interface == NULL) && (ipforward->nat_interface != NULL))
         nat_interface = strdup(ipforward->nat_interface);
@@ -198,22 +194,22 @@ static int network_set_usb_ip_forward(struct mode_list_elem *data, struct ipforw
 #endif
         free(interface);
         free(nat_interface);
-        return(1);
+        return 1;
     }
     write_to_file("/proc/sys/net/ipv4/ip_forward", "1");
     snprintf(command, 128, "/sbin/iptables -t nat -A POSTROUTING -o %s -j MASQUERADE", nat_interface);
-    usbmoded_system(command);
+    common_system(command);
 
     snprintf(command, 128, "/sbin/iptables -A FORWARD -i %s -o %s  -m state  --state RELATED,ESTABLISHED -j ACCEPT", nat_interface, interface);
-    usbmoded_system(command);
+    common_system(command);
 
     snprintf(command, 128, "/sbin/iptables -A FORWARD -i %s -o %s -j ACCEPT", interface, nat_interface);
-    usbmoded_system(command);
+    common_system(command);
 
     free(interface);
     free(nat_interface);
     log_debug("ipforwarding success!\n");
-    return(0);
+    return 0;
 }
 
 /**
@@ -225,7 +221,7 @@ static void network_clean_usb_ip_forward(void)
     connman_reset_state();
 #endif
     write_to_file("/proc/sys/net/ipv4/ip_forward", "0");
-    usbmoded_system("/sbin/iptables -F FORWARD");
+    common_system("/sbin/iptables -F FORWARD");
 }
 
 #ifdef OFONO
@@ -298,7 +294,7 @@ static int get_roaming(void)
             ret = 1;
     }
 
-    return(ret);
+    return ret;
 }
 #endif
 
@@ -306,7 +302,7 @@ static int get_roaming(void)
 /**
  * Read dns settings from /etc/resolv.conf
  */
-static int resolv_conf_dns(struct ipforward_data *ipforward)
+static int resolv_conf_dns(ipforward_data_t *ipforward)
 {
     FILE *resolv;
     int i = 0, count = 0;
@@ -316,7 +312,7 @@ static int resolv_conf_dns(struct ipforward_data *ipforward)
 
     resolv = fopen("/etc/resolv.conf", "r");
     if (resolv == NULL)
-        return(1);
+        return 1;
 
     /* we don't expect more than 10 lines in /etc/resolv.conf */
     for (i=0; i < 10; i++)
@@ -341,29 +337,29 @@ static int resolv_conf_dns(struct ipforward_data *ipforward)
 end:
     free(line);
     fclose(resolv);
-    return(0);
+    return 0;
 }
 #endif
 
 static int network_checklink(void)
 {
     int ret = -1;
-    char dest[sizeof(UDHCP_CONFIG_PATH)+1];
-    size_t len = readlink(UDHCP_CONFIG_LINK, dest, sizeof(dest)-1);
+    char dest[sizeof UDHCP_CONFIG_PATH + 1];
+    size_t len = readlink(UDHCP_CONFIG_LINK, dest, sizeof dest - 1);
 
     if (len > 0)
     {
         dest[len] = 0;
         ret = strcmp(dest, UDHCP_CONFIG_PATH);
     }
-    return(ret);
+    return ret;
 }
 
 /**
  * Write udhcpd.conf
  * @ipforward : NULL if we want a simple config, otherwise include dns info etc...
  */
-static int network_write_udhcpd_conf(struct ipforward_data *ipforward, struct mode_list_elem *data)
+static int network_write_udhcpd_conf(ipforward_data_t *ipforward, mode_list_elem_t *data)
 {
     FILE *conffile;
     char *ip, *interface, *netmask;
@@ -377,19 +373,19 @@ static int network_write_udhcpd_conf(struct ipforward_data *ipforward, struct mo
     if(conffile == NULL)
     {
         log_debug("Error creating "UDHCP_CONFIG_PATH"!\n");
-        return(1);
+        return 1;
     }
 
     interface = network_get_interface(data);
     if(interface == NULL)
     {
         fclose(conffile);
-        return(1);
+        return 1;
     }
     /* generate start and end ip based on the setting */
     ip = config_get_network_setting(NETWORK_IP_KEY);
-    ipstart = malloc(sizeof(char)*15);
-    ipend = malloc(sizeof(char)*15);
+    ipstart = malloc(15);
+    ipend = malloc(15);
     while(i < 15)
     {
         if(dot < 3)
@@ -456,12 +452,12 @@ link:
     {
         log_debug("Error creating link "UDHCP_CONFIG_LINK" -> "UDHCP_CONFIG_PATH": %m\n");
         unlink(UDHCP_CONFIG_PATH);
-        return(1);
+        return 1;
     }
 
 end:
     log_debug(UDHCP_CONFIG_LINK" created\n");
-    return(0);
+    return 0;
 }
 
 #ifdef CONNMAN
@@ -537,7 +533,8 @@ gboolean connman_set_tethering(const char *path, gboolean on)
         {
             if (i>0)
             {
-                usbmoded_msleep(200);
+                if( !common_msleep(200) )
+                    break;
             }
             if (connman_try_set_tethering(connection, path, on))
             {
@@ -586,7 +583,7 @@ static char * connman_parse_manager_reply(DBusMessage *reply, const char *req_se
                 if(strstr(service, req_service))
                 {
                     log_debug("%s service found!\n", req_service);
-                    return(strdup(service));
+                    return strdup(service);
                 }
             }
         }
@@ -595,10 +592,10 @@ static char * connman_parse_manager_reply(DBusMessage *reply, const char *req_se
         iter = origiter;
     }
     log_debug("end of list\n");
-    return(0);
+    return 0;
 }
 
-static int connman_fill_connection_data(DBusMessage *reply, struct ipforward_data *ipforward)
+static int connman_fill_connection_data(DBusMessage *reply, ipforward_data_t *ipforward)
 {
     DBusMessageIter array_iter, dict_iter, inside_dict_iter, variant_iter;
     DBusMessageIter sub_array_iter, string_iter;
@@ -634,7 +631,7 @@ static int connman_fill_connection_data(DBusMessage *reply, struct ipforward_dat
                     if(type != DBUS_TYPE_STRING)
                     {
                         /* not online */
-                        return(1);
+                        return 1;
                     }
                     dbus_message_iter_get_basic(&string_iter, &string);
                     log_debug("dns = %s\n", string);
@@ -645,12 +642,12 @@ static int connman_fill_connection_data(DBusMessage *reply, struct ipforward_dat
                         log_debug("No secundary dns\n");
                         /* FIXME: set the same dns for dns2 to avoid breakage */
                         ipforward->dns2 = strdup(string);
-                        return(0);
+                        return 0;
                     }
                     dbus_message_iter_get_basic(&string_iter, &string);
                     log_debug("dns2 = %s\n", string);
                     ipforward->dns2 = strdup(string);
-                    return(0);
+                    return 0;
                 }
             }
             else if(!strcmp(string, "State"))
@@ -670,7 +667,7 @@ static int connman_fill_connection_data(DBusMessage *reply, struct ipforward_dat
                         /* if in ready state connection might be up anyway */
                         if(strcmp(string, "ready"))
                             log_debug("Not online. Turning on cellular data connection.\n");
-                        return(1);
+                        return 1;
                     }
 
                 }
@@ -710,7 +707,7 @@ static int connman_fill_connection_data(DBusMessage *reply, struct ipforward_dat
         dbus_message_iter_next (&dict_iter);
         type = dbus_message_iter_get_arg_type(&dict_iter);
     }
-    return(0);
+    return 0;
 }
 
 /**
@@ -754,7 +751,7 @@ static int connman_set_cellular_online(DBusConnection *dbus_conn_connman, const 
         /* we don't care for the reply, which is empty anyway if all goes well */
         ret = !dbus_connection_send(dbus_conn_connman, msg, NULL);
         /* sleep for the connection to come up */
-        usbmoded_sleep(5);
+        common_sleep(5);
         /* make sure the message is sent before cleaning up and closing the connection */
         dbus_connection_flush(dbus_conn_connman);
         dbus_message_unref(msg);
@@ -763,7 +760,7 @@ static int connman_set_cellular_online(DBusConnection *dbus_conn_connman, const 
     if(wifi)
         free(wifi);
 
-    return(ret);
+    return ret;
 }
 
 /*
@@ -825,15 +822,15 @@ static int connman_wifi_power_control(DBusConnection *dbus_conn_connman, int on)
 
     /*  /net/connman/technology/wifi net.connman.Technology.SetProperty string:Powered variant:boolean:false */
     if(wifistatus && !on)
-        usbmoded_system("/bin/dbus-send --print-reply --type=method_call --system --dest=net.connman /net/connman/technology/wifi net.connman.Technology.SetProperty string:Powered variant:boolean:false");
+        common_system("/bin/dbus-send --print-reply --type=method_call --system --dest=net.connman /net/connman/technology/wifi net.connman.Technology.SetProperty string:Powered variant:boolean:false");
     if(wifistatus && on)
         /* turn on wifi after tethering is over and wifi was on before */
-        usbmoded_system("/bin/dbus-send --print-reply --type=method_call --system --dest=net.connman /net/connman/technology/wifi net.connman.Technology.SetProperty string:Powered variant:boolean:true");
+        common_system("/bin/dbus-send --print-reply --type=method_call --system --dest=net.connman /net/connman/technology/wifi net.connman.Technology.SetProperty string:Powered variant:boolean:true");
 
-    return(0);
+    return 0;
 }
 
-static int connman_get_connection_data(struct ipforward_data *ipforward)
+static int connman_get_connection_data(ipforward_data_t *ipforward)
 {
     DBusConnection *dbus_conn_connman = NULL;
     DBusMessage *msg = NULL, *reply = NULL;
@@ -891,7 +888,7 @@ try_again:
     dbus_connection_unref(dbus_conn_connman);
     dbus_error_free(&error);
     free(service);
-    return(ret);
+    return ret;
 }
 
 static int connman_reset_state(void)
@@ -912,16 +909,16 @@ static int connman_reset_state(void)
     dbus_connection_unref(dbus_conn_connman);
     dbus_error_free(&error);
 
-    return(0);
+    return 0;
 }
 #endif /* CONNMAN */
 
 /**
  * Write out /etc/udhcpd.conf conf so the config is available when it gets started
  */
-int network_set_up_dhcpd(struct mode_list_elem *data)
+int network_set_up_dhcpd(mode_list_elem_t *data)
 {
-    struct ipforward_data *ipforward = NULL;
+    ipforward_data_t *ipforward = NULL;
     int ret = 1;
 
     /* Set up nat info only if it is required */
@@ -936,8 +933,7 @@ int network_set_up_dhcpd(struct mode_list_elem *data)
                 goto end;
         }
 #endif /* OFONO */
-        ipforward = malloc(sizeof(struct ipforward_data));
-        memset(ipforward, 0, sizeof(struct ipforward_data));
+        ipforward = calloc(1, sizeof *ipforward);
 #ifdef CONNMAN
         if(connman_get_connection_data(ipforward))
         {
@@ -959,7 +955,7 @@ int network_set_up_dhcpd(struct mode_list_elem *data)
 end:
     /* the function checks if ipforward is NULL or not */
     network_free_ipforward_data(ipforward);
-    return(ret);
+    return ret;
 }
 
 #if CONNMAN_WORKS_BETTER
@@ -1000,7 +996,7 @@ static int append_variant(DBusMessageIter *iter, const char *property,
  * Activate the network interface
  *
  */
-int network_up(struct mode_list_elem *data)
+int network_up(mode_list_elem_t *data)
 {
     char *ip = NULL, *gateway = NULL;
     int ret = -1;
@@ -1015,11 +1011,11 @@ int network_up(struct mode_list_elem *data)
     const char *service = NULL;
 
     /* make sure connman will recognize the gadget interface NEEDED? */
-    //usbmoded_system("/bin/dbus-send --print-reply --type=method_call --system --dest=net.connman /net/connman/technology/gadget net.connman.Technology.SetProperty string:Powered variant:boolean:true");
-    //usbmoded_system("/sbin/ifconfig rndis0 up");
+    //common_system("/bin/dbus-send --print-reply --type=method_call --system --dest=net.connman /net/connman/technology/gadget net.connman.Technology.SetProperty string:Powered variant:boolean:true");
+    //common_system("/sbin/ifconfig rndis0 up");
 
     log_debug("waiting for connman to pick up interface\n");
-    usbmoded_sleep(1);
+    common_sleep(1);
     dbus_error_init(&error);
 
     if( (dbus_conn_connman = dbus_bus_get(DBUS_BUS_SYSTEM, &error)) == 0 )
@@ -1039,7 +1035,7 @@ int network_up(struct mode_list_elem *data)
     }
 
     if(service == NULL)
-        return(1);
+        return 1;
     log_debug("gadget = %s\n", service);
 
     /* now we need to configure the connection */
@@ -1112,7 +1108,7 @@ int network_up(struct mode_list_elem *data)
         free(ip);
     if(gateway)
         free(gateway);
-    return(ret);
+    return ret;
 
 #else
     char command[128];
@@ -1122,7 +1118,7 @@ int network_up(struct mode_list_elem *data)
     interface = network_get_interface(data);
 
     if(interface == NULL)
-        return(1);
+        return 1;
 
     /* interface found, so we can get all the rest */
     ip = config_get_network_setting(NETWORK_IP_KEY);
@@ -1132,25 +1128,25 @@ int network_up(struct mode_list_elem *data)
     if(!strcmp(ip, "dhcp"))
     {
         sprintf(command, "dhclient -d %s\n", interface);
-        ret = usbmoded_system(command);
+        ret = common_system(command);
         if(ret != 0)
         {
             sprintf(command, "udhcpc -i %s\n", interface);
-            usbmoded_system(command);
+            common_system(command);
         }
 
     }
     else
     {
         sprintf(command, "ifconfig %s %s %s\n", interface, ip, netmask);
-        usbmoded_system(command);
+        common_system(command);
     }
 
     /* TODO: Check first if there is a gateway set */
     if(gateway)
     {
         sprintf(command, "route add default gw %s\n", gateway);
-        usbmoded_system(command);
+        common_system(command);
     }
 
     free(interface);
@@ -1158,7 +1154,7 @@ int network_up(struct mode_list_elem *data)
     free(ip);
     free(netmask);
 
-    return(0);
+    return 0;
 #endif /* CONNMAN */
 }
 
@@ -1166,7 +1162,7 @@ int network_up(struct mode_list_elem *data)
  * Deactivate the network interface
  *
  */
-int network_down(struct mode_list_elem *data)
+int network_down(mode_list_elem_t *data)
 {
 #if CONNMAN_WORKS_BETTER
     DBusConnection *dbus_conn_connman = NULL;
@@ -1194,7 +1190,7 @@ int network_down(struct mode_list_elem *data)
     }
 
     if(service == NULL)
-        return(1);
+        return 1;
 
     /* Finally we can shut it down */
     if ((msg = dbus_message_new_method_call("net.connman", service, "net.connman.Service", "Disconnect")) != NULL)
@@ -1212,17 +1208,17 @@ int network_down(struct mode_list_elem *data)
         network_clean_usb_ip_forward();
     dbus_error_free(&error);
 
-    return(ret);
+    return ret;
 #else
     char *interface;
     char command[128];
 
     interface = network_get_interface(data);
     if(interface == NULL)
-        return(0);
+        return 0;
 
     sprintf(command, "ifconfig %s down\n", interface);
-    usbmoded_system(command);
+    common_system(command);
 
     /* dhcp client shutdown happens on disconnect automatically */
     if(data->nat)
@@ -1230,7 +1226,7 @@ int network_down(struct mode_list_elem *data)
 
     free(interface);
 
-    return(0);
+    return 0;
 #endif /* CONNMAN_IS_EVER_FIXED_FOR_USB */
 }
 
@@ -1240,8 +1236,8 @@ int network_down(struct mode_list_elem *data)
  */
 int network_update(void)
 {
-    if( usbmoded_get_cable_state() == CABLE_STATE_PC_CONNECTED ) {
-        struct mode_list_elem *data = usbmoded_get_usb_mode_data();
+    if( control_get_cable_state() == CABLE_STATE_PC_CONNECTED ) {
+        mode_list_elem_t *data = worker_get_usb_mode_data();
         if( data && data->network ) {
             network_down(data);
             network_up(data);

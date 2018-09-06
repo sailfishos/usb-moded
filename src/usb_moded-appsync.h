@@ -26,6 +26,8 @@
 #ifndef  USB_MODED_APPSYNC_H_
 # define USB_MODED_APPSYNC_H_
 
+# include <glib.h>
+
 /* ========================================================================= *
  * Constants
  * ========================================================================= */
@@ -46,7 +48,7 @@
 
 /** Application activation state
  */
-typedef enum {
+typedef enum app_state_t {
     /** Application is not relevant for the current mode */
     APP_STATE_DONTCARE = 0,
     /** Application should be started */
@@ -58,7 +60,7 @@ typedef enum {
 /**
  * keep all the needed info together for launching an app
  */
-typedef struct list_elem
+typedef struct list_elem_t
 {
     char *name;           /**< name of the app to launch */
     char *mode;           /**< mode in which to launch the app */
@@ -66,7 +68,7 @@ typedef struct list_elem
     app_state_t state;    /**< marker to check if the app has started sucessfully */
     int systemd;          /**< marker to know if we start it with systemd or not */
     int post;             /**< marker to indicate when to start the app */
-} list_elem;
+} list_elem_t;
 
 /* ========================================================================= *
  * Prototypes

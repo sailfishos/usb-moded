@@ -28,27 +28,26 @@
  * 02110-1301 USA
  */
 
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <stdio.h>
-#include <stdbool.h>
-#include <sys/stat.h>
-#include <limits.h>
-
-#include <glib.h>
+#include "usb_moded-modesetting.h"
 
 #include "usb_moded.h"
-#include "usb_moded-modules.h"
-#include "usb_moded-modes.h"
-#include "usb_moded-log.h"
-#include "usb_moded-dbus-private.h"
-#include "usb_moded-appsync.h"
-#include "usb_moded-config-private.h"
-#include "usb_moded-modesetting.h"
-#include "usb_moded-network.h"
+
 #include "usb_moded-android.h"
+#include "usb_moded-appsync.h"
+#include "usb_moded-common.h"
+#include "usb_moded-config-private.h"
 #include "usb_moded-configfs.h"
+#include "usb_moded-dbus-private.h"
+#include "usb_moded-log.h"
+#include "usb_moded-modules.h"
+#include "usb_moded-network.h"
+#include "usb_moded-worker.h"
+
+#include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
 
 /* ========================================================================= *
  * Prototypes
@@ -63,10 +62,8 @@ static char     *modesetting_strip                      (char *str);
 static char     *modesetting_read_from_file             (const char *path, size_t maxsize);
 int              modesetting_write_to_file_real         (const char *file, int line, const char *func, const char *path, const char *text);
 
-static gboolean  modesetting_network_retry_cb           (gpointer data);
-
-static bool      modesetting_enter_mass_storage_mode    (struct mode_list_elem *data);
-static int       modesetting_leave_mass_storage_mode    (struct mode_list_elem *data);
+static bool      modesetting_enter_mass_storage_mode    (mode_list_elem_t *data);
+static int       modesetting_leave_mass_storage_mode    (mode_list_elem_t *data);
 static void      modesetting_report_mass_storage_blocker(const char *mountpoint, int try);
 
 bool             modesetting_enter_dynamic_mode         (void);
@@ -80,7 +77,6 @@ void             modesetting_quit                       (void);
  * ========================================================================= */
 
 static GHashTable *tracked_values = 0;
-static guint modesetting_network_retry_id = 0;
 
 /* ========================================================================= *
  * Functions
@@ -274,13 +270,6 @@ cleanup:
     return err;
 }
 
-static gboolean modesetting_network_retry_cb(gpointer data)
-{
-    modesetting_network_retry_id = 0;
-    network_up(data);
-    return(FALSE);
-}
-
 #include <mntent.h>
 
 typedef struct storage_info_t
@@ -301,21 +290,21 @@ bool modesetting_is_mounted(const char *mountpoint)
 {
     char cmd[256];
     snprintf(cmd, sizeof cmd, "/bin/mountpoint -q '%s'", mountpoint);
-    return usbmoded_system(cmd) == 0;
+    return common_system(cmd) == 0;
 }
 
 bool modesetting_mount(const char *mountpoint)
 {
     char cmd[256];
     snprintf(cmd, sizeof cmd, "/bin/mount '%s'", mountpoint);
-    return usbmoded_system(cmd) == 0;
+    return common_system(cmd) == 0;
 }
 
 bool modesetting_unmount(const char *mountpoint)
 {
     char cmd[256];
     snprintf(cmd, sizeof cmd, "/bin/umount '%s'", mountpoint);
-    return usbmoded_system(cmd) == 0;
+    return common_system(cmd) == 0;
 }
 
 gchar *modesetting_mountdev(const char *mountpoint)
@@ -416,7 +405,7 @@ EXIT:
     return *pcount = count, info;
 }
 
-static bool modesetting_enter_mass_storage_mode(struct mode_list_elem *data)
+static bool modesetting_enter_mass_storage_mode(mode_list_elem_t *data)
 {
     bool            ack   = false;
     size_t          count = 0;
@@ -466,7 +455,7 @@ static bool modesetting_enter_mass_storage_mode(struct mode_list_elem *data)
 
             log_warning("failed to unmount %s - wait a bit", mountpnt);
             modesetting_report_mass_storage_blocker(mountpnt, 1);
-            usbmoded_sleep(1);
+            common_sleep(1);
         }
     }
 
@@ -510,12 +499,12 @@ static bool modesetting_enter_mass_storage_mode(struct mode_list_elem *data)
             modules_unload_module(MODULE_MASS_STORAGE);
             snprintf(tmp, sizeof tmp, "modprobe %s luns=%zd \n", MODULE_MASS_STORAGE, count);
             log_debug("usb-load command = %s \n", tmp);
-            if( usbmoded_system(tmp) != 0 )
+            if( common_system(tmp) != 0 )
                 goto EXIT;
         }
 
         /* activate mounts after sleeping 1s to be sure enumeration happened and autoplay will work in windows*/
-        usbmoded_sleep(1);
+        common_sleep(1);
 
         for( size_t i = 0 ; i < count; ++i ) {
             const gchar *mountdev = info[i].si_mountdevice;
@@ -552,8 +541,10 @@ EXIT:
     return ack;
 }
 
-static int modesetting_leave_mass_storage_mode(struct mode_list_elem *data)
+static int modesetting_leave_mass_storage_mode(mode_list_elem_t *data)
 {
+    (void)data;
+
     bool            ack      = false;
     size_t          count    = 0;
     storage_info_t *info     = 0;
@@ -653,7 +644,7 @@ static void modesetting_report_mass_storage_blocker(const char *mountpoint, int 
 
     lsof_command = g_strconcat("lsof ", mountpoint, NULL);
 
-    if( (stream = usbmoded_popen(lsof_command, "r")) )
+    if( (stream = common_popen(lsof_command, "r")) )
     {
         char *text = 0;
         size_t size = 0;
@@ -684,8 +675,7 @@ bool modesetting_enter_dynamic_mode(void)
 {
     bool ack = false;
 
-    struct mode_list_elem *data;
-    int network = 1;
+    mode_list_elem_t *data;
 
     log_debug("DYNAMIC MODE: SETUP");
 
@@ -693,7 +683,7 @@ bool modesetting_enter_dynamic_mode(void)
      * Is a dynamic mode?
      * - - - - - - - - - - - - - - - - - - - */
 
-    if( !(data = usbmoded_get_usb_mode_data()) ) {
+    if( !(data = worker_get_usb_mode_data()) ) {
         log_debug("No dynamic mode data to setup");
         goto EXIT;
     }
@@ -776,21 +766,22 @@ bool modesetting_enter_dynamic_mode(void)
         char command[256];
 
         g_snprintf(command, 256, "ifdown %s ; ifup %s", data->network_interface, data->network_interface);
-        usbmoded_system(command);
+        common_system(command);
 #else
         network_down(data);
-        network = network_up(data);
-#endif /* DEBIAN */
-    }
+        int error = network_up(data);
 
-    /* try a second time to bring up the network if it failed the first time,
-     * this can happen with functionfs based gadgets (which is why we sleep for a bit */
-    if(network != 0 && data->network)
-    {
-        log_debug("Retry setting up the network later\n");
-        if(modesetting_network_retry_id)
-            g_source_remove(modesetting_network_retry_id);
-        modesetting_network_retry_id = g_timeout_add_seconds(3, modesetting_network_retry_cb, data);
+        /* In case of failure, retry upto 3 times */
+        for( int i = 0; error && i < 3; ++i ) {
+            log_warning("Retry setting up the network");
+            if( !common_msleep(1000) )
+                break;
+            if( !(error = network_up(data)) )
+                log_warning("Setting up the network succeeded");
+        }
+        if( error )
+            log_err("Setting up the network failed");
+#endif /* DEBIAN */
     }
 
     /* Needs to be called before application post synching so
@@ -807,7 +798,7 @@ bool modesetting_enter_dynamic_mode(void)
     {
         log_debug("Dynamic mode is appsync: do post actions");
         /* let's sleep for a bit (350ms) to allow interfaces to settle before running postsync */
-        usbmoded_msleep(350);
+        common_msleep(350);
         appsync_activate_sync_post(data->mode_name);
     }
 
@@ -834,19 +825,9 @@ void modesetting_leave_dynamic_mode(void)
 {
     log_debug("DYNAMIC MODE: CLEANUP");
 
-    struct mode_list_elem *data;
+    mode_list_elem_t *data;
 
-    data = usbmoded_get_usb_mode_data();
-
-    /* - - - - - - - - - - - - - - - - - - - *
-     * Do not leave timers behind
-     * - - - - - - - - - - - - - - - - - - - */
-
-    if(modesetting_network_retry_id)
-    {
-        g_source_remove(modesetting_network_retry_id);
-        modesetting_network_retry_id = 0;
-    }
+    data = worker_get_usb_mode_data();
 
     /* - - - - - - - - - - - - - - - - - - - *
      * Is a dynamic mode?

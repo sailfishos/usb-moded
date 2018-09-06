@@ -22,11 +22,13 @@
  */
 
 #ifndef MEEGOLOCK
-# warning usb_moded-dsme.h included without enabling MEEGOLOCK
+# warning usb_moded-dsme.h used without enabling MEEGOLOCK
 #endif
 
 #ifndef  USB_MODED_DSME_H_
 # define USB_MODED_DSME_H_
+
+# include <glib.h>
 
 /* ========================================================================= *
  * Prototypes
