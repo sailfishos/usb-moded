@@ -531,7 +531,9 @@ worker_switch_to_mode(const char *mode)
          * as they will use the worker_get_usb_mode_data function */
         worker_set_usb_mode_data(data);
 
-        if( worker_mode_is_mtp_mode(mode) ) {
+        /* When dealing with configfs, we can't enable UDC without
+         * already having mtpd running */
+        if( worker_mode_is_mtp_mode(mode) && configfs_in_use() ) {
             if( !worker_start_mtpd() )
                 goto FAILED;
         }
@@ -541,6 +543,14 @@ worker_switch_to_mode(const char *mode)
 
         if( !modesetting_enter_dynamic_mode() )
             goto FAILED;
+
+        /* When dealing with android usb, it must be enabled before
+         * we can start mtpd. Assumption is that the same applies
+         * when using kernel modules. */
+        if( worker_mode_is_mtp_mode(mode) && !configfs_in_use() ) {
+            if( !worker_start_mtpd() )
+                goto FAILED;
+        }
 
         goto SUCCESS;
     }
