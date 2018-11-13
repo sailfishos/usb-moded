@@ -468,13 +468,16 @@ worker_execute(void)
     log_debug("activate = %s",   activate);
 
     bool changed = g_strcmp0(activated, activate) != 0;
+    gchar *mode  = g_strdup(activate);
 
     WORKER_LOCKED_LEAVE;
 
     if( changed )
-        worker_switch_to_mode(activate);
+        worker_switch_to_mode(mode);
     else
         worker_notify();
+
+    g_free(mode);
 
     return;
 }
