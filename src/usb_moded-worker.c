@@ -157,6 +157,14 @@ static unsigned worker_mtp_start_delay = 120 * 1000;
  */
 static unsigned worker_mtp_stop_delay  =  15 * 1000;
 
+/** Flag for: We have started mtp daemon
+ *
+ * If we have issued systemd unit start, we should also
+ * issue systemd unit stop even if probing for mtpd
+ * presense gives negative result.
+ */
+static bool worker_mtp_service_started = false;
+
 static bool worker_mode_is_mtp_mode(const char *mode)
 {
     return mode && !strcmp(mode, "mtp_mode");
@@ -208,7 +216,7 @@ worker_stop_mtpd(void)
 {
     bool ack = false;
 
-    if( worker_mtpd_stopped_p(0) ) {
+    if( !worker_mtp_service_started && worker_mtpd_stopped_p(0) ) {
         log_debug("mtp daemon is not running");
         goto SUCCESS;
     }
@@ -218,6 +226,9 @@ worker_stop_mtpd(void)
         log_warning("failed to stop mtp daemon; exit code = %d", rc);
         goto FAILURE;
     }
+
+    /* Have succesfully stopped mtp service */
+    worker_mtp_service_started = false;
 
     if( common_wait(worker_mtp_stop_delay, worker_mtpd_stopped_p, 0) != WAIT_READY ) {
         log_warning("failed to stop mtp daemon; giving up");
@@ -242,6 +253,9 @@ worker_start_mtpd(void)
         log_debug("mtp daemon is running");
         goto SUCCESS;
     }
+
+    /* Have attempted to start mtp service */
+    worker_mtp_service_started = true;
 
     int rc = common_system("systemctl-user start buteo-mtp.service");
     if( rc != 0 ) {
@@ -495,8 +509,10 @@ worker_switch_to_mode(const char *mode)
 
     log_debug("Cleaning up previous mode");
 
-    if( !worker_mode_is_mtp_mode(mode) )
-        worker_stop_mtpd();
+    /* Either mtp daemon is not needed, or it must be *started* in
+     * correct phase of gadget configuration when entering mtp mode.
+     */
+    worker_stop_mtpd();
 
     if( worker_get_usb_mode_data() ) {
         modesetting_leave_dynamic_mode();
@@ -566,10 +582,7 @@ FAILED:
     /* Undo any changes we might have might have already done */
     if( worker_get_usb_mode_data() ) {
         log_debug("Cleaning up failed mode switch");
-
-        if( worker_mode_is_mtp_mode(mode) )
-            worker_stop_mtpd();
-
+        worker_stop_mtpd();
         modesetting_leave_dynamic_mode();
         worker_set_usb_mode_data(NULL);
     }
