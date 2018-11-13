@@ -574,7 +574,20 @@ FAILED:
         worker_set_usb_mode_data(NULL);
     }
 
-    override = MODE_CHARGING;
+    /* From usb configuration point of view MODE_UNDEFINED and
+     * MODE_CHARGING are the same, but for the purposes of exposing
+     * a sane state over D-Bus we need to differentiate between
+     * "failure to set mode" and "aborting mode setting due to cable
+     * disconnect" by inspecting whether target mode has been
+     * switched to undefined.
+     */
+    WORKER_LOCKED_ENTER;
+    const char *requested = worker_get_requested_mode_locked();
+    if( !g_strcmp0(requested, MODE_UNDEFINED) )
+        override = MODE_UNDEFINED;
+    else
+        override = MODE_CHARGING;
+    WORKER_LOCKED_LEAVE;
     log_warning("mode setting failed, try %s", override);
 
 CHARGE:
@@ -597,8 +610,9 @@ SUCCESS:
 
     WORKER_LOCKED_ENTER;
     if( override ) {
-        worker_set_activated_mode_locked(override);
         worker_set_requested_mode_locked(override);
+        override = common_map_mode_to_hardware(override);
+        worker_set_activated_mode_locked(override);
     }
     else {
         worker_set_activated_mode_locked(mode);
