@@ -157,6 +157,14 @@ static unsigned worker_mtp_start_delay = 120 * 1000;
  */
 static unsigned worker_mtp_stop_delay  =  15 * 1000;
 
+/** Flag for: We have started mtp daemon
+ *
+ * If we have issued systemd unit start, we should also
+ * issue systemd unit stop even if probing for mtpd
+ * presense gives negative result.
+ */
+static bool worker_mtp_service_started = false;
+
 static bool worker_mode_is_mtp_mode(const char *mode)
 {
     return mode && !strcmp(mode, "mtp_mode");
@@ -208,7 +216,7 @@ worker_stop_mtpd(void)
 {
     bool ack = false;
 
-    if( worker_mtpd_stopped_p(0) ) {
+    if( !worker_mtp_service_started && worker_mtpd_stopped_p(0) ) {
         log_debug("mtp daemon is not running");
         goto SUCCESS;
     }
@@ -218,6 +226,9 @@ worker_stop_mtpd(void)
         log_warning("failed to stop mtp daemon; exit code = %d", rc);
         goto FAILURE;
     }
+
+    /* Have succesfully stopped mtp service */
+    worker_mtp_service_started = false;
 
     if( common_wait(worker_mtp_stop_delay, worker_mtpd_stopped_p, 0) != WAIT_READY ) {
         log_warning("failed to stop mtp daemon; giving up");
@@ -242,6 +253,9 @@ worker_start_mtpd(void)
         log_debug("mtp daemon is running");
         goto SUCCESS;
     }
+
+    /* Have attempted to start mtp service */
+    worker_mtp_service_started = true;
 
     int rc = common_system("systemctl-user start buteo-mtp.service");
     if( rc != 0 ) {
@@ -468,13 +482,16 @@ worker_execute(void)
     log_debug("activate = %s",   activate);
 
     bool changed = g_strcmp0(activated, activate) != 0;
+    gchar *mode  = g_strdup(activate);
 
     WORKER_LOCKED_LEAVE;
 
     if( changed )
-        worker_switch_to_mode(activate);
+        worker_switch_to_mode(mode);
     else
         worker_notify();
+
+    g_free(mode);
 
     return;
 }
@@ -492,8 +509,10 @@ worker_switch_to_mode(const char *mode)
 
     log_debug("Cleaning up previous mode");
 
-    if( !worker_mode_is_mtp_mode(mode) )
-        worker_stop_mtpd();
+    /* Either mtp daemon is not needed, or it must be *started* in
+     * correct phase of gadget configuration when entering mtp mode.
+     */
+    worker_stop_mtpd();
 
     if( worker_get_usb_mode_data() ) {
         modesetting_leave_dynamic_mode();
@@ -563,15 +582,25 @@ FAILED:
     /* Undo any changes we might have might have already done */
     if( worker_get_usb_mode_data() ) {
         log_debug("Cleaning up failed mode switch");
-
-        if( worker_mode_is_mtp_mode(mode) )
-            worker_stop_mtpd();
-
+        worker_stop_mtpd();
         modesetting_leave_dynamic_mode();
         worker_set_usb_mode_data(NULL);
     }
 
-    override = MODE_CHARGING;
+    /* From usb configuration point of view MODE_UNDEFINED and
+     * MODE_CHARGING are the same, but for the purposes of exposing
+     * a sane state over D-Bus we need to differentiate between
+     * "failure to set mode" and "aborting mode setting due to cable
+     * disconnect" by inspecting whether target mode has been
+     * switched to undefined.
+     */
+    WORKER_LOCKED_ENTER;
+    const char *requested = worker_get_requested_mode_locked();
+    if( !g_strcmp0(requested, MODE_UNDEFINED) )
+        override = MODE_UNDEFINED;
+    else
+        override = MODE_CHARGING;
+    WORKER_LOCKED_LEAVE;
     log_warning("mode setting failed, try %s", override);
 
 CHARGE:
@@ -594,8 +623,9 @@ SUCCESS:
 
     WORKER_LOCKED_ENTER;
     if( override ) {
-        worker_set_activated_mode_locked(override);
         worker_set_requested_mode_locked(override);
+        override = common_map_mode_to_hardware(override);
+        worker_set_activated_mode_locked(override);
     }
     else {
         worker_set_activated_mode_locked(mode);
