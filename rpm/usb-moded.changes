@@ -16,7 +16,7 @@
 - Add rescue mode
 - Add softconnect support
 
-* Thu Nov 20 2012 Philippe De Swert <philippe.deswert@jollamobile.com> - 0.54.1
+* Tue Nov 20 2012 Philippe De Swert <philippe.deswert@jollamobile.com> - 0.54.1
 - Fix configuration file creation when the /etc/usb-moded dir is missing
 
 * Mon Nov 19 2012 Philippe De Swert <philippe.deswert@jollamobile.com> - 0.54

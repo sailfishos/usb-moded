@@ -337,9 +337,9 @@ install -m 644 -D src/usb_moded-modes.h %{buildroot}/%{_includedir}/%{name}/usb_
 install -m 644 -D src/usb_moded-appsync-dbus.h %{buildroot}/%{_includedir}/%{name}/usb_moded-appsync-dbus.h
 install -m 644 -D src/com.meego.usb_moded.xml %{buildroot}/%{_includedir}/%{name}/com.meego.usb_moded.xml
 install -m 644 -D usb_moded.pc %{buildroot}/%{_libdir}/pkgconfig/usb_moded.pc
-install -d %{buildroot}/%{_docdir}/%{name}/html/
-install -m 644 docs/html/* %{buildroot}/%{_docdir}/%{name}/html/
-install -m 644 docs/usb_moded-doc.txt %{buildroot}/%{_docdir}/%{name}/
+install -d %{buildroot}/%{_docdir}/%{name}-%{version}/html/
+install -m 644 docs/html/* %{buildroot}/%{_docdir}/%{name}-%{version}/html/
+install -m 644 docs/usb_moded-doc.txt %{buildroot}/%{_docdir}/%{name}-%{version}/
 install -m 644 -D debian/manpage.1 %{buildroot}/%{_mandir}/man1/usb-moded.1
 install -m 644 -D debian/usb_moded.conf %{buildroot}/%{_sysconfdir}/dbus-1/system.d/usb_moded.conf
 install -m 644 -D %{SOURCE1} %{buildroot}/%{_sysconfdir}/modprobe.d/usb_moded.conf
@@ -378,7 +378,7 @@ systemctl daemon-reload || :
 
 %files
 %defattr(-,root,root,-)
-%doc debian/copyright
+%license LICENSE
 %dir %{_sysconfdir}/usb-moded
 %dir %{_sysconfdir}/usb-moded/dyn-modes
 %dir %{_sysconfdir}/usb-moded/run
@@ -388,22 +388,19 @@ systemctl daemon-reload || :
 %ghost %{_sysconfdir}/udhcpd.conf
 %{_sbindir}/usb_moded
 %{_sbindir}/usb_moded_util
-%{_mandir}/man1/usb-moded.1.gz
 /lib/systemd/system/%{name}.service
 /lib/systemd/system/basic.target.wants/%{name}.service
 %config %{_sysconfdir}/tmpfiles.d/usb-moded.conf
 
 %files devel
 %defattr(-,root,root,-)
-%doc debian/copyright
 %{_includedir}/%{name}/*
 %{_libdir}/pkgconfig/usb_moded.pc
 
 %files doc
 %defattr(-,root,root,-)
-%doc debian/changelog debian/copyright LICENSE
-%{_docdir}/%{name}/*
-%{_docdir}/%{name}/html/*
+%{_docdir}/%{name}-%{version}
+%{_mandir}/man1/usb-moded.1.gz
 
 %files developer-mode
 %defattr(-,root,root,-)
