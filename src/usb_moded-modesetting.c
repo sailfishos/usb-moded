@@ -2,7 +2,7 @@
  * @file usb_moded-modesetting.c
  *
  * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2013-2018 Jolla Ltd.
+ * Copyright (C) 2013-2019 Jolla Ltd.
  *
  * @author: Philippe De Swert <philippe.de-swert@nokia.com>
  * @author: Philippe De Swert <phdeswer@lumi.maa>
@@ -419,7 +419,7 @@ static bool modesetting_enter_mass_storage_mode(mode_list_elem_t *data)
         goto EXIT;
 
     /* send unmount signal so applications can release their grasp on the fs, do this here so they have time to act */
-    umdbus_send_state_signal(USB_PRE_UNMOUNT);
+    umdbus_send_event_signal(USB_PRE_UNMOUNT);
 
     /* Get "No Force Unit Access" from config */
     nofua = config_find_sync();
@@ -531,7 +531,7 @@ EXIT:
 
     if( ack ) {
         /* only send data in use signal in case we actually succeed */
-        umdbus_send_state_signal(DATA_IN_USE);
+        umdbus_send_event_signal(DATA_IN_USE);
     }
     else {
         /* Try to undo any unmounts we might have managed to make */

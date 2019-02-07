@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2012-2018 Jolla. All rights reserved.
+ * Copyright (C) 2012-2019 Jolla. All rights reserved.
  *
  * Author: Philippe De Swert <philippe.de-swert@nokia.com>
  * Author: Philippe De Swert <philippedeswert@gmail.com>
@@ -47,6 +47,9 @@
  * states listed in usb_moded-modes.h.
  **/
 # define USB_MODE_SIGNAL_NAME                   "sig_usb_state_ind"
+# define USB_MODE_CURRENT_STATE_SIGNAL_NAME     "sig_usb_current_state_ind"
+# define USB_MODE_TARGET_STATE_SIGNAL_NAME      "sig_usb_target_state_ind"
+# define USB_MODE_EVENT_SIGNAL_NAME             "sig_usb_event_ind"
 # define USB_MODE_CONFIG_SIGNAL_NAME            "sig_usb_config_ind"
 # define USB_MODE_ERROR_SIGNAL_NAME             "sig_usb_state_error_ind"
 # define USB_MODE_SUPPORTED_MODES_SIGNAL_NAME   "sig_usb_supported_modes_ind"
@@ -56,6 +59,7 @@
 
 /* supported methods */
 # define USB_MODE_STATE_REQUEST         "mode_request"  /* returns the current mode */
+# define USB_MODE_TARGET_STATE_GET      "get_target_state"  /* returns the target mode */
 # define USB_MODE_RESCUE_OFF            "rescue_off"    /* turns rescue mode off so normal mode selection is restored */
 # define USB_MODE_CONFIG_GET            "get_config"    /* returns the mode set in the config */
 # define USB_MODE_LIST                  "get_modes"     /* returns a comma-separated list of supported modes for ui's */

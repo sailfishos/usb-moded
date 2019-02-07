@@ -5,6 +5,9 @@
     <method name="mode_request">
       <arg name="mode" type="s" direction="out"/>
     </method>
+    <method name="get_target_state">
+      <arg name="mode" type="s" direction="out"/>
+    </method>
     <method name="set_mode">
       <arg name="mode" type="s" direction="in"/>
       <arg name="mode" type="s" direction="out"/>
@@ -56,7 +59,16 @@
     </method>
     <method name="rescue_off"/>
     <signal name="sig_usb_state_ind">
+      <arg name="mode_or_event" type="s"/>
+    </signal>
+    <signal name="sig_usb_current_state_ind">
       <arg name="mode" type="s"/>
+    </signal>
+    <signal name="sig_usb_target_state_ind">
+      <arg name="mode" type="s"/>
+    </signal>
+    <signal name="sig_usb_event_ind">
+      <arg name="event" type="s"/>
     </signal>
     <signal name="sig_usb_state_error_ind">
       <arg name="error" type="s"/>

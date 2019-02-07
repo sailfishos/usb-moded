@@ -2,7 +2,7 @@
  * @file usb_moded.c
  *
  * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2012-2018 Jolla. All rights reserved.
+ * Copyright (C) 2012-2019 Jolla. All rights reserved.
  *
  * @author: Philippe De Swert <philippe.de-swert@nokia.com>
  * @author: Philippe De Swert <phdeswer@lumi.maa>
@@ -659,6 +659,7 @@ static void usbmoded_cleanup(void)
     control_clear_cable_state();
     control_clear_internal_mode();
     control_clear_external_mode();
+    control_clear_target_mode();
 
     modesetting_quit();
 

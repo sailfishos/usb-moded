@@ -1,7 +1,7 @@
 /**
  * @file usb_moded-control.c
  *
- * Copyright (C) 2013-2018 Jolla. All rights reserved.
+ * Copyright (C) 2013-2019 Jolla. All rights reserved.
  *
  * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
  * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
@@ -44,10 +44,13 @@ const char    *control_get_external_mode            (void);
 static void    control_set_external_mode            (const char *mode);
 void           control_clear_external_mode          (void);
 static void    control_update_external_mode         (void);
+const char    *control_get_target_mode              (void);
+static void    control_set_target_mode              (const char *mode);
+void           control_clear_target_mode            (void);
 const char    *control_get_usb_mode                 (void);
 void           control_clear_internal_mode          (void);
 void           control_set_usb_mode                 (const char *mode);
-void           control_mode_switched                (const char *override);
+void           control_mode_switched                (const char *mode);
 void           control_select_usb_mode              (void);
 void           control_set_cable_state              (cable_state_t cable_state);
 cable_state_t  control_get_cable_state              (void);
@@ -60,9 +63,15 @@ bool           control_get_connection_state         (void);
 
 /* The external mode;
  *
- * What was the last mode signaled over D-Bus.
+ * What was the last current mode signaled over D-Bus.
  */
 static char *control_external_mode = NULL;
+
+/* The target mode;
+ *
+ * What was the last target mode signaled over D-Bus.
+ */
+static char *control_target_mode = NULL;
 
 /** The logical mode name
  *
@@ -136,10 +145,21 @@ static void control_set_external_mode(const char *mode)
     if( !strcmp(control_external_mode, MODE_ASK) ) {
         /* send signal, mode will be set when the dialog service calls
          * the set_mode method call. */
-        umdbus_send_state_signal(USB_CONNECTED_DIALOG_SHOW);
+        umdbus_send_event_signal(USB_CONNECTED_DIALOG_SHOW);
     }
 
-    umdbus_send_state_signal(control_external_mode);
+    umdbus_send_current_state_signal(control_external_mode);
+
+    if( strcmp(control_external_mode, MODE_BUSY) ) {
+        /* Stable state reached. Synchronize target state.
+         *
+         * Note that normally this ends up being a nop,
+         * but might be needed if the originally scheduled
+         * target could not be reached due to errors / user
+         * disconnecting the cable.
+         */
+        control_set_target_mode(control_external_mode);
+    }
 
 EXIT:
     return;
@@ -157,6 +177,35 @@ static void control_update_external_mode(void)
     const char *external_mode = common_map_mode_to_external(internal_mode);
 
     control_set_external_mode(external_mode);
+}
+
+const char *control_get_target_mode(void)
+{
+    return control_target_mode ?: MODE_UNDEFINED;
+}
+
+static void control_set_target_mode(const char *mode)
+{
+    gchar *previous = control_target_mode;
+    if( !g_strcmp0(previous, mode) )
+        goto EXIT;
+
+    log_debug("target_mode: %s -> %s",
+              previous, mode);
+
+    control_target_mode = g_strdup(mode);
+    g_free(previous);
+
+    umdbus_send_target_state_signal(control_target_mode);
+
+EXIT:
+    return;
+}
+
+void control_clear_target_mode(void)
+{
+    g_free(control_target_mode),
+        control_target_mode = 0;
 }
 
 /** get the usb mode
@@ -190,6 +239,9 @@ void control_set_usb_mode(const char *mode)
 
     control_internal_mode = g_strdup(mode);
     g_free(previous);
+
+    /* Update target mode before declaring busy */
+    control_set_target_mode(control_internal_mode);
 
     /* Invalidate current mode for the duration of mode transition */
     control_set_external_mode(MODE_BUSY);
