@@ -34,9 +34,6 @@
  * Constants
  * ========================================================================= */
 
-# define CONFIG_FILE_DIR                "/etc/usb-moded"
-# define FS_MOUNT_CONFIG_FILE           CONFIG_FILE_DIR"/usb-moded.ini"
-
 # define MODE_SETTING_ENTRY             "usbmode"
 # define MODE_SETTING_KEY               "mode"
 # define FS_MOUNT_DEFAULT               "/dev/mmcblk0p1"

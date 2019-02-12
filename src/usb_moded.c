@@ -539,7 +539,7 @@ static bool usbmoded_init(void)
     modesetting_init();
 
     /* check config, merge or create if outdated */
-    if( config_merge_conf_file() != 0 ) {
+    if( !config_init() ) {
         log_crit("Cannot create or find a valid configuration");
         goto EXIT;
     }
