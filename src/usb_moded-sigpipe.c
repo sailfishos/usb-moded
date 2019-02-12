@@ -61,6 +61,8 @@ sigpipe_read_signal_cb(GIOChannel *channel,
                        GIOCondition condition,
                        gpointer data)
 {
+    LOG_REGISTER_CONTEXT;
+
     gboolean keep_watch = FALSE;
 
     int fd, rc, sig;
@@ -99,6 +101,8 @@ EXIT:
 static void
 sigpipe_trap_signal_cb(int sig)
 {
+    LOG_REGISTER_CONTEXT;
+
     /* NOTE: This function *MUST* be kept async-signal-safe! */
 
     static volatile int exit_tries = 0;
@@ -139,6 +143,8 @@ sigpipe_trap_signal_cb(int sig)
 static bool
 sigpipe_crate_pipe(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool        res    = false;
     GIOChannel *chn    = 0;
     int         pfd[2] = { -1, -1 };
@@ -171,6 +177,8 @@ EXIT:
 static void
 sigpipe_trap_signals(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     static const int sig[] =
     {
         SIGINT,
@@ -193,6 +201,8 @@ sigpipe_trap_signals(void)
 bool
 sigpipe_init(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool success = false;
 
     if( !sigpipe_crate_pipe() )

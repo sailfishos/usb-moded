@@ -112,6 +112,8 @@ static int configfs_probed = -1;
 
 static int configfs_file_type(const char *path)
 {
+    LOG_REGISTER_CONTEXT;
+
     int type = -1;
 
     if( !path )
@@ -130,6 +132,8 @@ EXIT:
 static const char *
 configfs_function_path(char *buff, size_t size, const char *func, ...)
 {
+    LOG_REGISTER_CONTEXT;
+
     char *pos = buff;
     char *end = buff + size;
 
@@ -150,12 +154,16 @@ configfs_function_path(char *buff, size_t size, const char *func, ...)
 static const char *
 configfs_unit_path(char *buff, size_t size, const char *func, const char *unit)
 {
+    LOG_REGISTER_CONTEXT;
+
     return configfs_function_path(buff, size, func, unit, NULL);
 }
 
 static const char *
 configfs_config_path(char *buff, size_t size, const char *func)
 {
+    LOG_REGISTER_CONTEXT;
+
     snprintf(buff, size, "%s/%s", CONFIGFS_CONFIG, func);
     return buff;
 }
@@ -163,6 +171,8 @@ configfs_config_path(char *buff, size_t size, const char *func)
 static bool
 configfs_mkdir(const char *path)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     if( mkdir(path, 0775) == -1 && errno != EEXIST ) {
@@ -184,6 +194,8 @@ EXIT:
 static bool
 configfs_rmdir(const char *path)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     if( rmdir(path) == -1 && errno != ENOENT ) {
@@ -200,6 +212,8 @@ EXIT:
 static const char *
 configfs_register_function(const char *function)
 {
+    LOG_REGISTER_CONTEXT;
+
     const char *res = 0;
 
     static char fpath[256];
@@ -220,6 +234,8 @@ EXIT:
 static bool
 configfs_unregister_function(const char *function)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     char fpath[256];
@@ -239,6 +255,8 @@ EXIT:
 static const char *
 configfs_add_unit(const char *function, const char *unit)
 {
+    LOG_REGISTER_CONTEXT;
+
     const char *res = 0;
 
     static char upath[256];
@@ -258,6 +276,8 @@ EXIT:
 static bool
 configfs_remove_unit(const char *function, const char *unit)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     static char upath[256];
@@ -277,6 +297,8 @@ EXIT:
 static bool
 configfs_enable_function(const char *function)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     const char *fpath = configfs_register_function(function);
@@ -316,6 +338,8 @@ EXIT:
 static bool
 configfs_disable_function(const char *function)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     char cpath[256];
@@ -341,6 +365,8 @@ EXIT:
 static bool
 configfs_disable_all_functions(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool  ack = false;
     DIR  *dir = 0;
 
@@ -372,6 +398,8 @@ EXIT:
 
 static char *configfs_strip(char *str)
 {
+    LOG_REGISTER_CONTEXT;
+
     unsigned char *src = (unsigned char *)str;
     unsigned char *dst = (unsigned char *)str;
 
@@ -391,6 +419,8 @@ static char *configfs_strip(char *str)
 bool
 configfs_in_use(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( configfs_probed < 0 )
         log_debug("configfs_in_use() called before configfs_probe()");
     return configfs_probed > 0;
@@ -399,6 +429,8 @@ configfs_in_use(void)
 static bool
 configfs_probe(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( configfs_probed <= 0 ) {
         configfs_probed = access(CONFIGFS_GADGET, F_OK) == 0;
         log_warning("CONFIGFS %sdetected", configfs_probed ? "" : "not ");
@@ -409,6 +441,8 @@ configfs_probe(void)
 static const char *
 configfs_udc_enable_value(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     static bool  probed = false;
     static char *value  = 0;
 
@@ -437,6 +471,8 @@ configfs_udc_enable_value(void)
 static bool
 configfs_write_file(const char *path, const char *text)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
     int  fd  = -1;
 
@@ -477,6 +513,8 @@ EXIT:
 static bool
 configfs_read_file(const char *path, char *buff, size_t size)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
     int  fd  = -1;
 
@@ -515,6 +553,8 @@ EXIT:
 static bool
 configfs_read_udc(char *buff, size_t size)
 {
+    LOG_REGISTER_CONTEXT;
+
     return configfs_read_file(CONFIGFS_UDC, buff, size);
 }
 #endif
@@ -522,6 +562,8 @@ configfs_read_udc(char *buff, size_t size)
 static bool
 configfs_write_udc(const char *text)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     char prev[64];
@@ -544,6 +586,8 @@ EXIT:
 bool
 configfs_set_udc(bool enable)
 {
+    LOG_REGISTER_CONTEXT;
+
     log_debug("UDC - %s", enable ? "ENABLE" : "DISABLE");
 
     const char *value = "";
@@ -559,6 +603,8 @@ configfs_set_udc(bool enable)
 bool
 configfs_init_values(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( !configfs_probe() )
         goto EXIT;
 
@@ -622,6 +668,8 @@ EXIT:
 bool
 configfs_set_charging_mode(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     if( !configfs_set_function("mass_storage") )
@@ -647,6 +695,8 @@ EXIT:
 bool
 configfs_set_productid(const char *id)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     if( id && configfs_in_use() ) {
@@ -673,6 +723,8 @@ configfs_set_productid(const char *id)
 bool
 configfs_set_vendorid(const char *id)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     if( id && configfs_in_use() ) {
@@ -699,6 +751,8 @@ configfs_set_vendorid(const char *id)
 static const char *
 configfs_map_function(const char *func)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( func == 0 )
         ;
     else if( !strcmp(func, "mass_storage") )
@@ -721,6 +775,8 @@ configfs_map_function(const char *func)
 bool
 configfs_set_function(const char *func)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     if( !configfs_in_use() )
@@ -753,6 +809,8 @@ EXIT:
 bool
 configfs_add_mass_storage_lun(int lun)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     if( !configfs_in_use() )
@@ -769,6 +827,8 @@ EXIT:
 bool
 configfs_remove_mass_storage_lun(int lun)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     if( !configfs_in_use() )
@@ -785,6 +845,8 @@ EXIT:
 bool
 configfs_set_mass_storage_attr(int lun, const char *attr, const char *value)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     if( !configfs_in_use() )

@@ -151,6 +151,8 @@ static bool dsme_shutdown_state = false;
 static const char *
 dsme_state_repr(dsme_state_t state)
 {
+    LOG_REGISTER_CONTEXT;
+
     const char *repr = "DSME_STATE_UNKNOWN";
 
     for( size_t i = 0; i < G_N_ELEMENTS(dsme_states); ++i ) {
@@ -168,6 +170,8 @@ dsme_state_repr(dsme_state_t state)
 static dsme_state_t
 dsme_state_parse(const char *name)
 {
+    LOG_REGISTER_CONTEXT;
+
     dsme_state_t state = DSME_STATE_NOT_SET;
 
     for( size_t i = 0; i < G_N_ELEMENTS(dsme_states); ++i ) {
@@ -185,6 +189,8 @@ dsme_state_parse(const char *name)
 static void
 dsme_state_update(dsme_state_t state)
 {
+    LOG_REGISTER_CONTEXT;
+
     /* Handle state change */
     if( dsme_state_val != state ) {
         log_debug("dsme_state: %s -> %s",
@@ -224,6 +230,8 @@ dsme_state_update(dsme_state_t state)
 static bool
 dsme_state_is_shutdown(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return dsme_shutdown_state;
 }
 
@@ -234,6 +242,8 @@ dsme_state_is_shutdown(void)
 static bool
 dsme_state_is_user(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return dsme_user_state;
 }
 
@@ -254,6 +264,8 @@ static guint dsme_socket_iowatch = 0;
 static bool
 dsme_socket_send_message(gpointer msg)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool res = false;
 
     if( !dsme_socket_con ) {
@@ -280,6 +292,8 @@ EXIT:
 static void
 dsme_socket_processwd_pong(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     DSM_MSGTYPE_PROCESSWD_PONG msg =
         DSME_MSG_INIT(DSM_MSGTYPE_PROCESSWD_PONG);
 
@@ -293,6 +307,8 @@ dsme_socket_processwd_pong(void)
 static void
 dsme_socket_processwd_init(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     DSM_MSGTYPE_PROCESSWD_CREATE msg =
         DSME_MSG_INIT(DSM_MSGTYPE_PROCESSWD_CREATE);
 
@@ -306,6 +322,8 @@ dsme_socket_processwd_init(void)
 static void
 dsme_socket_processwd_quit(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     DSM_MSGTYPE_PROCESSWD_DELETE msg =
         DSME_MSG_INIT(DSM_MSGTYPE_PROCESSWD_DELETE);
 
@@ -319,6 +337,8 @@ dsme_socket_processwd_quit(void)
 static void
 dsme_socket_query_state(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     DSM_MSGTYPE_STATE_QUERY msg =
         DSME_MSG_INIT(DSM_MSGTYPE_STATE_QUERY);
 
@@ -338,6 +358,8 @@ dsme_socket_recv_cb(GIOChannel *source,
                     GIOCondition condition,
                     gpointer data)
 {
+    LOG_REGISTER_CONTEXT;
+
     gboolean keep_going = TRUE;
     dsmemsg_generic_t *msg = 0;
 
@@ -401,6 +423,8 @@ EXIT:
 static bool
 dsme_socket_is_connected(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return dsme_socket_iowatch;
 }
 
@@ -411,6 +435,8 @@ dsme_socket_is_connected(void)
 static bool
 dsme_socket_connect(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     GIOChannel *iochan = NULL;
 
     /* No new connections during shutdown */
@@ -465,6 +491,8 @@ EXIT:
 static void
 dsme_socket_disconnect(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( dsme_socket_iowatch ) {
         log_debug("Removing DSME socket notifier");
         g_source_remove(dsme_socket_iowatch);
@@ -497,6 +525,8 @@ static DBusConnection *dsme_dbus_con = NULL;
 static void
 dsme_dbus_device_state_update(const char *state)
 {
+    LOG_REGISTER_CONTEXT;
+
     dsme_state_update(dsme_state_parse(state));
 }
 
@@ -505,6 +535,8 @@ static DBusPendingCall *dsme_dbus_device_state_query_pc = 0;
 static void
 dsme_dbus_device_state_query_cb(DBusPendingCall *pending, void *aptr)
 {
+    LOG_REGISTER_CONTEXT;
+
     DBusMessage *rsp = 0;
     const char  *dta = 0;
     DBusError    err = DBUS_ERROR_INIT;
@@ -546,6 +578,8 @@ EXIT:
 static void
 dsme_dbus_device_state_query(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     DBusMessage     *req = NULL;
     DBusPendingCall *pc  = 0;
 
@@ -587,6 +621,8 @@ EXIT:
 static void
 dsme_dbus_device_state_cancel(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( dsme_dbus_device_state_query_pc ) {
         dbus_pending_call_cancel(dsme_dbus_device_state_query_pc);
         dbus_pending_call_unref(dsme_dbus_device_state_query_pc),
@@ -597,6 +633,8 @@ dsme_dbus_device_state_cancel(void)
 static void
 dsme_dbus_device_state_signal(DBusMessage *msg)
 {
+    LOG_REGISTER_CONTEXT;
+
     DBusError   err = DBUS_ERROR_INIT;
     const char *dta = 0;
 
@@ -624,12 +662,16 @@ static gchar *dsme_dbus_name_owner_val = 0;
 static bool
 dsme_dbus_name_owner_available(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return dsme_dbus_name_owner_val != 0;
 }
 
 static void
 dsme_dbus_name_owner_update(const char *owner)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( owner && !*owner )
         owner = 0;
 
@@ -656,6 +698,8 @@ static DBusPendingCall *dsme_dbus_name_owner_query_pc = 0;
 static void
 dsme_dbus_name_owner_query_cb(const char *owner)
 {
+    LOG_REGISTER_CONTEXT;
+
     dsme_dbus_name_owner_update(owner);
 
     dbus_pending_call_unref(dsme_dbus_name_owner_query_pc),
@@ -665,6 +709,8 @@ dsme_dbus_name_owner_query_cb(const char *owner)
 static void
 dsme_dbus_name_owner_query(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     dsme_dbus_name_owner_cancel();
 
     umdbus_get_name_owner_async(DSME_DBUS_SERVICE,
@@ -675,6 +721,8 @@ dsme_dbus_name_owner_query(void)
 static void
 dsme_dbus_name_owner_cancel(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( dsme_dbus_name_owner_query_pc )
     {
         dbus_pending_call_cancel(dsme_dbus_name_owner_query_pc);
@@ -686,6 +734,8 @@ dsme_dbus_name_owner_cancel(void)
 static void
 dsme_dbus_name_owner_signal(DBusMessage *msg)
 {
+    LOG_REGISTER_CONTEXT;
+
     DBusError   err  = DBUS_ERROR_INIT;
     const char *name = 0;
     const char *prev = 0;
@@ -714,6 +764,8 @@ dsme_dbus_name_owner_signal(DBusMessage *msg)
 static DBusHandlerResult
 dsme_dbus_filter_cb(DBusConnection *con, DBusMessage *msg, void *user_data)
 {
+    LOG_REGISTER_CONTEXT;
+
     (void)con;
     (void)user_data;
 
@@ -736,6 +788,8 @@ dsme_dbus_filter_cb(DBusConnection *con, DBusMessage *msg, void *user_data)
 static bool
 dsme_dbus_init(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     /* Get connection ref */
@@ -770,6 +824,8 @@ cleanup:
 static void
 dsme_dbus_quit(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     /* Cancel any pending dbus queries */
     dsme_dbus_name_owner_cancel();
     dsme_dbus_device_state_cancel();
@@ -804,12 +860,16 @@ dsme_dbus_quit(void)
 gboolean
 dsme_listener_start(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return dsme_dbus_init();
 }
 
 void
 dsme_listener_stop(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     dsme_dbus_quit();
     dsme_socket_disconnect();
 }
@@ -821,5 +881,7 @@ dsme_listener_stop(void)
 gboolean
 dsme_in_user_state(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return dsme_state_is_user();
 }

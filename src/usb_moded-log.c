@@ -30,7 +30,10 @@
 #include <sys/time.h>
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 #include <errno.h>
+#include <assert.h>
 
 /* ========================================================================= *
  * Prototypes
@@ -63,6 +66,105 @@ static int log_level = LOG_WARNING;
 static int log_type  = LOG_TO_STDERR;
 static bool log_lineinfo = false;
 static struct timeval log_begtime = { 0, 0 };
+
+/* ========================================================================= *
+ * CONTEXT STACK
+ * ========================================================================= */
+
+#if LOG_ENABLE_CONTEXT
+typedef struct context_entry_t
+{
+    const char *func;
+    bool        done;
+} context_entry_t;
+
+typedef struct context_stack_t
+{
+    context_entry_t stk[256];
+    int             sp;
+    int             id;
+} context_stack_t;
+
+static int context_count = 0;
+static __thread context_stack_t *context_stack = 0;
+
+static bool log_entry = false;
+static bool log_leave = false;
+
+static void
+context_write(int tab, const char *msg)
+{
+    int tag = 0;
+    if( context_stack ) {
+        tag = context_stack->id;
+        if( tab < 0 && context_stack->sp > 0 )
+            tab = context_stack->sp;
+    }
+    tab = (tab <= 0) ? 0 : (tab * 4);
+    char *txt = 0;
+    int   len = asprintf(&txt, "T%d %*s%s\n",
+                         tag,
+                         tab, "",
+                         msg);
+    if( len > 0 ) {
+        if( write(STDERR_FILENO, txt, len) == - 1 ) {
+            // this is debug logging - do not really care
+        }
+        free(txt);
+    }
+}
+
+static void
+context_flush(void)
+{
+    for( int i = 0; i < context_stack->sp; ++i ) {
+        char msg[256];
+        if( context_stack->stk[i].done )
+            continue;
+        context_stack->stk[i].done = true;
+        if( log_leave )
+            snprintf(msg, sizeof msg, "%s() { ...",
+                     context_stack->stk[i].func);
+        else
+            snprintf(msg, sizeof msg, "%s()",
+                     context_stack->stk[i].func);
+        context_write(i, msg);
+    }
+}
+
+const char *
+context_enter(const char *func)
+{
+    if( !context_stack ) {
+        context_stack = calloc(1, sizeof *context_stack);
+        context_stack->id = ++context_count;
+    }
+
+    context_stack->stk[context_stack->sp].func = func;
+    context_stack->stk[context_stack->sp].done = false;
+    context_stack->sp += 1;
+
+    if( log_entry )
+        context_flush();
+
+    return func;
+}
+
+void
+context_leave(void *aptr)
+{
+    const char *func = *(const char **)aptr;
+    assert( context_stack->sp > 0 );
+    context_stack->sp -= 1;
+
+    if( log_leave && context_stack->stk[context_stack->sp].done ) {
+        char msg[256];
+        snprintf(msg, sizeof msg, "} %s()", func);
+        context_write(-1, msg);
+    }
+    assert( context_stack->stk[context_stack->sp].func == func );
+}
+#endif
 
 /* ========================================================================= *
  * Functions
@@ -104,6 +206,9 @@ static void log_gettime(struct timeval *tv)
 void log_emit_va(const char *file, const char *func, int line, int lev, const char *fmt, va_list va)
 {
     int saved = errno;
+    char lineinfo[128] = "";
+    char timeinfo[32] = "";
+    char levelinfo[8] = "";
     if( log_p(lev) )
     {
         switch( log_type )
@@ -119,17 +224,20 @@ void log_emit_va(const char *file, const char *func, int line, int lev, const ch
                 /* Use gcc error like prefix for logging so
                  * that logs can be analyzed with jump to
                  * line parsing  available in editors. */
-                fprintf(stderr, "%s:%d: %s(): ", file, line, func);
+                snprintf(lineinfo, sizeof lineinfo,
+                         "%s:%d: %s(): ", file, line, func);
             }
             else {
-                fprintf(stderr, "%s: ", log_get_name());
+                snprintf(lineinfo, sizeof lineinfo,
+                         "%s: ", log_get_name());
             }
 
 #if LOG_ENABLE_TIMESTAMPS
             {
                 struct timeval tv;
                 log_gettime(&tv);
-                fprintf(stderr, "%3ld.%03ld ",
+                snprintf(timeinfo, sizeof timeinfo,
+                         "%3ld.%03ld ",
                         (long)tv.tv_sec,
                         (long)tv.tv_usec/1000);
             }
@@ -147,15 +255,26 @@ void log_emit_va(const char *file, const char *func, int line, int lev, const ch
                 case LOG_INFO:    tag = "I:"; break;
                 case LOG_DEBUG:   tag = "D:"; break;
                 }
-                fprintf(stderr, "%s ", tag);
+                snprintf(levelinfo, sizeof levelinfo,
+                         "%s ", tag);
             }
 #endif
             {
                 // squeeze whitespace like syslog does
-                char buf[1024];
+                char msg[512];
                 errno = saved;
-                vsnprintf(buf, sizeof buf - 1, fmt, va);
-                fprintf(stderr, "%s\n", log_strip(buf));
+                vsnprintf(msg, sizeof msg, fmt, va);
+                log_strip(msg);
+#if LOG_ENABLE_CONTEXT
+                char buf[1024];
+                snprintf(buf, sizeof buf, "%s%s%s%s",
+                         lineinfo, timeinfo, levelinfo, msg);
+                context_flush();
+                context_write(-1, buf);
+#else
+                fprintf(stderr, "%s%s%s%s\n",
+                        lineinfo, timeinfo, levelinfo, msg);
+#endif
             }
             break;
 

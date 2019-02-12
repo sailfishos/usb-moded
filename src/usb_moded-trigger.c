@@ -63,6 +63,8 @@ static gchar               *trigger_udev_sysname   = 0;
 
 static void trigger_udev_error_cb (gpointer data)
 {
+    LOG_REGISTER_CONTEXT;
+
     (void)data;
 
     log_debug("trigger watch destroyed\n!");
@@ -73,6 +75,8 @@ static void trigger_udev_error_cb (gpointer data)
 
 bool trigger_init(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     gchar *devpath   = 0;
@@ -165,6 +169,8 @@ EXIT:
 static gboolean trigger_udev_input_cb(GIOChannel *iochannel G_GNUC_UNUSED, GIOCondition cond,
                                       gpointer data G_GNUC_UNUSED)
 {
+    LOG_REGISTER_CONTEXT;
+
     struct udev_device *dev;
 
     if(cond & G_IO_IN)
@@ -203,6 +209,8 @@ static gboolean trigger_udev_input_cb(GIOChannel *iochannel G_GNUC_UNUSED, GIOCo
 
 void trigger_stop(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     if(trigger_udev_watch_id)
     {
         g_source_remove(trigger_udev_watch_id);
@@ -224,6 +232,8 @@ void trigger_stop(void)
 
 static void trigger_parse_udev_properties(struct udev_device *dev)
 {
+    LOG_REGISTER_CONTEXT;
+
     char *trigger_property = 0;
     char *trigger_value = 0;
     char *trigger_mode = 0;

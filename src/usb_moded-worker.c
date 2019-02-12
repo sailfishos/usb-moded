@@ -121,12 +121,16 @@ static volatile bool worker_bailout_handled = false;
 static bool
 worker_thread_p(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return worker_thread_id && worker_thread_id == pthread_self();
 }
 
 bool
 worker_bailing_out(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     // ref: see common_msleep_()
     return (worker_thread_p() &&
             worker_bailout_requested &&
@@ -167,11 +171,15 @@ static bool worker_mtp_service_started = false;
 
 static bool worker_mode_is_mtp_mode(const char *mode)
 {
+    LOG_REGISTER_CONTEXT;
+
     return mode && !strcmp(mode, "mtp_mode");
 }
 
 static bool worker_is_mtpd_running(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     /* ep0 becomes available when /dev/mtp is mounted.
      *
      * ep1, ep2, ep3 exist while mtp daemon is running,
@@ -200,6 +208,8 @@ static bool worker_is_mtpd_running(void)
 static bool
 worker_mtpd_running_p(void *aptr)
 {
+    LOG_REGISTER_CONTEXT;
+
     (void)aptr;
     return worker_is_mtpd_running();
 }
@@ -207,6 +217,8 @@ worker_mtpd_running_p(void *aptr)
 static bool
 worker_mtpd_stopped_p(void *aptr)
 {
+    LOG_REGISTER_CONTEXT;
+
     (void)aptr;
     return !worker_is_mtpd_running();
 }
@@ -214,6 +226,8 @@ worker_mtpd_stopped_p(void *aptr)
 static bool
 worker_stop_mtpd(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     if( !worker_mtp_service_started && worker_mtpd_stopped_p(0) ) {
@@ -247,6 +261,8 @@ FAILURE:
 static bool
 worker_start_mtpd(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     if( worker_mtpd_running_p(0) ) {
@@ -279,6 +295,8 @@ FAILURE:
 
 static bool worker_switch_to_charging(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = true;
 
     if( android_set_charging_mode() )
@@ -314,6 +332,8 @@ static char *worker_kernel_module = NULL;
  */
 const char * worker_get_kernel_module(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return worker_kernel_module ?: MODULE_NONE;
 }
 
@@ -324,6 +344,8 @@ const char * worker_get_kernel_module(void)
  */
 bool worker_set_kernel_module(const char *module)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     if( !module )
@@ -355,6 +377,8 @@ EXIT:
 
 void worker_clear_kernel_module(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     free(worker_kernel_module), worker_kernel_module = 0;
 }
 
@@ -372,6 +396,8 @@ static mode_list_elem_t *worker_mode_data = NULL;
  */
 mode_list_elem_t *worker_get_usb_mode_data(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return worker_mode_data;
 }
 
@@ -382,6 +408,8 @@ mode_list_elem_t *worker_get_usb_mode_data(void)
  */
 void worker_set_usb_mode_data(mode_list_elem_t *data)
 {
+    LOG_REGISTER_CONTEXT;
+
     worker_mode_data = data;
 }
 
@@ -402,12 +430,16 @@ static gchar *worker_activated_mode = NULL;
 static const char *
 worker_get_activated_mode_locked(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return worker_activated_mode ?: MODE_UNDEFINED;
 }
 
 static bool
 worker_set_activated_mode_locked(const char *mode)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool changed = false;
     const char *prev = worker_get_activated_mode_locked();
 
@@ -426,12 +458,16 @@ EXIT:
 static const char *
 worker_get_requested_mode_locked(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return worker_requested_mode ?: MODE_UNDEFINED;
 }
 
 static bool
 worker_set_requested_mode_locked(const char *mode)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool changed = false;
     const char *prev = worker_get_requested_mode_locked();
 
@@ -449,6 +485,8 @@ EXIT:
 
 void worker_request_hardware_mode(const char *mode)
 {
+    LOG_REGISTER_CONTEXT;
+
     WORKER_LOCKED_ENTER;
 
     if( !worker_set_requested_mode_locked(mode) )
@@ -463,6 +501,8 @@ EXIT:
 
 void worker_clear_hardware_mode(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     WORKER_LOCKED_ENTER;
     g_free(worker_requested_mode), worker_requested_mode = 0;
     WORKER_LOCKED_LEAVE;
@@ -471,6 +511,8 @@ void worker_clear_hardware_mode(void)
 static void
 worker_execute(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     WORKER_LOCKED_ENTER;
 
     const char *activated = worker_get_activated_mode_locked();
@@ -503,6 +545,8 @@ worker_execute(void)
 void
 worker_switch_to_mode(const char *mode)
 {
+    LOG_REGISTER_CONTEXT;
+
     const char *override = 0;
 
     /* set return to 1 to be sure to error out if no matching mode is found either */
@@ -654,6 +698,8 @@ static guint
 worker_add_iowatch(int fd, bool close_on_unref,
                GIOCondition cnd, GIOFunc io_cb, gpointer aptr)
 {
+    LOG_REGISTER_CONTEXT;
+
     guint         wid = 0;
     GIOChannel   *chn = 0;
 
@@ -676,6 +722,8 @@ cleanup:
 
 static void *worker_thread_cb(void *aptr)
 {
+    LOG_REGISTER_CONTEXT;
+
     (void)aptr;
 
     /* Async cancellation, but disabled */
@@ -721,6 +769,8 @@ EXIT:
 static gboolean
 worker_notify_cb(GIOChannel *chn, GIOCondition cnd, gpointer data)
 {
+    LOG_REGISTER_CONTEXT;
+
     (void)data;
 
     gboolean keep_going = FALSE;
@@ -785,6 +835,8 @@ cleanup_nak:
 static bool
 worker_start_thread(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
     int err = pthread_create(&worker_thread_id, 0, worker_thread_cb, 0);
     if( err ) {
@@ -802,6 +854,8 @@ worker_start_thread(void)
 static void
 worker_stop_thread(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( !worker_thread_id )
         goto EXIT;
 
@@ -838,6 +892,8 @@ EXIT:
 static void
 worker_delete_eventfd(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( worker_req_evfd != -1 )
         close(worker_req_evfd), worker_req_evfd = -1;
 
@@ -851,6 +907,8 @@ worker_delete_eventfd(void)
 static bool
 worker_create_eventfd(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     /* Setup notify pipeline */
@@ -878,6 +936,8 @@ EXIT:
 bool
 worker_init(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     if( !worker_create_eventfd() )
@@ -898,6 +958,8 @@ EXIT:
 void
 worker_quit(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     worker_stop_thread();
     worker_delete_eventfd();
 }
@@ -905,6 +967,8 @@ worker_quit(void)
 void
 worker_wakeup(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     worker_bailout_requested = true;
 
     uint64_t cnt = 1;
@@ -916,6 +980,8 @@ worker_wakeup(void)
 static void
 worker_notify(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     uint64_t cnt = 1;
     if( write(worker_rsp_evfd, &cnt, sizeof cnt) == -1 ) {
         log_err("failed to signal handled: %m");

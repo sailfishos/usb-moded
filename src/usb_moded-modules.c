@@ -72,6 +72,8 @@ static struct kmod_ctx *modules_ctx = 0;
 
 static bool modules_have_module(const char *module)
 {
+    LOG_REGISTER_CONTEXT;
+
     // TODO: not fully untested due to lack of suitable hw
 
     bool ack = false;
@@ -96,6 +98,8 @@ EXIT:
 
 bool modules_in_use(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( modules_probed < 0 )
         log_debug("modules_in_use() called before modules_probe()");
 
@@ -104,6 +108,8 @@ bool modules_in_use(void)
 
 static bool modules_probe(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     static const char * const lut[] = {
         MODULE_MASS_STORAGE,
         MODULE_FILE_STORAGE,
@@ -132,6 +138,8 @@ static bool modules_probe(void)
 /* kmod module init */
 bool modules_init(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     if( !modules_ctx ) {
@@ -153,6 +161,8 @@ EXIT:
 /* kmod module cleanup */
 void modules_quit(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( modules_ctx )
         kmod_unref(modules_ctx), modules_ctx = 0;
 }
@@ -165,6 +175,8 @@ void modules_quit(void)
  */
 int modules_load_module(const char *module)
 {
+    LOG_REGISTER_CONTEXT;
+
     int ret = 0;
 
     const int probe_flags = KMOD_PROBE_APPLY_BLACKLIST;
@@ -235,6 +247,8 @@ int modules_load_module(const char *module)
  */
 int modules_unload_module(const char *module)
 {
+    LOG_REGISTER_CONTEXT;
+
     int ret = 0;
 
     struct kmod_module *mod;

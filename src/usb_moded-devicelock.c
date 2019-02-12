@@ -101,6 +101,8 @@ static gboolean devicelock_is_available = FALSE;
 static const char *
 devicelock_state_repr(devicelock_state_t state)
 {
+    LOG_REGISTER_CONTEXT;
+
     const char *repr = "DEVICELOCK_<INVALID>";
 
     switch( state )
@@ -125,6 +127,8 @@ devicelock_state_repr(devicelock_state_t state)
  */
 bool devicelock_have_export_permission(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool unlocked = (devicelock_state == DEVICELOCK_UNLOCKED);
 
     return unlocked;
@@ -136,6 +140,8 @@ bool devicelock_have_export_permission(void)
 
 static void devicelock_state_changed(devicelock_state_t state)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( devicelock_state == state )
         goto EXIT;
 
@@ -154,6 +160,8 @@ static DBusPendingCall *devicelock_state_query_pc = 0;
 
 static void devicelock_state_cancel(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( devicelock_state_query_pc ) {
         dbus_pending_call_cancel(devicelock_state_query_pc);
         dbus_pending_call_unref(devicelock_state_query_pc),
@@ -163,6 +171,8 @@ static void devicelock_state_cancel(void)
 
 static void devicelock_state_query_cb(DBusPendingCall *pending, void *aptr)
 {
+    LOG_REGISTER_CONTEXT;
+
     DBusMessage *rsp = 0;
     dbus_int32_t dta = DEVICELOCK_UNDEFINED;
     DBusError    err = DBUS_ERROR_INIT;
@@ -206,6 +216,8 @@ EXIT:
 
 static void devicelock_state_query(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     DBusMessage     *req = NULL;
     DBusPendingCall *pc  = 0;
 
@@ -249,6 +261,8 @@ EXIT:
 
 static void devicelock_state_signal(DBusMessage *msg)
 {
+    LOG_REGISTER_CONTEXT;
+
     DBusError    err = DBUS_ERROR_INIT;
     dbus_int32_t dta = DEVICELOCK_LOCKED;
 
@@ -272,6 +286,8 @@ static void devicelock_state_signal(DBusMessage *msg)
 
 static void devicelock_available_changed(const char *owner)
 {
+    LOG_REGISTER_CONTEXT;
+
     gboolean is_available = (owner && *owner);
 
     if( devicelock_is_available != is_available ) {
@@ -293,6 +309,8 @@ static DBusPendingCall *devicelock_available_pc = 0;
 
 static void devicelock_available_cb(const char *owner)
 {
+    LOG_REGISTER_CONTEXT;
+
     devicelock_available_changed(owner);
 
     dbus_pending_call_unref(devicelock_available_pc),
@@ -301,6 +319,8 @@ static void devicelock_available_cb(const char *owner)
 
 static void devicelock_available_cancel(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( devicelock_available_pc )
     {
         dbus_pending_call_cancel(devicelock_available_pc);
@@ -311,6 +331,8 @@ static void devicelock_available_cancel(void)
 
 static void devicelock_available_query(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     devicelock_available_cancel();
 
     log_debug("querying %s name owner", DEVICELOCK_SERVICE);
@@ -322,6 +344,8 @@ static void devicelock_available_query(void)
 
 static void devicelock_name_owner_signal(DBusMessage *msg)
 {
+    LOG_REGISTER_CONTEXT;
+
     DBusError   err  = DBUS_ERROR_INIT;
     const char *name = 0;
     const char *prev = 0;
@@ -350,6 +374,8 @@ static void devicelock_name_owner_signal(DBusMessage *msg)
 static DBusHandlerResult
 devicelock_dbus_filter_cb(DBusConnection *con, DBusMessage *msg, void *aptr)
 {
+    LOG_REGISTER_CONTEXT;
+
     (void)con;
     (void)aptr;
 
@@ -376,6 +402,8 @@ devicelock_dbus_filter_cb(DBusConnection *con, DBusMessage *msg, void *aptr)
 bool
 devicelock_start_listener(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     log_debug("starting devicelock listener");
@@ -412,6 +440,8 @@ cleanup:
 void
 devicelock_stop_listener(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     log_debug("stopping devicelock listener");
 
     /* Do note leave pending queries behind */

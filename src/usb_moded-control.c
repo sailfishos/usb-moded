@@ -99,6 +99,8 @@ static cable_state_t control_cable_state = CABLE_STATE_UNKNOWN;
 void
 control_rethink_usb_charging_fallback(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     /* Cable must be connected to a pc */
     if( control_get_cable_state() != CABLE_STATE_PC_CONNECTED )
         goto EXIT;
@@ -125,11 +127,15 @@ EXIT:
 
 const char *control_get_external_mode(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return control_external_mode ?: MODE_UNDEFINED;
 }
 
 static void control_set_external_mode(const char *mode)
 {
+    LOG_REGISTER_CONTEXT;
+
     gchar *previous = control_external_mode;
     if( !g_strcmp0(previous, mode) )
         goto EXIT;
@@ -167,12 +173,16 @@ EXIT:
 
 void control_clear_external_mode(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     g_free(control_external_mode),
         control_external_mode = 0;
 }
 
 static void control_update_external_mode(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     const char *internal_mode = control_get_usb_mode();
     const char *external_mode = common_map_mode_to_external(internal_mode);
 
@@ -181,11 +191,15 @@ static void control_update_external_mode(void)
 
 const char *control_get_target_mode(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return control_target_mode ?: MODE_UNDEFINED;
 }
 
 static void control_set_target_mode(const char *mode)
 {
+    LOG_REGISTER_CONTEXT;
+
     gchar *previous = control_target_mode;
     if( !g_strcmp0(previous, mode) )
         goto EXIT;
@@ -204,6 +218,8 @@ EXIT:
 
 void control_clear_target_mode(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     g_free(control_target_mode),
         control_target_mode = 0;
 }
@@ -215,11 +231,15 @@ void control_clear_target_mode(void)
  */
 const char * control_get_usb_mode(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return control_internal_mode;
 }
 
 void control_clear_internal_mode(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     g_free(control_internal_mode),
         control_internal_mode = 0;
 }
@@ -230,6 +250,8 @@ void control_clear_internal_mode(void)
  */
 void control_set_usb_mode(const char *mode)
 {
+    LOG_REGISTER_CONTEXT;
+
     gchar *previous = control_internal_mode;
     if( !g_strcmp0(previous, mode) )
         goto EXIT;
@@ -259,6 +281,8 @@ EXIT:
  */
 void control_mode_switched(const char *mode)
 {
+    LOG_REGISTER_CONTEXT;
+
     /* Update state data - without retriggering the worker thread
      */
     if( g_strcmp0(control_internal_mode, mode) ) {
@@ -281,6 +305,8 @@ void control_mode_switched(const char *mode)
  */
 void control_select_usb_mode(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     char *mode_to_set = 0;
 
     if( usbmoded_get_rescue_mode() ) {
@@ -337,6 +363,8 @@ EXIT:
  */
 void control_set_cable_state(cable_state_t cable_state)
 {
+    LOG_REGISTER_CONTEXT;
+
     cable_state_t prev = control_cable_state;
     control_cable_state = cable_state;
 
@@ -370,11 +398,15 @@ EXIT:
  */
 cable_state_t control_get_cable_state(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return control_cable_state;
 }
 
 void control_clear_cable_state(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     control_cable_state = CABLE_STATE_UNKNOWN;
 }
 
@@ -384,6 +416,8 @@ void control_clear_cable_state(void)
  */
 bool control_get_connection_state(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool connected = false;
     switch( control_get_cable_state() ) {
     case CABLE_STATE_CHARGER_CONNECTED:

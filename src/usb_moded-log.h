@@ -36,6 +36,7 @@
 # define LOG_ENABLE_DEBUG      01
 # define LOG_ENABLE_TIMESTAMPS 01
 # define LOG_ENABLE_LEVELTAGS  01
+# define LOG_ENABLE_CONTEXT    0
 
 enum
 {
@@ -48,6 +49,22 @@ enum
     LOG_MIN_LEVEL = LOG_CRIT,
     LOG_MAX_LEVEL = LOG_DEBUG,
 };
+
+/* ========================================================================= *
+ * CONTEXT STACK
+ * ========================================================================= */
+
+# if LOG_ENABLE_CONTEXT
+const char *context_enter(const char *func);
+void        context_leave(void *aptr);
+
+#  define LOG_REGISTER_CONTEXT\
+     __attribute__((cleanup(context_leave))) const char *qqq =\
+         context_enter(__func__)
+#else
+# define LOG_REGISTER_CONTEXT\
+     do{}while(0)
+#endif
 
 /* ========================================================================= *
  * Prototypes

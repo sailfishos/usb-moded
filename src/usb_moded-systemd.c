@@ -63,6 +63,8 @@ static DBusConnection *systemd_con = NULL;
 //  method = StartUnit or StopUnit
 gboolean systemd_control_service(const char *name, const char *method)
 {
+    LOG_REGISTER_CONTEXT;
+
     DBusMessage    *req = NULL;
     DBusMessage    *rsp = NULL;
     DBusError       err = DBUS_ERROR_INIT;
@@ -142,6 +144,8 @@ EXIT:
 gboolean
 systemd_control_start(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     gboolean ack = FALSE;
 
     log_debug("starting systemd control");
@@ -162,6 +166,8 @@ cleanup:
 void
 systemd_control_stop(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     log_debug("stopping systemd control");
 
     if(systemd_con)

@@ -109,6 +109,8 @@ int                  config_is_roaming_not_allowed   (void);
 
 static int config_validate_ip(const char *ipadd)
 {
+    LOG_REGISTER_CONTEXT;
+
     unsigned int b1, b2, b3, b4;
     unsigned char c;
 
@@ -125,6 +127,8 @@ static int config_validate_ip(const char *ipadd)
 
 char *config_find_mounts(void)
 {
+    LOG_REGISTER_CONTEXT;
+
 
     char *ret = NULL;
 
@@ -139,52 +143,72 @@ char *config_find_mounts(void)
 
 int config_find_sync(void)
 {
+    LOG_REGISTER_CONTEXT;
+
 
     return config_get_conf_int(FS_SYNC_ENTRY, FS_SYNC_KEY);
 }
 
 char * config_find_alt_mount(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(ALT_MOUNT_ENTRY, ALT_MOUNT_KEY);
 }
 
 char * config_find_udev_path(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(UDEV_PATH_ENTRY, UDEV_PATH_KEY);
 }
 
 char * config_find_udev_subsystem(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(UDEV_PATH_ENTRY, UDEV_SUBSYSTEM_KEY);
 }
 
 char * config_check_trigger(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(TRIGGER_ENTRY, TRIGGER_PATH_KEY);
 }
 
 char * config_get_trigger_subsystem(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(TRIGGER_ENTRY, TRIGGER_UDEV_SUBSYSTEM);
 }
 
 char * config_get_trigger_mode(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(TRIGGER_ENTRY, TRIGGER_MODE_KEY);
 }
 
 char * config_get_trigger_property(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(TRIGGER_ENTRY, TRIGGER_PROPERTY_KEY);
 }
 
 char * config_get_trigger_value(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(TRIGGER_ENTRY, TRIGGER_PROPERTY_VALUE_KEY);
 }
 
 static char * config_get_network_ip(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     char * ip = config_get_kcmdline_string(NETWORK_IP_KEY);
     if (ip != NULL)
         if(!config_validate_ip(ip))
@@ -195,11 +219,15 @@ static char * config_get_network_ip(void)
 
 static char * config_get_network_interface(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(NETWORK_ENTRY, NETWORK_INTERFACE_KEY);
 }
 
 static char * config_get_network_gateway(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     char * gw = config_get_kcmdline_string(NETWORK_GATEWAY_KEY);
     if (gw != NULL)
         return gw;
@@ -209,6 +237,8 @@ static char * config_get_network_gateway(void)
 
 static char * config_get_network_netmask(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     char * netmask = config_get_kcmdline_string(NETWORK_NETMASK_KEY);
     if (netmask != NULL)
         return netmask;
@@ -218,12 +248,16 @@ static char * config_get_network_netmask(void)
 
 static char * config_get_network_nat_interface(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(NETWORK_ENTRY, NETWORK_NAT_INTERFACE_KEY);
 }
 
 /* create basic conffile with sensible defaults */
 static void config_create_conf_file(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     GKeyFile *settingsfile;
     gchar *keyfile;
     int dir = 1;
@@ -254,6 +288,8 @@ static void config_create_conf_file(void)
 
 static int config_get_conf_int(const gchar *entry, const gchar *key)
 {
+    LOG_REGISTER_CONTEXT;
+
     GKeyFile *settingsfile;
     gboolean test = FALSE;
     gchar **keys, **origkeys;
@@ -287,6 +323,8 @@ static int config_get_conf_int(const gchar *entry, const gchar *key)
 
 static char * config_get_conf_string(const gchar *entry, const gchar *key)
 {
+    LOG_REGISTER_CONTEXT;
+
     GKeyFile *settingsfile;
     gboolean test = FALSE;
     gchar **keys, **origkeys, *tmp_char = NULL;
@@ -324,6 +362,8 @@ end:
 
 static char * config_get_kcmdline_string(const char *entry)
 {
+    LOG_REGISTER_CONTEXT;
+
     int fd;
     char cmdLine[1024];
     char *ret = NULL;
@@ -400,6 +440,8 @@ static char * config_get_kcmdline_string(const char *entry)
 
 char * config_get_mode_setting(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     char *mode = 0;
 
     /* Kernel command line can be used to override settings */
@@ -425,6 +467,8 @@ EXIT:
  */
 int config_value_changed(GKeyFile *settingsfile, const char *entry, const char *key, const char *new_value)
 {
+    LOG_REGISTER_CONTEXT;
+
     char *old_value = g_key_file_get_string(settingsfile, entry, key, NULL);
     int changed = (g_strcmp0(old_value, new_value) != 0);
     g_free(old_value);
@@ -433,6 +477,8 @@ int config_value_changed(GKeyFile *settingsfile, const char *entry, const char *
 
 set_config_result_t config_set_config_setting(const char *entry, const char *key, const char *value)
 {
+    LOG_REGISTER_CONTEXT;
+
     GKeyFile *settingsfile;
     gboolean test = FALSE;
     set_config_result_t ret = SET_CONFIG_ERROR;
@@ -469,6 +515,8 @@ set_config_result_t config_set_config_setting(const char *entry, const char *key
 
 set_config_result_t config_set_mode_setting(const char *mode)
 {
+    LOG_REGISTER_CONTEXT;
+
     if (strcmp(mode, MODE_ASK) && common_valid_mode(mode))
         return SET_CONFIG_ERROR;
     return config_set_config_setting(MODE_SETTING_ENTRY, MODE_SETTING_KEY, mode);
@@ -478,6 +526,8 @@ set_config_result_t config_set_mode_setting(const char *mode)
  * new string of hidden modes when adding one, otherwise it will remove one */
 static char * config_make_modes_string(const char *key, const char *mode_name, int include)
 {
+    LOG_REGISTER_CONTEXT;
+
     char     *modes_new = 0;
     char     *modes_old = 0;
     gchar   **modes_arr = 0;
@@ -537,6 +587,8 @@ static char * config_make_modes_string(const char *key, const char *mode_name, i
 
 set_config_result_t config_set_hide_mode_setting(const char *mode)
 {
+    LOG_REGISTER_CONTEXT;
+
     set_config_result_t ret = SET_CONFIG_UNCHANGED;
 
     char *hidden_modes = config_make_modes_string(MODE_HIDE_KEY, mode, 1);
@@ -558,6 +610,8 @@ set_config_result_t config_set_hide_mode_setting(const char *mode)
 
 set_config_result_t config_set_unhide_mode_setting(const char *mode)
 {
+    LOG_REGISTER_CONTEXT;
+
     set_config_result_t ret = SET_CONFIG_UNCHANGED;
 
     char *hidden_modes = config_make_modes_string(MODE_HIDE_KEY, mode, 0);
@@ -579,6 +633,8 @@ set_config_result_t config_set_unhide_mode_setting(const char *mode)
 
 set_config_result_t config_set_mode_whitelist(const char *whitelist)
 {
+    LOG_REGISTER_CONTEXT;
+
     set_config_result_t ret = config_set_config_setting(MODE_SETTING_ENTRY, MODE_WHITELIST_KEY, whitelist);
 
     if(ret == SET_CONFIG_UPDATED) {
@@ -609,6 +665,8 @@ set_config_result_t config_set_mode_whitelist(const char *whitelist)
 
 set_config_result_t config_set_mode_in_whitelist(const char *mode, int allowed)
 {
+    LOG_REGISTER_CONTEXT;
+
     set_config_result_t ret = SET_CONFIG_UNCHANGED;
 
     char *whitelist = config_make_modes_string(MODE_WHITELIST_KEY, mode, allowed);
@@ -628,6 +686,8 @@ set_config_result_t config_set_mode_in_whitelist(const char *mode, int allowed)
  */
 set_config_result_t config_set_network_setting(const char *config, const char *setting)
 {
+    LOG_REGISTER_CONTEXT;
+
     GKeyFile *settingsfile;
     gboolean test = FALSE;
     gchar *keyfile;
@@ -676,6 +736,8 @@ set_config_result_t config_set_network_setting(const char *config, const char *s
 
 char * config_get_network_setting(const char *config)
 {
+    LOG_REGISTER_CONTEXT;
+
     char * ret = 0;
     mode_list_elem_t *data;
 
@@ -737,6 +799,8 @@ end:
 static void config_merge_key(GKeyFile *dest, GKeyFile *srce,
                              const char *grp, const char *key)
 {
+    LOG_REGISTER_CONTEXT;
+
     gchar *val = g_key_file_get_value(srce, grp, key, 0);
     if( val ) {
         log_debug("[%s] %s = %s", grp, key, val);
@@ -755,6 +819,8 @@ static void config_merge_key(GKeyFile *dest, GKeyFile *srce,
 static void config_merge_group(GKeyFile *dest, GKeyFile *srce,
                                const char *grp)
 {
+    LOG_REGISTER_CONTEXT;
+
     gchar **key = g_key_file_get_keys(srce, grp, 0, 0);
     if( key ) {
         for( size_t i = 0; key[i]; ++i )
@@ -771,6 +837,8 @@ static void config_merge_group(GKeyFile *dest, GKeyFile *srce,
  */
 static void config_merge_file(GKeyFile *dest, GKeyFile *srce)
 {
+    LOG_REGISTER_CONTEXT;
+
     gchar **grp = g_key_file_get_groups(srce, 0);
 
     if( grp ) {
@@ -790,6 +858,8 @@ static void config_merge_file(GKeyFile *dest, GKeyFile *srce)
  */
 static int config_glob_error_cb(const char *path, int err)
 {
+    LOG_REGISTER_CONTEXT;
+
     log_debug("%s: glob: %s", path, g_strerror(err));
     return 0;
 }
@@ -801,6 +871,8 @@ static int config_glob_error_cb(const char *path, int err)
  */
 static GKeyFile *config_read_ini_files(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     static const char pattern[] = CONFIG_FILE_DIR"/*.ini";
 
     GKeyFile *ini = g_key_file_new();
@@ -842,6 +914,8 @@ exit:
  */
 int config_merge_conf_file(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     GString *keyfile_string = NULL;
     GKeyFile *settingsfile,*tempfile;
     int ret = 0;
@@ -881,6 +955,8 @@ out:
 
 char * config_get_android_manufacturer(void)
 {
+    LOG_REGISTER_CONTEXT;
+
 #ifdef USE_MER_SSU
     /* If SSU can provide manufacturer name, use it. Otherwise fall
      * back to using the name specified in configuration files. */
@@ -896,11 +972,15 @@ char * config_get_android_manufacturer(void)
 
 char * config_get_android_vendor_id(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(ANDROID_ENTRY, ANDROID_VENDOR_ID_KEY);
 }
 
 char * config_get_android_product(void)
 {
+    LOG_REGISTER_CONTEXT;
+
 #ifdef USE_MER_SSU
     /* If SSU can provide device model name, use it. Otherwise fall
      * back to using the name specified in configuration files. */
@@ -916,19 +996,27 @@ char * config_get_android_product(void)
 
 char * config_get_android_product_id(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(ANDROID_ENTRY, ANDROID_PRODUCT_ID_KEY);
 }
 
 char * config_get_hidden_modes(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(MODE_SETTING_ENTRY, MODE_HIDE_KEY);
 }
 char * config_get_mode_whitelist(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(MODE_SETTING_ENTRY, MODE_WHITELIST_KEY);
 }
 
 int config_is_roaming_not_allowed(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_int(NETWORK_ENTRY, NO_ROAMING_KEY);
 }

@@ -68,6 +68,8 @@ gchar       *common_get_mode_list                (mode_list_type_t type);
 
 const char *cable_state_repr(cable_state_t state)
 {
+    LOG_REGISTER_CONTEXT;
+
     static const char * const lut[CABLE_STATE_NUMOF] = {
         [CABLE_STATE_UNKNOWN]           = "unknown",
         [CABLE_STATE_DISCONNECTED]      = "disconnected",
@@ -159,6 +161,8 @@ static const modemapping_t common_modemapping[] =
 const char *
 common_map_mode_to_hardware(const char *internal_mode)
 {
+    LOG_REGISTER_CONTEXT;
+
     const char *hardware_mode = 0;
 
     for( size_t i = 0; common_modemapping[i].internal_mode; ++i ) {
@@ -173,6 +177,8 @@ common_map_mode_to_hardware(const char *internal_mode)
 const char *
 common_map_mode_to_external(const char *internal_mode)
 {
+    LOG_REGISTER_CONTEXT;
+
     const char *external_mode = 0;
 
     for( size_t i = 0; common_modemapping[i].internal_mode; ++i ) {
@@ -192,6 +198,8 @@ common_map_mode_to_external(const char *internal_mode)
  */
 void common_send_supported_modes_signal(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     gchar *mode_list = common_get_mode_list(SUPPORTED_MODES_LIST);
     umdbus_send_supported_modes_signal(mode_list);
     g_free(mode_list);
@@ -201,6 +209,8 @@ void common_send_supported_modes_signal(void)
  */
 void common_send_available_modes_signal(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     gchar *mode_list = common_get_mode_list(AVAILABLE_MODES_LIST);
     umdbus_send_available_modes_signal(mode_list);
     g_free(mode_list);
@@ -210,6 +220,8 @@ void common_send_available_modes_signal(void)
  */
 void common_send_hidden_modes_signal(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     gchar *mode_list = config_get_hidden_modes();
     umdbus_send_hidden_modes_signal(mode_list);
     g_free(mode_list);
@@ -219,6 +231,8 @@ void common_send_hidden_modes_signal(void)
  */
 void common_send_whitelisted_modes_signal(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     gchar *mode_list = config_get_mode_whitelist();
     umdbus_send_whitelisted_modes_signal(mode_list);
     g_free(mode_list);
@@ -237,6 +251,8 @@ void common_send_whitelisted_modes_signal(void)
  */
 static void common_write_to_sysfs_file(const char *path, const char *text)
 {
+    LOG_REGISTER_CONTEXT;
+
     int fd = -1;
 
     if (!path || !text)
@@ -276,6 +292,8 @@ EXIT:
  */
 void common_acquire_wakelock(const char *wakelock_name)
 {
+    LOG_REGISTER_CONTEXT;
+
     char buff[256];
     snprintf(buff, sizeof buff, "%s %lld",
              wakelock_name,
@@ -293,6 +311,8 @@ void common_acquire_wakelock(const char *wakelock_name)
  */
 void common_release_wakelock(const char *wakelock_name)
 {
+    LOG_REGISTER_CONTEXT;
+
 #if VERBOSE_WAKELOCKING
     log_debug("common_release_wakelock %s", wakelock_name);
 #endif
@@ -310,6 +330,8 @@ int
 common_system_(const char *file, int line, const char *func,
                  const char *command)
 {
+    LOG_REGISTER_CONTEXT;
+
     log_debug("EXEC %s; from %s:%d: %s()",
               command, file, line, func);
 
@@ -327,6 +349,8 @@ FILE *
 common_popen_(const char *file, int line, const char *func,
                 const char *command, const char *type)
 {
+    LOG_REGISTER_CONTEXT;
+
     log_debug("EXEC %s; from %s:%d: %s()",
               command, file, line, func);
 
@@ -336,6 +360,8 @@ common_popen_(const char *file, int line, const char *func,
 waitres_t
 common_wait(unsigned tot_ms, bool (*ready_cb)(void *aptr), void *aptr)
 {
+    LOG_REGISTER_CONTEXT;
+
     struct timespec ts;
 
     waitres_t res = WAIT_FAILED;
@@ -384,6 +410,8 @@ EXIT:
 bool
 common_msleep_(const char *file, int line, const char *func, unsigned msec)
 {
+    LOG_REGISTER_CONTEXT;
+
     log_debug("SLEEP %u.%03u seconds; from %s:%d: %s()",
               msec / 1000u, msec % 1000u,file, line, func);
     return common_wait(msec, 0, 0) == WAIT_TIMEOUT;
@@ -396,6 +424,8 @@ common_msleep_(const char *file, int line, const char *func, unsigned msec)
 /* check if a mode is in a list */
 static bool common_mode_in_list(const char *mode, char * const *modes)
 {
+    LOG_REGISTER_CONTEXT;
+
     int i;
 
     if (!modes)
@@ -417,6 +447,8 @@ static bool common_mode_in_list(const char *mode, char * const *modes)
  */
 int common_valid_mode(const char *mode)
 {
+    LOG_REGISTER_CONTEXT;
+
     int valid = 1;
     /* MODE_ASK, MODE_CHARGER and MODE_CHARGING_FALLBACK are not modes that are settable seen their special 'internal' status
      * so we only check the modes that are announed outside. Only exception is the built in MODE_CHARGING */
@@ -455,6 +487,8 @@ int common_valid_mode(const char *mode)
  */
 gchar *common_get_mode_list(mode_list_type_t type)
 {
+    LOG_REGISTER_CONTEXT;
+
     GString *mode_list_str = g_string_new(NULL);
 
     gchar  *hidden_modes_value = 0;

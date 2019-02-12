@@ -84,6 +84,8 @@ static GHashTable *tracked_values = 0;
 
 static void modesetting_track_value(const char *path, const char *text)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( !tracked_values || !path )
         goto EXIT;
 
@@ -98,6 +100,8 @@ EXIT:
 
 void modesetting_verify_values(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     GHashTableIter iter;
     gpointer key, value;
 
@@ -138,6 +142,8 @@ EXIT:
 
 static char *modesetting_strip(char *str)
 {
+    LOG_REGISTER_CONTEXT;
+
     unsigned char *src = (unsigned char *)str;
     unsigned char *dst = (unsigned char *)str;
 
@@ -156,6 +162,8 @@ static char *modesetting_strip(char *str)
 
 static char *modesetting_read_from_file(const char *path, size_t maxsize)
 {
+    LOG_REGISTER_CONTEXT;
+
     int      fd   = -1;
     ssize_t  done = 0;
     char    *data = 0;
@@ -192,6 +200,8 @@ cleanup:
 int modesetting_write_to_file_real(const char *file, int line, const char *func,
                                    const char *path, const char *text)
 {
+    LOG_REGISTER_CONTEXT;
+
     int err = -1;
     int fd = -1;
     size_t todo = 0;
@@ -288,6 +298,8 @@ char *modesetting_mountdev(const char *mountpoint);
 
 bool modesetting_is_mounted(const char *mountpoint)
 {
+    LOG_REGISTER_CONTEXT;
+
     char cmd[256];
     snprintf(cmd, sizeof cmd, "/bin/mountpoint -q '%s'", mountpoint);
     return common_system(cmd) == 0;
@@ -295,6 +307,8 @@ bool modesetting_is_mounted(const char *mountpoint)
 
 bool modesetting_mount(const char *mountpoint)
 {
+    LOG_REGISTER_CONTEXT;
+
     char cmd[256];
     snprintf(cmd, sizeof cmd, "/bin/mount '%s'", mountpoint);
     return common_system(cmd) == 0;
@@ -302,6 +316,8 @@ bool modesetting_mount(const char *mountpoint)
 
 bool modesetting_unmount(const char *mountpoint)
 {
+    LOG_REGISTER_CONTEXT;
+
     char cmd[256];
     snprintf(cmd, sizeof cmd, "/bin/umount '%s'", mountpoint);
     return common_system(cmd) == 0;
@@ -309,6 +325,8 @@ bool modesetting_unmount(const char *mountpoint)
 
 gchar *modesetting_mountdev(const char *mountpoint)
 {
+    LOG_REGISTER_CONTEXT;
+
     char *res = 0;
     FILE *fh  = 0;
     struct mntent *me;
@@ -335,6 +353,8 @@ EXIT:
 static void
 modesetting_free_storage_info(storage_info_t *info)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( info ) {
         for( size_t i = 0; info[i].si_mountpoint; ++i ) {
             g_free(info[i].si_mountpoint);
@@ -347,6 +367,8 @@ modesetting_free_storage_info(storage_info_t *info)
 static storage_info_t *
 modesetting_get_storage_info(size_t *pcount)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool             ack     = false;
     storage_info_t  *info    = 0;
     size_t           count   = 0;
@@ -407,6 +429,8 @@ EXIT:
 
 static bool modesetting_enter_mass_storage_mode(mode_list_elem_t *data)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool            ack   = false;
     size_t          count = 0;
     storage_info_t *info  = 0;
@@ -543,6 +567,8 @@ EXIT:
 
 static int modesetting_leave_mass_storage_mode(mode_list_elem_t *data)
 {
+    LOG_REGISTER_CONTEXT;
+
     (void)data;
 
     bool            ack      = false;
@@ -638,6 +664,8 @@ EXIT:
 
 static void modesetting_report_mass_storage_blocker(const char *mountpoint, int try)
 {
+    LOG_REGISTER_CONTEXT;
+
     FILE *stream = 0;
     gchar *lsof_command = 0;
     int count = 0;
@@ -673,6 +701,8 @@ static void modesetting_report_mass_storage_blocker(const char *mountpoint, int 
 
 bool modesetting_enter_dynamic_mode(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     mode_list_elem_t *data;
@@ -823,6 +853,8 @@ EXIT:
 
 void modesetting_leave_dynamic_mode(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     log_debug("DYNAMIC MODE: CLEANUP");
 
     mode_list_elem_t *data;
@@ -923,6 +955,8 @@ EXIT:
  */
 void modesetting_init(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( !tracked_values ) {
         tracked_values = g_hash_table_new_full(g_str_hash, g_str_equal,
                                                g_free, g_free);
@@ -933,6 +967,8 @@ void modesetting_init(void)
  */
 void modesetting_quit(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( tracked_values ) {
         g_hash_table_unref(tracked_values), tracked_values = 0;
     }

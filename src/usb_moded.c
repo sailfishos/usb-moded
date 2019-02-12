@@ -153,12 +153,16 @@ static GList *usbmoded_modelist = 0;
 GList *
 usbmoded_get_modelist(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return usbmoded_modelist;
 }
 
 void
 usbmoded_load_modelist(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( !usbmoded_modelist ) {
         log_notice("load modelist");
         usbmoded_modelist = dynconfig_read_mode_list(usbmoded_get_diag_mode());
@@ -168,6 +172,8 @@ usbmoded_load_modelist(void)
 void
 usbmoded_free_modelist(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( usbmoded_modelist ) {
         log_notice("free modelist");
         dynconfig_free_mode_list(usbmoded_modelist),
@@ -189,11 +195,15 @@ static bool usbmoded_rescue_mode = false;
 
 bool usbmoded_get_rescue_mode(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return usbmoded_rescue_mode;
 }
 
 void usbmoded_set_rescue_mode(bool rescue_mode)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( usbmoded_rescue_mode != rescue_mode ) {
         log_info("rescue_mode: %d -> %d",  usbmoded_rescue_mode, rescue_mode);
         usbmoded_rescue_mode = rescue_mode;
@@ -213,11 +223,15 @@ static bool usbmoded_diag_mode = false;
 
 bool usbmoded_get_diag_mode(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return usbmoded_diag_mode;
 }
 
 void usbmoded_set_diag_mode(bool diag_mode)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( usbmoded_diag_mode != diag_mode ) {
         log_info("diag_mode: %d -> %d",  usbmoded_diag_mode, diag_mode);
         usbmoded_diag_mode = diag_mode;
@@ -244,6 +258,8 @@ static int usbmoded_cable_connection_delay = CABLE_CONNECTION_DELAY_DEFAULT;
 void
 usbmoded_set_cable_connection_delay(int delay_ms)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( delay_ms > CABLE_CONNECTION_DELAY_MAXIMUM )
         delay_ms = CABLE_CONNECTION_DELAY_MAXIMUM;
     if( delay_ms < 0 )
@@ -262,6 +278,8 @@ usbmoded_set_cable_connection_delay(int delay_ms)
 int
 usbmoded_get_cable_connection_delay(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return usbmoded_cable_connection_delay;
 }
 
@@ -281,6 +299,8 @@ static guint usbmoded_allow_suspend_timer_id = 0;
  */
 static gboolean usbmoded_allow_suspend_timer_cb(gpointer aptr)
 {
+    LOG_REGISTER_CONTEXT;
+
     (void)aptr;
 
     usbmoded_allow_suspend_timer_id = 0;
@@ -297,6 +317,8 @@ static gboolean usbmoded_allow_suspend_timer_cb(gpointer aptr)
  */
 void usbmoded_allow_suspend(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( usbmoded_allow_suspend_timer_id ) {
         g_source_remove(usbmoded_allow_suspend_timer_id),
             usbmoded_allow_suspend_timer_id = 0;
@@ -320,6 +342,8 @@ void usbmoded_allow_suspend(void)
  */
 void usbmoded_delay_suspend(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     /* Use of automatically terminating wakelocks also means we need
      * to renew the wakelock when extending the suspend delay. */
     common_acquire_wakelock(USB_MODED_WAKELOCK_STATE_CHANGE);
@@ -344,6 +368,8 @@ void usbmoded_delay_suspend(void)
  */
 bool usbmoded_can_export(void)
 {
+    LOG_REGISTER_CONTEXT;
+
   bool can_export = true;
 
 #ifdef MEEGOLOCK
@@ -376,12 +402,16 @@ static bool usbmoded_init_done_reached = false;
  */
 bool usbmoded_init_done_p(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return usbmoded_init_done_reached;
 }
 
 /** Update cached init-done-reached state */
 void usbmoded_set_init_done(bool reached)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( usbmoded_init_done_reached != reached ) {
         usbmoded_init_done_reached = reached;
         log_warning("init_done -> %s",
@@ -392,6 +422,8 @@ void usbmoded_set_init_done(bool reached)
 /** Check whether init-done flag file exists */
 void usbmoded_probe_init_done(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     usbmoded_set_init_done(access(usbmoded_init_done_flagfile, F_OK) == 0);
 }
 
@@ -403,6 +435,8 @@ void usbmoded_probe_init_done(void)
  */
 void usbmoded_exit_mainloop(int exitcode)
 {
+    LOG_REGISTER_CONTEXT;
+
     /* In case multiple exit request get done, retain the
      * highest exit code used. */
     if( usbmoded_exitcode < exitcode )
@@ -422,6 +456,8 @@ void usbmoded_exit_mainloop(int exitcode)
 
 void usbmoded_handle_signal(int signum)
 {
+    LOG_REGISTER_CONTEXT;
+
     log_debug("handle signal: %s\n", strsignal(signum));
 
     if( signum == SIGTERM )
@@ -449,6 +485,8 @@ void usbmoded_handle_signal(int signum)
 /* Prepare usb-moded for running the mainloop */
 static bool usbmoded_init(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     /* Check if we are in mid-bootup */
@@ -609,6 +647,8 @@ EXIT:
  */
 static void usbmoded_cleanup(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     /* Stop the worker thread first to avoid confusion about shared
      * resources we are just about to release. */
     worker_quit();
@@ -741,11 +781,15 @@ static const char usbmoded_short_options[] = "aifsTlDdhrnvm:b:Q";
 /* Display usbmoded_usage information */
 static void usbmoded_usage(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     fprintf(stdout, "%s", usbmoded_usage_info);
 }
 
 static void usbmoded_parse_options(int argc, char* argv[])
 {
+    LOG_REGISTER_CONTEXT;
+
     /* Parse the command-line options */
     for( ;; ) {
         int opt = getopt_long(argc, argv,
@@ -824,6 +868,8 @@ static void usbmoded_parse_options(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
+    LOG_REGISTER_CONTEXT;
+
     /* Library init calls that should be made before
      * using library functionality.
      */
