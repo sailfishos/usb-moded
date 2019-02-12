@@ -138,6 +138,7 @@ static bool       usbmoded_hw_fallback    = false;
 #ifdef SYSTEMD
 static bool       usbmoded_systemd_notify = false;
 #endif
+static bool       usbmoded_auto_exit      = false;
 
 /* ========================================================================= *
  * Functions
@@ -731,10 +732,11 @@ static const struct option const usbmoded_long_options[] =
     { "version",                        no_argument,       0, 'v' },
     { "max-cable-delay",                required_argument, 0, 'm' },
     { "android-bootup-function",        required_argument, 0, 'b' },
+    { "auto-exit",                      no_argument,       0, 'Q' },
     { 0, 0, 0, 0 }
 };
 
-static const char usbmoded_short_options[] = "aifsTlDdhrnvm:b:";
+static const char usbmoded_short_options[] = "aifsTlDdhrnvm:b:Q";
 
 /* Display usbmoded_usage information */
 static void usbmoded_usage(void)
@@ -809,6 +811,10 @@ static void usbmoded_parse_options(int argc, char* argv[])
             log_warning("Deprecated option: --android-bootup-function");
             break;
 
+        case 'Q':
+          usbmoded_auto_exit = true;
+          break;
+
         default:
             usbmoded_usage();
             exit(EXIT_FAILURE);
@@ -875,6 +881,10 @@ int main(int argc, char* argv[])
 
     /* init succesful, run main loop */
     usbmoded_exitcode = EXIT_SUCCESS;
+
+    if( usbmoded_auto_exit )
+        goto EXIT;
+
     usbmoded_mainloop = g_main_loop_new(NULL, FALSE);
 
     log_debug("enter usb-moded mainloop");
