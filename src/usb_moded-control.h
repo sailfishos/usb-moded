@@ -1,7 +1,7 @@
 /**
  * @file usb_moded-control.h
  *
- * Copyright (C) 2013-2018 Jolla. All rights reserved.
+ * Copyright (C) 2013-2019 Jolla. All rights reserved.
  *
  * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
  * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
@@ -32,6 +32,8 @@
 void           control_rethink_usb_charging_fallback(void);
 const char    *control_get_external_mode            (void);
 void           control_clear_external_mode          (void);
+const char    *control_get_target_mode              (void);
+void           control_clear_target_mode            (void);
 const char    *control_get_usb_mode                 (void);
 void           control_clear_internal_mode          (void);
 void           control_set_usb_mode                 (const char *mode);

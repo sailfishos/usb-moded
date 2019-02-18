@@ -2,7 +2,7 @@
  * @file        usb_moded-dbus.c
  *
  * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2012-2018 Jolla. All rights reserved.
+ * Copyright (C) 2012-2019 Jolla. All rights reserved.
  *
  * @author: Philippe De Swert <philippe.de-swert@nokia.com>
  * @author: Philippe De Swert <phdeswer@lumi.maa>
@@ -65,7 +65,10 @@ gboolean                  umdbus_init_service                 (void);
 static void               umdbus_cleanup_service              (void);
 void                      umdbus_cleanup                      (void);
 static int                umdbus_send_signal_ex               (const char *signal_type, const char *content);
-int                       umdbus_send_state_signal            (const char *state_ind);
+static void               umdbus_send_legacy_signal           (const char *state_ind);
+void                      umdbus_send_current_state_signal    (const char *state_ind);
+void                      umdbus_send_target_state_signal     (const char *state_ind);
+void                      umdbus_send_event_signal            (const char *state_ind);
 int                       umdbus_send_error_signal            (const char *error);
 int                       umdbus_send_supported_modes_signal  (const char *supported_modes);
 int                       umdbus_send_available_modes_signal  (const char *available_modes);
@@ -119,6 +122,9 @@ static const char umdbus_introspect_usbmoded[] =
 "    <method name=\"" USB_MODE_STATE_REQUEST "\">\n"
 "      <arg name=\"mode\" type=\"s\" direction=\"out\"/>\n"
 "    </method>\n"
+"    <method name=\""  USB_MODE_TARGET_STATE_GET "\">\n"
+"      <arg name=\"mode\" type=\"s\" direction=\"out\"/>\n"
+"    </method>\n"
 "    <method name=\"" USB_MODE_STATE_SET "\">\n"
 "      <arg name=\"mode\" type=\"s\" direction=\"in\"/>\n"
 "      <arg name=\"mode\" type=\"s\" direction=\"out\"/>\n"
@@ -147,19 +153,39 @@ static const char umdbus_introspect_usbmoded[] =
 "    <method name=\"" USB_MODE_AVAILABLE_MODES_GET "\">\n"
 "      <arg name=\"modes\" type=\"s\" direction=\"out\"/>\n"
 "    </method>\n"
+"    <method name=\"" USB_MODE_HIDE "\">\n"
+"      <arg name=\"mode\" type=\"s\" direction=\"in\"/>\n"
+"      <arg name=\"mode\" type=\"s\" direction=\"out\"/>\n"
+"    </method>\n"
+"    <method name=\"" USB_MODE_UNHIDE "\">\n"
+"      <arg name=\"mode\" type=\"s\" direction=\"in\"/>\n"
+"      <arg name=\"mode\" type=\"s\" direction=\"out\"/>\n"
+"    </method>\n"
+"    <method name=\"" USB_MODE_HIDDEN_GET "\">\n"
+"      <arg name=\"modes\" type=\"s\" direction=\"out\"/>\n"
+"    </method>\n"
 "    <method name=\"" USB_MODE_WHITELISTED_MODES_GET "\">\n"
 "      <arg name=\"modes\" type=\"s\" direction=\"out\"/>\n"
 "    </method>\n"
-"    <method name=\"" USB_MODE_WHITELISTED_MODES_SET "\">"
-"      <arg name=\"modes\" type=\"s\" direction=\"in\"/>"
-"    </method>"
-"    <method name=\"" USB_MODE_WHITELISTED_SET "\">"
-"      <arg name=\"mode\" type=\"s\" direction=\"in\"/>"
-"      <arg name=\"whitelisted\" type=\"b\" direction=\"in\"/>"
-"     </method>"
+"    <method name=\"" USB_MODE_WHITELISTED_MODES_SET "\">\n"
+"      <arg name=\"modes\" type=\"s\" direction=\"in\"/>\n"
+"    </method>\n"
+"    <method name=\"" USB_MODE_WHITELISTED_SET "\">\n"
+"      <arg name=\"mode\" type=\"s\" direction=\"in\"/>\n"
+"      <arg name=\"whitelisted\" type=\"b\" direction=\"in\"/>\n"
+"    </method>\n"
 "    <method name=\"" USB_MODE_RESCUE_OFF "\"/>\n"
 "    <signal name=\"" USB_MODE_SIGNAL_NAME "\">\n"
+"      <arg name=\"mode_or_event\" type=\"s\"/>\n"
+"    </signal>\n"
+"    <signal name=\"" USB_MODE_CURRENT_STATE_SIGNAL_NAME "\">\n"
 "      <arg name=\"mode\" type=\"s\"/>\n"
+"    </signal>\n"
+"    <signal name=\"" USB_MODE_TARGET_STATE_SIGNAL_NAME "\">\n"
+"      <arg name=\"mode\" type=\"s\"/>\n"
+"    </signal>\n"
+"    <signal name=\"" USB_MODE_EVENT_SIGNAL_NAME "\">\n"
+"      <arg name=\"event\" type=\"s\"/>\n"
 "    </signal>\n"
 "    <signal name=\"" USB_MODE_ERROR_SIGNAL_NAME "\">\n"
 "      <arg name=\"error\" type=\"s\"/>\n"
@@ -168,15 +194,18 @@ static const char umdbus_introspect_usbmoded[] =
 "      <arg name=\"modes\" type=\"s\"/>\n"
 "    </signal>\n"
 "    <signal name=\"" USB_MODE_AVAILABLE_MODES_SIGNAL_NAME "\">\n"
-"      <arg name=\"modes\" type=\"s\">\n"
-"    </signal>\n"
-"    <signal name=\"" USB_MODE_WHITELISTED_MODES_SIGNAL_NAME "\">\n"
-"      <arg name=\"modes\" type=\"s\">\n"
+"      <arg name=\"modes\" type=\"s\"/>\n"
 "    </signal>\n"
 "    <signal name=\"" USB_MODE_CONFIG_SIGNAL_NAME "\">\n"
 "      <arg name=\"section\" type=\"s\"/>\n"
 "      <arg name=\"key\" type=\"s\"/>\n"
 "      <arg name=\"value\" type=\"s\"/>\n"
+"    </signal>\n"
+"    <signal name=\"" USB_MODE_HIDDEN_MODES_SIGNAL_NAME "\">\n"
+"      <arg name=\"modes\" type=\"s\"/>\n"
+"    </signal>\n"
+"    <signal name=\"" USB_MODE_WHITELISTED_MODES_SIGNAL_NAME "\">\n"
+"      <arg name=\"modes\" type=\"s\"/>\n"
 "    </signal>\n"
 "  </interface>\n"
 "</node>\n";
@@ -271,6 +300,12 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
             /* To the outside we want to keep CHARGING and CHARGING_FALLBACK the same */
             if(!strcmp(MODE_CHARGING_FALLBACK, mode))
                 mode = MODE_CHARGING;
+            if((reply = dbus_message_new_method_return(msg)))
+                dbus_message_append_args (reply, DBUS_TYPE_STRING, &mode, DBUS_TYPE_INVALID);
+        }
+        else if(!strcmp(member, USB_MODE_TARGET_STATE_GET))
+        {
+            const char *mode = control_get_target_mode();
             if((reply = dbus_message_new_method_return(msg)))
                 dbus_message_append_args (reply, DBUS_TYPE_STRING, &mode, DBUS_TYPE_INVALID);
         }
@@ -801,16 +836,48 @@ EXIT:
     return result;
 }
 
-/**
- * Send regular usb_moded state signal
+/** Send legacy usb_moded state_or_event signal
  *
- * @return 0 on success, 1 on failure
- * @param state_ind the signal name
+ * The legacy USB_MODE_SIGNAL_NAME signal is used for
+ * both mode changes and stateless events.
  *
-*/
-int umdbus_send_state_signal(const char *state_ind)
+ * @param state_ind mode name or event name
+ */
+static void umdbus_send_legacy_signal(const char *state_ind)
 {
-    return umdbus_send_signal_ex(USB_MODE_SIGNAL_NAME, state_ind);
+    umdbus_send_signal_ex(USB_MODE_SIGNAL_NAME, state_ind);
+}
+
+/** Send usb_moded current state signal
+ *
+ * @param state_ind mode name
+ */
+void umdbus_send_current_state_signal(const char *state_ind)
+{
+    umdbus_send_signal_ex(USB_MODE_CURRENT_STATE_SIGNAL_NAME,
+                          state_ind);
+    umdbus_send_legacy_signal(state_ind);
+}
+
+/** Send usb_moded target state signal
+ *
+ * @param state_ind mode name
+ */
+void umdbus_send_target_state_signal(const char *state_ind)
+{
+    umdbus_send_signal_ex(USB_MODE_TARGET_STATE_SIGNAL_NAME,
+                          state_ind);
+}
+
+/** Send usb_moded event signal
+ *
+ * @param state_ind event name
+ */
+void umdbus_send_event_signal(const char *state_ind)
+{
+    umdbus_send_signal_ex(USB_MODE_EVENT_SIGNAL_NAME,
+                          state_ind);
+    umdbus_send_legacy_signal(state_ind);
 }
 
 /**

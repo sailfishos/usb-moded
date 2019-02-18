@@ -2,7 +2,7 @@
  * @file usb_moded-udev.c
  *
  * Copyright (C) 2011 Nokia Corporation. All rights reserved.
- * Copyright (C) 2013-2018 Jolla Ltd.
+ * Copyright (C) 2013-2019 Jolla Ltd.
  *
  * @author: Philippe De Swert <philippe.de-swert@nokia.com>
  * @author: Philippe De Swert <phdeswer@lumi.maa>
@@ -182,10 +182,10 @@ static void umudev_cable_state_changed(void)
         /* dontcare */
         break;
     case CABLE_STATE_CHARGER_CONNECTED:
-        umdbus_send_state_signal(CHARGER_DISCONNECTED);
+        umdbus_send_event_signal(CHARGER_DISCONNECTED);
         break;
     case CABLE_STATE_PC_CONNECTED:
-        umdbus_send_state_signal(USB_DISCONNECTED);
+        umdbus_send_event_signal(USB_DISCONNECTED);
         break;
     }
 
@@ -199,10 +199,10 @@ static void umudev_cable_state_changed(void)
         /* dontcare */
         break;
     case CABLE_STATE_CHARGER_CONNECTED:
-        umdbus_send_state_signal(CHARGER_CONNECTED);
+        umdbus_send_event_signal(CHARGER_CONNECTED);
         break;
     case CABLE_STATE_PC_CONNECTED:
-        umdbus_send_state_signal(USB_CONNECTED);
+        umdbus_send_event_signal(USB_CONNECTED);
         break;
     }
 

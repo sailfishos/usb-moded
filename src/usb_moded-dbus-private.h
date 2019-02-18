@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2013-2018 Jolla Ltd.
+ * Copyright (C) 2013-2019 Jolla Ltd.
  *
  * Author: Philippe De Swert <philippe.de-swert@nokia.com>
  * Author: Philippe De Swert <philippe.deswert@jollamobile.com>
@@ -59,7 +59,9 @@ DBusConnection *umdbus_get_connection               (void);
 gboolean        umdbus_init_connection              (void);
 gboolean        umdbus_init_service                 (void);
 void            umdbus_cleanup                      (void);
-int             umdbus_send_state_signal            (const char *state_ind);
+void            umdbus_send_current_state_signal    (const char *state_ind);
+void            umdbus_send_target_state_signal     (const char *state_ind);
+void            umdbus_send_event_signal            (const char *state_ind);
 int             umdbus_send_error_signal            (const char *error);
 int             umdbus_send_supported_modes_signal  (const char *supported_modes);
 int             umdbus_send_available_modes_signal  (const char *available_modes);
