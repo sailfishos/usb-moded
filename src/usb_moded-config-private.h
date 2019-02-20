@@ -83,6 +83,7 @@ char                *config_get_android_product_id  (void);
 char                *config_get_hidden_modes        (void);
 char                *config_get_mode_whitelist      (void);
 int                  config_is_roaming_not_allowed  (void);
+char                *config_get_conf_string         (const gchar *entry, const gchar *key);
 
 /* ========================================================================= *
  * Macros

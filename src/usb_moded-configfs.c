@@ -41,22 +41,24 @@
  * Constants
  * ========================================================================= */
 
-#define FUNCTION_MASS_STORAGE "mass_storage.usb0"
-#define FUNCTION_RNDIS        "rndis_bam.rndis"
-#define FUNCTION_MTP          "ffs.mtp"
+/* Due to legacy these defaults must match what is required by Sony XA2 port */
+#define DEFAULT_GADGET_BASE_DIRECTORY    "/config/usb_gadget/g1"
+#define DEFAULT_GADGET_FUNC_DIRECTORY    "functions"
+#define DEFAULT_GADGET_CONF_DIRECTORY    "configs/b.1"
 
-#define CONFIGFS_GADGET        "/config/usb_gadget/g1"
-#define CONFIGFS_CONFIG        CONFIGFS_GADGET"/configs/b.1"
-#define CONFIGFS_FUNCTIONS     CONFIGFS_GADGET"/functions"
-#define CONFIGFS_UDC           CONFIGFS_GADGET"/UDC"
-#define CONFIGFS_ID_VENDOR     CONFIGFS_GADGET"/idVendor"
-#define CONFIGFS_ID_PRODUCT    CONFIGFS_GADGET"/idProduct"
-#define CONFIGFS_MANUFACTURER  CONFIGFS_GADGET"/strings/0x409/manufacturer"
-#define CONFIGFS_PRODUCT       CONFIGFS_GADGET"/strings/0x409/product"
-#define CONFIGFS_SERIAL        CONFIGFS_GADGET"/strings/0x409/serialnumber"
+#define DEFAULT_GADGET_CTRL_UDC          "UDC"
+#define DEFAULT_GADGET_CTRL_ID_VENDOR    "idVendor"
+#define DEFAULT_GADGET_CTRL_ID_PRODUCT   "idProduct"
+#define DEFAULT_GADGET_CTRL_MANUFACTURER "strings/0x409/manufacturer"
+#define DEFAULT_GADGET_CTRL_PRODUCT      "strings/0x409/product"
+#define DEFAULT_GADGET_CTRL_SERIAL       "strings/0x409/serialnumber"
 
-#define CONFIGFS_RNDIS_WCEIS   CONFIGFS_FUNCTIONS"/"FUNCTION_RNDIS"/wceis"
-#define CONFIGFS_RNDIS_ETHADDR CONFIGFS_FUNCTIONS"/"FUNCTION_RNDIS"/ethaddr"
+#define DEFAULT_FUNCTION_MASS_STORAGE    "mass_storage.usb0"
+#define DEFAULT_FUNCTION_RNDIS           "rndis_bam.rndis"
+#define DEFAULT_FUNCTION_MTP             "ffs.mtp"
+
+#define DEFAULT_RNDIS_CTRL_WCEIS         "wceis"
+#define DEFAULT_RNDIS_CTRL_ETHADDR       "ethaddr"
 
 /* ========================================================================= *
  * Prototypes
@@ -64,6 +66,8 @@
 
 /* -- configfs -- */
 
+static gchar      *configfs_get_conf               (const char *key, const char *def);
+static void        configfs_read_configuration     (void);
 static int         configfs_file_type              (const char *path);
 static const char *configfs_function_path          (char *buff, size_t size, const char *func, ...);
 static const char *configfs_unit_path              (char *buff, size_t size, const char *func, const char *unit);
@@ -71,9 +75,6 @@ static const char *configfs_config_path            (char *buff, size_t size, con
 static bool        configfs_mkdir                  (const char *path);
 static bool        configfs_rmdir                  (const char *path);
 static const char *configfs_register_function      (const char *function);
-#ifdef DEAD_CODE
-static bool        configfs_unregister_function    (const char *function);
-#endif
 static const char *configfs_add_unit               (const char *function, const char *unit);
 static bool        configfs_remove_unit            (const char *function, const char *unit);
 static bool        configfs_enable_function        (const char *function);
@@ -86,9 +87,6 @@ static const char *configfs_udc_enable_value       (void);
 static bool        configfs_write_file             (const char *path, const char *text);
 static bool        configfs_read_file              (const char *path, char *buff, size_t size);
 static bool        configfs_write_udc              (const char *text);
-#ifdef DEAD_CODE
-static bool        configfs_read_udc               (char *buff, size_t size);
-#endif
 bool               configfs_set_udc                (bool enable);
 bool               configfs_init_values            (void);
 bool               configfs_set_charging_mode      (void);
@@ -105,6 +103,146 @@ bool               configfs_set_mass_storage_attr  (int lun, const char *attr, c
  * ========================================================================= */
 
 static int configfs_probed = -1;
+
+static gchar *GADGET_BASE_DIRECTORY    = 0;
+static gchar *GADGET_FUNC_DIRECTORY    = 0;
+static gchar *GADGET_CONF_DIRECTORY    = 0;
+
+static gchar *GADGET_CTRL_UDC          = 0;
+static gchar *GADGET_CTRL_ID_VENDOR    = 0;
+static gchar *GADGET_CTRL_ID_PRODUCT   = 0;
+static gchar *GADGET_CTRL_MANUFACTURER = 0;
+static gchar *GADGET_CTRL_PRODUCT      = 0;
+static gchar *GADGET_CTRL_SERIAL       = 0;
+
+static gchar *FUNCTION_MASS_STORAGE    = 0;
+static gchar *FUNCTION_RNDIS           = 0;
+static gchar *FUNCTION_MTP             = 0;
+
+static gchar *RNDIS_CTRL_WCEIS         = 0;
+static gchar *RNDIS_CTRL_ETHADDR       = 0;
+
+/* ========================================================================= *
+ * Settings
+ * ========================================================================= */
+
+static gchar *configfs_get_conf(const char *key, const char *def)
+{
+    LOG_REGISTER_CONTEXT;
+
+    return config_get_conf_string("configfs", key) ?: g_strdup(def);
+}
+
+/** Parse configfs configuration entries
+ *
+ * The defaults correspond with ini-file like (h3113 values):
+ *
+ * [configfs]
+ * gadget_base_directory = /config/usb_gadget/g1
+ * gadget_func_directory = functions
+ * gadget_conf_directory = configs/b.1
+ * function_mass_storage = mass_storage.usb0
+ * function_rndis        = rndis_bam.rndis
+ * function_mtp          = ffs.mtp
+ */
+static void configfs_read_configuration(void)
+{
+    LOG_REGISTER_CONTEXT;
+
+    /* This must be done only once
+     */
+    static bool done = false;
+
+    if( done )
+        goto EXIT;
+
+    done = true;
+
+    gchar *temp_setting;
+
+    /* Gadget directories
+     */
+    GADGET_BASE_DIRECTORY =
+        configfs_get_conf("gadget_base_directory",
+                          DEFAULT_GADGET_BASE_DIRECTORY);
+
+    temp_setting = configfs_get_conf("gadget_func_directory",
+                             DEFAULT_GADGET_FUNC_DIRECTORY);
+    GADGET_FUNC_DIRECTORY = g_strdup_printf("%s/%s",
+                                            GADGET_BASE_DIRECTORY,
+                                            temp_setting);
+    g_free(temp_setting);
+
+    temp_setting = configfs_get_conf("gadget_conf_directory",
+                             DEFAULT_GADGET_CONF_DIRECTORY);
+    GADGET_CONF_DIRECTORY =
+        g_strdup_printf("%s/%s",
+                        GADGET_BASE_DIRECTORY,
+                        temp_setting);
+    g_free(temp_setting);
+
+    /* Gadget control files
+     */
+    GADGET_CTRL_UDC =
+        g_strdup_printf("%s/%s",
+                        GADGET_BASE_DIRECTORY,
+                        DEFAULT_GADGET_CTRL_UDC);
+
+    GADGET_CTRL_ID_VENDOR =
+        g_strdup_printf("%s/%s",
+                        GADGET_BASE_DIRECTORY,
+                        DEFAULT_GADGET_CTRL_ID_VENDOR);
+
+    GADGET_CTRL_ID_PRODUCT =
+        g_strdup_printf("%s/%s",
+                        GADGET_BASE_DIRECTORY,
+                        DEFAULT_GADGET_CTRL_ID_PRODUCT);
+
+    GADGET_CTRL_MANUFACTURER =
+        g_strdup_printf("%s/%s",
+                        GADGET_BASE_DIRECTORY,
+                        DEFAULT_GADGET_CTRL_MANUFACTURER);
+
+    GADGET_CTRL_PRODUCT =
+        g_strdup_printf("%s/%s",
+                        GADGET_BASE_DIRECTORY,
+                        DEFAULT_GADGET_CTRL_PRODUCT);
+
+    GADGET_CTRL_SERIAL =
+        g_strdup_printf("%s/%s",
+                        GADGET_BASE_DIRECTORY,
+                        DEFAULT_GADGET_CTRL_SERIAL);
+
+    /* Functions
+     */
+    FUNCTION_MASS_STORAGE =
+        configfs_get_conf("function_mass_storage",
+                          DEFAULT_FUNCTION_MASS_STORAGE);
+
+    FUNCTION_RNDIS =
+        configfs_get_conf("function_rndis",
+                          DEFAULT_FUNCTION_RNDIS);
+
+    FUNCTION_MTP =
+        configfs_get_conf("function_mtp",
+                          DEFAULT_FUNCTION_MTP);
+
+    /* Function control files */
+    RNDIS_CTRL_WCEIS =
+        g_strdup_printf("%s/%s/%s",
+                        GADGET_FUNC_DIRECTORY,
+                        FUNCTION_RNDIS,
+                        DEFAULT_RNDIS_CTRL_WCEIS);
+
+    RNDIS_CTRL_ETHADDR =
+        g_strdup_printf("%s/%s/%s",
+                        GADGET_FUNC_DIRECTORY,
+                        FUNCTION_RNDIS,
+                        DEFAULT_RNDIS_CTRL_ETHADDR);
+
+EXIT:
+    return;
+}
 
 /* ========================================================================= *
  * Functions
@@ -137,7 +275,7 @@ configfs_function_path(char *buff, size_t size, const char *func, ...)
     char *pos = buff;
     char *end = buff + size;
 
-    snprintf(pos, end-pos, "%s", CONFIGFS_FUNCTIONS);
+    snprintf(pos, end-pos, "%s", GADGET_FUNC_DIRECTORY);
 
     va_list va;
     va_start(va, func);
@@ -164,7 +302,7 @@ configfs_config_path(char *buff, size_t size, const char *func)
 {
     LOG_REGISTER_CONTEXT;
 
-    snprintf(buff, size, "%s/%s", CONFIGFS_CONFIG, func);
+    snprintf(buff, size, "%s/%s", GADGET_CONF_DIRECTORY, func);
     return buff;
 }
 
@@ -370,8 +508,8 @@ configfs_disable_all_functions(void)
     bool  ack = false;
     DIR  *dir = 0;
 
-    if( !(dir = opendir(CONFIGFS_CONFIG)) ) {
-        log_err("%s: opendir failed: %m", CONFIGFS_CONFIG);
+    if( !(dir = opendir(GADGET_CONF_DIRECTORY)) ) {
+        log_err("%s: opendir failed: %m", GADGET_CONF_DIRECTORY);
         goto EXIT;
     }
 
@@ -431,8 +569,11 @@ configfs_probe(void)
 {
     LOG_REGISTER_CONTEXT;
 
+    configfs_read_configuration();
+
     if( configfs_probed <= 0 ) {
-        configfs_probed = access(CONFIGFS_GADGET, F_OK) == 0;
+        configfs_probed = (access(GADGET_BASE_DIRECTORY, F_OK) == 0 &&
+                           access(GADGET_CTRL_UDC, F_OK) == 0);
         log_warning("CONFIGFS %sdetected", configfs_probed ? "" : "not ");
     }
     return configfs_in_use();
@@ -555,7 +696,7 @@ configfs_read_udc(char *buff, size_t size)
 {
     LOG_REGISTER_CONTEXT;
 
-    return configfs_read_file(CONFIGFS_UDC, buff, size);
+    return configfs_read_file(GADGET_CTRL_UDC, buff, size);
 }
 #endif
 
@@ -568,11 +709,11 @@ configfs_write_udc(const char *text)
 
     char prev[64];
 
-    if( !configfs_read_file(CONFIGFS_UDC, prev, sizeof prev) )
+    if( !configfs_read_file(GADGET_CTRL_UDC, prev, sizeof prev) )
         goto EXIT;
 
     if( strcmp(prev, text) ) {
-        if( !configfs_write_file(CONFIGFS_UDC, text) )
+        if( !configfs_write_file(GADGET_CTRL_UDC, text) )
             goto EXIT;
     }
 
@@ -614,27 +755,27 @@ configfs_init_values(void)
     /* Configure */
     gchar *text;
     if( (text = config_get_android_vendor_id()) ) {
-        configfs_write_file(CONFIGFS_ID_VENDOR, text);
+        configfs_write_file(GADGET_CTRL_ID_VENDOR, text);
         g_free(text);
     }
 
     if( (text = config_get_android_product_id()) ) {
-        configfs_write_file(CONFIGFS_ID_PRODUCT, text);
+        configfs_write_file(GADGET_CTRL_ID_PRODUCT, text);
         g_free(text);
     }
 
     if( (text = config_get_android_manufacturer()) ) {
-        configfs_write_file(CONFIGFS_MANUFACTURER, text);
+        configfs_write_file(GADGET_CTRL_MANUFACTURER, text);
         g_free(text);
     }
 
     if( (text = config_get_android_product()) ) {
-        configfs_write_file(CONFIGFS_PRODUCT, text);
+        configfs_write_file(GADGET_CTRL_PRODUCT, text);
         g_free(text);
     }
 
     if( (text = android_get_serial()) ) {
-        configfs_write_file(CONFIGFS_SERIAL, text);
+        configfs_write_file(GADGET_CTRL_SERIAL, text);
         g_free(text);
     }
 
@@ -650,11 +791,11 @@ configfs_init_values(void)
     /* Prep: developer_mode */
     configfs_register_function(FUNCTION_RNDIS);
     if( (text = mac_read_mac()) ) {
-        configfs_write_file(CONFIGFS_RNDIS_ETHADDR, text);
+        configfs_write_file(RNDIS_CTRL_ETHADDR, text);
         g_free(text);
     }
     /* For rndis to be discovered correctly in M$ Windows (vista and later) */
-    configfs_write_file(CONFIGFS_RNDIS_WCEIS, "1");
+    configfs_write_file(RNDIS_CTRL_WCEIS, "1");
 
     /* Leave disabled, will enable on cable connect detected */
 EXIT:
@@ -709,7 +850,7 @@ configfs_set_productid(const char *id)
             snprintf(str, sizeof str, "0x%04x", num);
             id = str;
         }
-        ack = configfs_write_file(CONFIGFS_ID_PRODUCT, id);
+        ack = configfs_write_file(GADGET_CTRL_ID_PRODUCT, id);
     }
 
     log_debug("CONFIGFS %s(%s) -> %d", __func__, id, ack);
@@ -741,7 +882,7 @@ configfs_set_vendorid(const char *id)
             id = str;
         }
 
-        ack = configfs_write_file(CONFIGFS_ID_VENDOR, id);
+        ack = configfs_write_file(GADGET_CTRL_ID_VENDOR, id);
     }
 
     log_debug("CONFIGFS %s(%s) -> %d", __func__, id, ack);

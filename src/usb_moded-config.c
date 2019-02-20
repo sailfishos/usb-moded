@@ -77,7 +77,7 @@ static char         *config_get_network_netmask      (void);
 static char         *config_get_network_nat_interface(void);
 static void          config_setup_default_values     (GKeyFile *settingsfile);
 static int           config_get_conf_int             (const gchar *entry, const gchar *key);
-static char         *config_get_conf_string          (const gchar *entry, const gchar *key);
+char                *config_get_conf_string          (const gchar *entry, const gchar *key);
 static char         *config_get_kcmdline_string      (const char *entry);
 char                *config_get_mode_setting         (void);
 set_config_result_t  config_set_config_setting       (const char *entry, const char *key, const char *value);
@@ -279,7 +279,7 @@ static int config_get_conf_int(const gchar *entry, const gchar *key)
     return val;
 }
 
-static char * config_get_conf_string(const gchar *entry, const gchar *key)
+char *config_get_conf_string(const gchar *entry, const gchar *key)
 {
     LOG_REGISTER_CONTEXT;
 
