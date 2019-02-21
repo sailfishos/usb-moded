@@ -135,7 +135,10 @@ static bool modules_probe(void)
     return modules_in_use();
 }
 
-/* kmod module init */
+/** kmod module init
+ *
+ * @return true if modules backend is ready for use, false otherwise
+ */
 bool modules_init(void)
 {
     LOG_REGISTER_CONTEXT;

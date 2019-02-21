@@ -88,7 +88,8 @@ static bool        configfs_write_file             (const char *path, const char
 static bool        configfs_read_file              (const char *path, char *buff, size_t size);
 static bool        configfs_write_udc              (const char *text);
 bool               configfs_set_udc                (bool enable);
-bool               configfs_init_values            (void);
+bool               configfs_init                   (void);
+void               configfs_quit                   (void);
 bool               configfs_set_charging_mode      (void);
 bool               configfs_set_productid          (const char *id);
 bool               configfs_set_vendorid           (const char *id);
@@ -740,9 +741,11 @@ configfs_set_udc(bool enable)
 }
 
 /** initialize the basic configfs values
+ *
+ * @return true if configfs backend is ready for use, false otherwise
  */
 bool
-configfs_init_values(void)
+configfs_init(void)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -800,6 +803,44 @@ configfs_init_values(void)
     /* Leave disabled, will enable on cable connect detected */
 EXIT:
     return configfs_in_use();
+}
+
+/** Cleanup resources allocated by configfs backend
+ */
+void
+configfs_quit(void)
+{
+    g_free(GADGET_BASE_DIRECTORY),
+        GADGET_BASE_DIRECTORY = 0;
+    g_free(GADGET_FUNC_DIRECTORY),
+        GADGET_FUNC_DIRECTORY = 0;
+    g_free(GADGET_CONF_DIRECTORY),
+        GADGET_CONF_DIRECTORY = 0;
+
+    g_free(GADGET_CTRL_UDC),
+        GADGET_CTRL_UDC = 0;
+    g_free(GADGET_CTRL_ID_VENDOR),
+        GADGET_CTRL_ID_VENDOR= 0;
+    g_free(GADGET_CTRL_ID_PRODUCT),
+        GADGET_CTRL_ID_PRODUCT= 0;
+    g_free(GADGET_CTRL_MANUFACTURER),
+        GADGET_CTRL_MANUFACTURER= 0;
+    g_free(GADGET_CTRL_PRODUCT),
+        GADGET_CTRL_PRODUCT = 0;
+    g_free(GADGET_CTRL_SERIAL),
+        GADGET_CTRL_SERIAL = 0;
+
+    g_free(FUNCTION_MASS_STORAGE),
+        FUNCTION_MASS_STORAGE = 0;
+    g_free(FUNCTION_RNDIS),
+        FUNCTION_RNDIS = 0;
+    g_free(FUNCTION_MTP),
+        FUNCTION_MTP = 0;
+
+    g_free(RNDIS_CTRL_WCEIS),
+        RNDIS_CTRL_WCEIS = 0;
+    g_free(RNDIS_CTRL_ETHADDR),
+        RNDIS_CTRL_ETHADDR= 0;
 }
 
 /* Set a charging mode for the configfs gadget

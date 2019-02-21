@@ -33,7 +33,8 @@
 
 bool configfs_in_use                 (void);
 bool configfs_set_udc                (bool enable);
-bool configfs_init_values            (void);
+bool configfs_init                   (void);
+void configfs_quit                   (void);
 bool configfs_set_charging_mode      (void);
 bool configfs_set_productid          (const char *id);
 bool configfs_set_vendorid           (const char *id);

@@ -48,7 +48,7 @@
 
 /* -- modules -- */
 
-bool         modules_in_use           (void);
+bool        modules_in_use            (void);
 bool        modules_init              (void);
 void        modules_quit              (void);
 int         modules_load_module       (const char *module);

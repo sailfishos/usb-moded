@@ -42,7 +42,8 @@
 bool         android_in_use           (void);
 static bool  android_probe            (void);
 gchar       *android_get_serial       (void);
-bool         android_init_values      (void);
+bool         android_init             (void);
+void         android_quit             (void);
 bool         android_set_enabled      (bool enable);
 bool         android_set_charging_mode(void);
 bool         android_set_function     (const char *function);
@@ -161,9 +162,11 @@ EXIT:
 }
 
 /** initialize the basic android values
+ *
+ * @return true if android usb backend is ready for use, false otherwise
  */
 bool
-android_init_values(void)
+android_init(void)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -222,6 +225,14 @@ android_init_values(void)
 
 EXIT:
     return android_in_use();
+}
+
+/** Cleanup resources allocated by android usb backend
+ */
+void
+android_quit(void)
+{
+    /* For now this exists for symmetry with other backends only */
 }
 
 bool

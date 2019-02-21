@@ -566,10 +566,10 @@ static bool usbmoded_init(void)
      * while waiting.
      */
     for( int i = 10; ; ) {
-        if( configfs_init_values() )
+        if( configfs_init() )
             break;
 
-        if( android_init_values() )
+        if( android_init() )
             break;
 
         /* Must probe / poll since we're not yet running mainloop */
@@ -680,8 +680,10 @@ static void usbmoded_cleanup(void)
     /* Stop udev listener */
     umudev_quit();
 
-    /* Undo modules_init() */
+    /* Do backend specific cleanup */
     modules_quit();
+    android_quit();
+    configfs_quit();
 
     /* Undo trigger_init() */
     trigger_stop();
