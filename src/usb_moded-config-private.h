@@ -36,7 +36,18 @@
 
 # include "usb_moded-config.h"
 
+# include <stdbool.h>
 # include <glib.h>
+
+/* ========================================================================= *
+ * Constants
+ * ========================================================================= */
+
+# define USB_MODED_STATIC_CONFIG_DIR    "/etc/usb-moded"
+# define USB_MODED_STATIC_CONFIG_FILE   USB_MODED_STATIC_CONFIG_DIR"/usb-moded.ini"
+
+# define USB_MODED_DYNAMIC_CONFIG_DIR    "/var/lib/usb-moded"
+# define USB_MODED_DYNAMIC_CONFIG_FILE   USB_MODED_DYNAMIC_CONFIG_DIR"/usb-moded.ini"
 
 /* ========================================================================= *
  * Prototypes
@@ -64,7 +75,7 @@ set_config_result_t  config_set_mode_whitelist      (const char *whitelist);
 set_config_result_t  config_set_mode_in_whitelist   (const char *mode, int allowed);
 set_config_result_t  config_set_network_setting     (const char *config, const char *setting);
 char                *config_get_network_setting     (const char *config);
-int                  config_merge_conf_file         (void);
+bool                 config_init                    (void);
 char                *config_get_android_manufacturer(void);
 char                *config_get_android_vendor_id   (void);
 char                *config_get_android_product     (void);
@@ -72,6 +83,7 @@ char                *config_get_android_product_id  (void);
 char                *config_get_hidden_modes        (void);
 char                *config_get_mode_whitelist      (void);
 int                  config_is_roaming_not_allowed  (void);
+char                *config_get_conf_string         (const gchar *entry, const gchar *key);
 
 /* ========================================================================= *
  * Macros

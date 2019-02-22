@@ -51,6 +51,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <glob.h>
+#include <errno.h>
 
 /* ========================================================================= *
  * Prototypes
@@ -74,12 +75,11 @@ static char         *config_get_network_interface    (void);
 static char         *config_get_network_gateway      (void);
 static char         *config_get_network_netmask      (void);
 static char         *config_get_network_nat_interface(void);
-static void          config_create_conf_file         (void);
+static void          config_setup_default_values     (GKeyFile *settingsfile);
 static int           config_get_conf_int             (const gchar *entry, const gchar *key);
-static char         *config_get_conf_string          (const gchar *entry, const gchar *key);
+char                *config_get_conf_string          (const gchar *entry, const gchar *key);
 static char         *config_get_kcmdline_string      (const char *entry);
 char                *config_get_mode_setting         (void);
-int                  config_value_changed            (GKeyFile *settingsfile, const char *entry, const char *key, const char *new_value);
 set_config_result_t  config_set_config_setting       (const char *entry, const char *key, const char *value);
 set_config_result_t  config_set_mode_setting         (const char *mode);
 static char         *config_make_modes_string        (const char *key, const char *mode_name, int include);
@@ -91,10 +91,18 @@ set_config_result_t  config_set_network_setting      (const char *config, const 
 char                *config_get_network_setting      (const char *config);
 static void          config_merge_key                (GKeyFile *dest, GKeyFile *srce, const char *grp, const char *key);
 static void          config_merge_group              (GKeyFile *dest, GKeyFile *srce, const char *grp);
-static void          config_merge_file               (GKeyFile *dest, GKeyFile *srce);
+static void          config_merge_data               (GKeyFile *dest, GKeyFile *srce);
+static void          config_purge_data               (GKeyFile *dest, GKeyFile *srce);
+static void          config_purge_empty_groups       (GKeyFile *dest);
 static int           config_glob_error_cb            (const char *path, int err);
-static GKeyFile     *config_read_ini_files           (void);
-int                  config_merge_conf_file          (void);
+static bool          config_merge_from_file          (GKeyFile *ini, const char *path);
+static void          config_load_static_config       (GKeyFile *ini);
+static bool          config_load_legacy_config       (GKeyFile *ini);
+static void          config_remove_legacy_config     (void);
+static void          config_load_dynamic_config      (GKeyFile *ini);
+static void          config_save_dynamic_config      (GKeyFile *ini);
+bool                 config_init                     (void);
+static GKeyFile     *config_get_settings             (void);
 char                *config_get_android_manufacturer (void);
 char                *config_get_android_vendor_id    (void);
 char                *config_get_android_product      (void);
@@ -109,6 +117,8 @@ int                  config_is_roaming_not_allowed   (void);
 
 static int config_validate_ip(const char *ipadd)
 {
+    LOG_REGISTER_CONTEXT;
+
     unsigned int b1, b2, b3, b4;
     unsigned char c;
 
@@ -125,6 +135,7 @@ static int config_validate_ip(const char *ipadd)
 
 char *config_find_mounts(void)
 {
+    LOG_REGISTER_CONTEXT;
 
     char *ret = NULL;
 
@@ -139,52 +150,71 @@ char *config_find_mounts(void)
 
 int config_find_sync(void)
 {
+    LOG_REGISTER_CONTEXT;
 
     return config_get_conf_int(FS_SYNC_ENTRY, FS_SYNC_KEY);
 }
 
 char * config_find_alt_mount(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(ALT_MOUNT_ENTRY, ALT_MOUNT_KEY);
 }
 
 char * config_find_udev_path(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(UDEV_PATH_ENTRY, UDEV_PATH_KEY);
 }
 
 char * config_find_udev_subsystem(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(UDEV_PATH_ENTRY, UDEV_SUBSYSTEM_KEY);
 }
 
 char * config_check_trigger(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(TRIGGER_ENTRY, TRIGGER_PATH_KEY);
 }
 
 char * config_get_trigger_subsystem(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(TRIGGER_ENTRY, TRIGGER_UDEV_SUBSYSTEM);
 }
 
 char * config_get_trigger_mode(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(TRIGGER_ENTRY, TRIGGER_MODE_KEY);
 }
 
 char * config_get_trigger_property(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(TRIGGER_ENTRY, TRIGGER_PROPERTY_KEY);
 }
 
 char * config_get_trigger_value(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(TRIGGER_ENTRY, TRIGGER_PROPERTY_VALUE_KEY);
 }
 
 static char * config_get_network_ip(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     char * ip = config_get_kcmdline_string(NETWORK_IP_KEY);
     if (ip != NULL)
         if(!config_validate_ip(ip))
@@ -195,11 +225,15 @@ static char * config_get_network_ip(void)
 
 static char * config_get_network_interface(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(NETWORK_ENTRY, NETWORK_INTERFACE_KEY);
 }
 
 static char * config_get_network_gateway(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     char * gw = config_get_kcmdline_string(NETWORK_GATEWAY_KEY);
     if (gw != NULL)
         return gw;
@@ -209,6 +243,8 @@ static char * config_get_network_gateway(void)
 
 static char * config_get_network_netmask(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     char * netmask = config_get_kcmdline_string(NETWORK_NETMASK_KEY);
     if (netmask != NULL)
         return netmask;
@@ -218,112 +254,48 @@ static char * config_get_network_netmask(void)
 
 static char * config_get_network_nat_interface(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(NETWORK_ENTRY, NETWORK_NAT_INTERFACE_KEY);
 }
 
-/* create basic conffile with sensible defaults */
-static void config_create_conf_file(void)
+static void config_setup_default_values(GKeyFile *settingsfile)
 {
-    GKeyFile *settingsfile;
-    gchar *keyfile;
-    int dir = 1;
-    struct stat dir_stat;
-
-    /* since this function can also be called when the dir exists we only create
-     * it if it is missing */
-    if(stat(CONFIG_FILE_DIR, &dir_stat))
-    {
-        dir = mkdir(CONFIG_FILE_DIR, 0755);
-        if(dir < 0)
-        {
-            log_warning("Could not create confdir, continuing without configuration!\n");
-            /* no point in trying to generate the config file if the dir cannot be created */
-            return;
-        }
-    }
-
-    settingsfile = g_key_file_new();
+    LOG_REGISTER_CONTEXT;
 
     g_key_file_set_string(settingsfile, MODE_SETTING_ENTRY, MODE_SETTING_KEY, MODE_DEVELOPER );
-    keyfile = g_key_file_to_data (settingsfile, NULL, NULL);
-    if(g_file_set_contents(FS_MOUNT_CONFIG_FILE, keyfile, -1, NULL) == 0)
-        log_debug("Conffile creation failed. Continuing without configuration!\n");
-    free(keyfile);
-    g_key_file_free(settingsfile);
 }
 
 static int config_get_conf_int(const gchar *entry, const gchar *key)
 {
-    GKeyFile *settingsfile;
-    gboolean test = FALSE;
-    gchar **keys, **origkeys;
-    int ret = 0;
+    LOG_REGISTER_CONTEXT;
 
-    settingsfile = g_key_file_new();
-    test = g_key_file_load_from_file(settingsfile, FS_MOUNT_CONFIG_FILE, G_KEY_FILE_NONE, NULL);
-    if(!test)
-    {
-        log_debug("no conffile, Creating\n");
-        config_create_conf_file();
-    }
-    keys = g_key_file_get_keys (settingsfile, entry, NULL, NULL);
-    if(keys == NULL)
-        return ret;
-    origkeys = keys;
-    while (*keys != NULL)
-    {
-        if(!strcmp(*keys, key))
-        {
-            ret = g_key_file_get_integer(settingsfile, entry, *keys, NULL);
-            log_debug("%s key value  = %d\n", key, ret);
-        }
-        keys++;
-    }
-    g_strfreev(origkeys);
-    g_key_file_free(settingsfile);
-    return ret;
-
+    // TODO: use cached values instead of reloading every time?
+    GKeyFile *ini = config_get_settings();
+    // Note: zero value is returned if key does not exist
+    gint val = g_key_file_get_integer(ini, entry, key, 0);
+    g_key_file_free(ini);
+    log_debug("key [%s] %s value is: %d\n", entry, key, val);
+    return val;
 }
 
-static char * config_get_conf_string(const gchar *entry, const gchar *key)
+char *config_get_conf_string(const gchar *entry, const gchar *key)
 {
-    GKeyFile *settingsfile;
-    gboolean test = FALSE;
-    gchar **keys, **origkeys, *tmp_char = NULL;
-    settingsfile = g_key_file_new();
-    test = g_key_file_load_from_file(settingsfile, FS_MOUNT_CONFIG_FILE, G_KEY_FILE_NONE, NULL);
-    if(!test)
-    {
-        log_debug("No conffile. Creating\n");
-        config_create_conf_file();
-        /* should succeed now */
-        g_key_file_load_from_file(settingsfile, FS_MOUNT_CONFIG_FILE, G_KEY_FILE_NONE, NULL);
-    }
-    keys = g_key_file_get_keys (settingsfile, entry, NULL, NULL);
-    if(keys == NULL)
-        goto end;
-    origkeys = keys;
-    while (*keys != NULL)
-    {
-        if(!strcmp(*keys, key))
-        {
-            tmp_char = g_key_file_get_string(settingsfile, entry, *keys, NULL);
-            if(tmp_char)
-            {
-                log_debug("key %s value  = %s\n", key, tmp_char);
-            }
-        }
-        keys++;
-    }
-    g_strfreev(origkeys);
-end:
-    g_key_file_free(settingsfile);
-    return tmp_char;
+    LOG_REGISTER_CONTEXT;
 
+    // TODO: use cached values instead of reloading every time?
+    GKeyFile *ini = config_get_settings();
+    // Note: null value is returned if key does not exist
+    gchar *val = g_key_file_get_string(ini, entry, key, 0);
+    g_key_file_free(ini);
+    log_debug("key [%s] %s value is: %s\n", entry, key, val ?: "<null>");
+    return val;
 }
 
 static char * config_get_kcmdline_string(const char *entry)
 {
+    LOG_REGISTER_CONTEXT;
+
     int fd;
     char cmdLine[1024];
     char *ret = NULL;
@@ -400,6 +372,8 @@ static char * config_get_kcmdline_string(const char *entry)
 
 char * config_get_mode_setting(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     char *mode = 0;
 
     /* Kernel command line can be used to override settings */
@@ -415,60 +389,49 @@ char * config_get_mode_setting(void)
 EXIT:
     return mode;
 }
-/*
- *  @param settingsfile: already opened settingsfile we want to read an entry from
- *  @param entry: entry we want to read
- *  @param key: key value of the entry we want to read
- *  @new_value: potentially new value we want to compare against
- *
- *  @return: 0 when the old value is the same as the new one, 1 otherwise
- */
-int config_value_changed(GKeyFile *settingsfile, const char *entry, const char *key, const char *new_value)
-{
-    char *old_value = g_key_file_get_string(settingsfile, entry, key, NULL);
-    int changed = (g_strcmp0(old_value, new_value) != 0);
-    g_free(old_value);
-    return changed;
-}
 
 set_config_result_t config_set_config_setting(const char *entry, const char *key, const char *value)
 {
-    GKeyFile *settingsfile;
-    gboolean test = FALSE;
-    set_config_result_t ret = SET_CONFIG_ERROR;
-    gchar *keyfile;
+    LOG_REGISTER_CONTEXT;
 
-    settingsfile = g_key_file_new();
-    test = g_key_file_load_from_file(settingsfile, FS_MOUNT_CONFIG_FILE, G_KEY_FILE_NONE, NULL);
-    if(test)
-    {
-        if(!config_value_changed(settingsfile, entry, key, value))
-        {
-            g_key_file_free(settingsfile);
-            return SET_CONFIG_UNCHANGED;
-        }
-    }
-    else
-    {
-        log_debug("No conffile. Creating.\n");
-        config_create_conf_file();
-    }
+    set_config_result_t ret = SET_CONFIG_UNCHANGED;
 
-    g_key_file_set_string(settingsfile, entry, key, value);
-    keyfile = g_key_file_to_data (settingsfile, NULL, NULL);
-    /* free the settingsfile before writing things out to be sure
-     * the contents will be correctly written to file afterwards.
-     * Just a precaution. */
-    g_key_file_free(settingsfile);
-    if (g_file_set_contents(FS_MOUNT_CONFIG_FILE, keyfile, -1, NULL))
+    GKeyFile *static_ini = g_key_file_new();
+    GKeyFile *active_ini = g_key_file_new();
+
+    gchar *prev = 0;
+
+    /* Load static configuration */
+    config_load_static_config(static_ini);
+
+    /* Merge static and dynamic settings */
+    config_setup_default_values(active_ini);
+    config_merge_data(active_ini, static_ini);
+    config_load_dynamic_config(active_ini);
+
+    prev = g_key_file_get_string(active_ini, entry, key, 0);
+    if( g_strcmp0(prev, value) ) {
+        g_key_file_set_string(active_ini, entry, key, value);
         ret = SET_CONFIG_UPDATED;
-    g_free(keyfile);
+    }
+
+    /* Filter out dynamic data that matches static values */
+    config_purge_data(active_ini, static_ini);
+
+    /* Update data on filesystem if changed */
+    config_save_dynamic_config(active_ini);
+
+    g_free(prev);
+    g_key_file_free(active_ini);
+    g_key_file_free(static_ini);
 
     return ret;
 }
 
 set_config_result_t config_set_mode_setting(const char *mode)
 {
+    LOG_REGISTER_CONTEXT;
+
     if (strcmp(mode, MODE_ASK) && common_valid_mode(mode))
         return SET_CONFIG_ERROR;
     return config_set_config_setting(MODE_SETTING_ENTRY, MODE_SETTING_KEY, mode);
@@ -478,6 +441,8 @@ set_config_result_t config_set_mode_setting(const char *mode)
  * new string of hidden modes when adding one, otherwise it will remove one */
 static char * config_make_modes_string(const char *key, const char *mode_name, int include)
 {
+    LOG_REGISTER_CONTEXT;
+
     char     *modes_new = 0;
     char     *modes_old = 0;
     gchar   **modes_arr = 0;
@@ -537,6 +502,8 @@ static char * config_make_modes_string(const char *key, const char *mode_name, i
 
 set_config_result_t config_set_hide_mode_setting(const char *mode)
 {
+    LOG_REGISTER_CONTEXT;
+
     set_config_result_t ret = SET_CONFIG_UNCHANGED;
 
     char *hidden_modes = config_make_modes_string(MODE_HIDE_KEY, mode, 1);
@@ -558,6 +525,8 @@ set_config_result_t config_set_hide_mode_setting(const char *mode)
 
 set_config_result_t config_set_unhide_mode_setting(const char *mode)
 {
+    LOG_REGISTER_CONTEXT;
+
     set_config_result_t ret = SET_CONFIG_UNCHANGED;
 
     char *hidden_modes = config_make_modes_string(MODE_HIDE_KEY, mode, 0);
@@ -579,6 +548,8 @@ set_config_result_t config_set_unhide_mode_setting(const char *mode)
 
 set_config_result_t config_set_mode_whitelist(const char *whitelist)
 {
+    LOG_REGISTER_CONTEXT;
+
     set_config_result_t ret = config_set_config_setting(MODE_SETTING_ENTRY, MODE_WHITELIST_KEY, whitelist);
 
     if(ret == SET_CONFIG_UPDATED) {
@@ -609,6 +580,8 @@ set_config_result_t config_set_mode_whitelist(const char *whitelist)
 
 set_config_result_t config_set_mode_in_whitelist(const char *mode, int allowed)
 {
+    LOG_REGISTER_CONTEXT;
+
     set_config_result_t ret = SET_CONFIG_UNCHANGED;
 
     char *whitelist = config_make_modes_string(MODE_WHITELIST_KEY, mode, allowed);
@@ -628,54 +601,24 @@ set_config_result_t config_set_mode_in_whitelist(const char *mode, int allowed)
  */
 set_config_result_t config_set_network_setting(const char *config, const char *setting)
 {
-    GKeyFile *settingsfile;
-    gboolean test = FALSE;
-    gchar *keyfile;
+    LOG_REGISTER_CONTEXT;
 
     if(!strcmp(config, NETWORK_IP_KEY) || !strcmp(config, NETWORK_GATEWAY_KEY))
         if(config_validate_ip(setting) != 0)
             return SET_CONFIG_ERROR;
 
-    settingsfile = g_key_file_new();
-    test = g_key_file_load_from_file(settingsfile, FS_MOUNT_CONFIG_FILE, G_KEY_FILE_NONE, NULL);
-
     if(!strcmp(config, NETWORK_IP_KEY) || !strcmp(config, NETWORK_INTERFACE_KEY) || !strcmp(config, NETWORK_GATEWAY_KEY))
     {
-        set_config_result_t ret = SET_CONFIG_ERROR;
-        if (test)
-        {
-            if(!config_value_changed(settingsfile, NETWORK_ENTRY, config, setting))
-            {
-                g_key_file_free(settingsfile);
-                return SET_CONFIG_UNCHANGED;
-            }
-        }
-        else
-        {
-            log_debug("No conffile. Creating.\n");
-            config_create_conf_file();
-        }
+        return config_set_config_setting(NETWORK_ENTRY, config, setting);
+    }
 
-        g_key_file_set_string(settingsfile, NETWORK_ENTRY, config, setting);
-        keyfile = g_key_file_to_data (settingsfile, NULL, NULL);
-        /* free the settingsfile before writing things out to be sure
-         * the contents will be correctly written to file afterwards.
-         * Just a precaution. */
-        g_key_file_free(settingsfile);
-        if (g_file_set_contents(FS_MOUNT_CONFIG_FILE, keyfile, -1, NULL))
-            ret = SET_CONFIG_UPDATED;
-        free(keyfile);
-        return ret;
-    }
-    else
-    {
-        g_key_file_free(settingsfile);
-        return SET_CONFIG_ERROR;
-    }
+    return SET_CONFIG_ERROR;
 }
 
 char * config_get_network_setting(const char *config)
 {
+    LOG_REGISTER_CONTEXT;
+
     char * ret = 0;
     mode_list_elem_t *data;
 
@@ -737,6 +680,8 @@ end:
 static void config_merge_key(GKeyFile *dest, GKeyFile *srce,
                              const char *grp, const char *key)
 {
+    LOG_REGISTER_CONTEXT;
+
     gchar *val = g_key_file_get_value(srce, grp, key, 0);
     if( val ) {
         log_debug("[%s] %s = %s", grp, key, val);
@@ -755,6 +700,8 @@ static void config_merge_key(GKeyFile *dest, GKeyFile *srce,
 static void config_merge_group(GKeyFile *dest, GKeyFile *srce,
                                const char *grp)
 {
+    LOG_REGISTER_CONTEXT;
+
     gchar **key = g_key_file_get_keys(srce, grp, 0, 0);
     if( key ) {
         for( size_t i = 0; key[i]; ++i )
@@ -769,8 +716,10 @@ static void config_merge_group(GKeyFile *dest, GKeyFile *srce,
  * @param dest keyfile to modify
  * @param srce keyfile to merge from
  */
-static void config_merge_file(GKeyFile *dest, GKeyFile *srce)
+static void config_merge_data(GKeyFile *dest, GKeyFile *srce)
 {
+    LOG_REGISTER_CONTEXT;
+
     gchar **grp = g_key_file_get_groups(srce, 0);
 
     if( grp ) {
@@ -778,6 +727,53 @@ static void config_merge_file(GKeyFile *dest, GKeyFile *srce)
             config_merge_group(dest, srce, grp[i]);
         g_strfreev(grp);
     }
+}
+
+static void config_purge_data(GKeyFile *dest, GKeyFile *srce)
+{
+    LOG_REGISTER_CONTEXT;
+
+    gsize groups = 0;
+    gchar **group = g_key_file_get_groups(srce, &groups);
+    for( gsize g = 0; g < groups; ++g ) {
+        gsize keys = 0;
+        gchar **key = g_key_file_get_keys(srce, group[g], &keys, 0);
+        for( gsize k = 0; k < keys; ++k ) {
+            gchar *cur_val = g_key_file_get_value(dest, group[g], key[k], 0);
+            if( !cur_val )
+                continue;
+
+            gchar *def_val = g_key_file_get_value(srce, group[g], key[k], 0);
+
+            if( !g_strcmp0(cur_val, def_val) ) {
+                log_debug("purge redundant: [%s] %s = %s",
+                          group[g], key[k], cur_val);
+                g_key_file_remove_key(dest, group[g], key[k], 0);
+            }
+            g_free(def_val);
+            g_free(cur_val);
+        }
+        g_strfreev(key);
+    }
+    g_strfreev(group);
+}
+
+static void config_purge_empty_groups(GKeyFile *dest)
+{
+    LOG_REGISTER_CONTEXT;
+
+    gsize groups = 0;
+    gchar **group = g_key_file_get_groups(dest, &groups);
+    for( gsize g = 0; g < groups; ++g ) {
+        gsize keys = 0;
+        gchar **key = g_key_file_get_keys(dest, group[g], &keys, 0);
+        if( keys == 0 ) {
+            log_debug("purge redundant group: [%s]", group[g]);
+            g_key_file_remove_group(dest, group[g], 0);
+        }
+        g_strfreev(key);
+    }
+    g_strfreev(group);
 }
 
 /**
@@ -790,97 +786,172 @@ static void config_merge_file(GKeyFile *dest, GKeyFile *srce)
  */
 static int config_glob_error_cb(const char *path, int err)
 {
+    LOG_REGISTER_CONTEXT;
+
     log_debug("%s: glob: %s", path, g_strerror(err));
     return 0;
 }
 
-/**
- * Read *.ini files on CONFIG_FILE_DIR in the order of [0-9][A-Z][a-z]
- *
- * @return the in memory value-pair file.
- */
-static GKeyFile *config_read_ini_files(void)
+static bool config_merge_from_file(GKeyFile *ini, const char *path)
 {
-    static const char pattern[] = CONFIG_FILE_DIR"/*.ini";
+    LOG_REGISTER_CONTEXT;
 
-    GKeyFile *ini = g_key_file_new();
-    glob_t gb;
+    bool      ack = false;
+    GError   *err = 0;
+    GKeyFile *tmp = g_key_file_new();
 
-    memset(&gb, 0, sizeof gb);
-
-    if( glob(pattern, 0, config_glob_error_cb, &gb) != 0 ) {
-        log_debug("no configuration ini-files found");
-        g_key_file_free(ini);
-        ini = NULL;
-        goto exit;
+    if( !g_key_file_load_from_file(tmp, path, 0, &err) ) {
+        log_debug("%s: can't load: %s", path, err->message);
+    } else {
+        log_debug("processing %s ...", path);
+        config_merge_data(ini, tmp);
+        ack = true;
     }
+    g_clear_error(&err);
+    g_key_file_free(tmp);
+    return ack;
+}
+
+static void config_load_static_config(GKeyFile *ini)
+{
+    LOG_REGISTER_CONTEXT;
+
+    static const char pattern[] = USB_MODED_STATIC_CONFIG_DIR"/*.ini";
+
+    glob_t gb = {};
+
+    if( glob(pattern, 0, config_glob_error_cb, &gb) != 0 )
+        log_debug("no configuration ini-files found");
 
     for( size_t i = 0; i < gb.gl_pathc; ++i ) {
         const char *path = gb.gl_pathv[i];
-        GError *err     = 0;
-        GKeyFile *tmp = g_key_file_new();
+        if( strcmp(path, USB_MODED_STATIC_CONFIG_FILE) )
+            config_merge_from_file(ini, path);
+    }
 
-        if( !g_key_file_load_from_file(tmp, path, 0, &err) ) {
-            log_debug("%s: can't load: %s", path, err->message);
-        } else {
-            log_debug("processing %s ...", path);
-            config_merge_file(ini, tmp);
+    globfree(&gb);
+}
+
+static bool config_load_legacy_config(GKeyFile *ini)
+{
+    LOG_REGISTER_CONTEXT;
+
+    bool ack = false;
+    if( access(USB_MODED_STATIC_CONFIG_FILE, F_OK) != -1 )
+        ack = config_merge_from_file(ini, USB_MODED_STATIC_CONFIG_FILE);
+    return ack;
+}
+
+static void config_remove_legacy_config(void)
+{
+    LOG_REGISTER_CONTEXT;
+
+    if( unlink(USB_MODED_STATIC_CONFIG_FILE) == -1 && errno != ENOENT ) {
+        log_warning("%s: can't remove stale config file: %m",
+                    USB_MODED_STATIC_CONFIG_FILE);
+    }
+}
+
+static void config_load_dynamic_config(GKeyFile *ini)
+{
+    LOG_REGISTER_CONTEXT;
+
+    config_merge_from_file(ini, USB_MODED_DYNAMIC_CONFIG_FILE);
+}
+
+static void config_save_dynamic_config(GKeyFile *ini)
+{
+    LOG_REGISTER_CONTEXT;
+
+    gchar  *current_dta = 0;
+    gchar  *previous_dta = 0;
+
+    config_purge_empty_groups(ini);
+    current_dta = g_key_file_to_data(ini, 0, 0);
+
+    g_file_get_contents(USB_MODED_DYNAMIC_CONFIG_FILE, &previous_dta, 0, 0);
+    if( g_strcmp0(previous_dta, current_dta) ) {
+        GError *err = 0;
+        if( mkdir(USB_MODED_DYNAMIC_CONFIG_DIR, 0755) == -1 && errno != EEXIST ) {
+            log_err("%s: can't create dir: %m", USB_MODED_DYNAMIC_CONFIG_DIR);
+        }
+        else if( !g_file_set_contents(USB_MODED_DYNAMIC_CONFIG_FILE,
+                                      current_dta, -1, &err) ) {
+            log_err("%s: can't save: %s", USB_MODED_DYNAMIC_CONFIG_FILE,
+                    err->message);
+        }
+        else {
+            log_debug("%s: updated", USB_MODED_DYNAMIC_CONFIG_FILE);
+
+            /* The legacy file is not needed anymore */
+            config_remove_legacy_config();
         }
         g_clear_error(&err);
-        g_key_file_free(tmp);
     }
-exit:
-    globfree(&gb);
-    return ini;
+
+    g_free(current_dta);
+    g_free(previous_dta);
 }
 
 /**
- * Read the *.ini files and create/overwrite FS_MOUNT_CONFIG_FILE with
+ * Read the *.ini files and create/overwrite USB_MODED_STATIC_CONFIG_FILE with
  * the merged data.
  *
  * @return 0 on failure
  */
-int config_merge_conf_file(void)
+bool config_init(void)
 {
-    GString *keyfile_string = NULL;
-    GKeyFile *settingsfile,*tempfile;
-    int ret = 0;
+    LOG_REGISTER_CONTEXT;
 
-    settingsfile = config_read_ini_files();
-    if (!settingsfile)
-    {
-        log_debug("No configuration. Creating defaults.");
-        config_create_conf_file();
-        /* There was no configuration so no info to be merged */
-        return ret;
+    bool      ack = true;
+
+    GKeyFile *legacy_ini = g_key_file_new();
+    GKeyFile *static_ini = g_key_file_new();
+    GKeyFile *active_ini = g_key_file_new();
+
+    /* Setup built-in defaults */
+    config_setup_default_values(active_ini);
+
+    /* Load static configuration */
+    config_load_static_config(static_ini);
+
+    /* Handle legacy settings */
+    if( config_load_legacy_config(legacy_ini) ) {
+        config_purge_data(legacy_ini, static_ini);
+        config_merge_data(active_ini, legacy_ini);
     }
 
-    tempfile = g_key_file_new();
-    if (g_key_file_load_from_file(tempfile, FS_MOUNT_CONFIG_FILE,
-                                  G_KEY_FILE_NONE,NULL)) {
-        if (!g_strcmp0(g_key_file_to_data(settingsfile, NULL, NULL),
-                       g_key_file_to_data(tempfile, NULL, NULL)))
-            goto out;
-    }
+    /* Load dynamic settings */
+    config_load_dynamic_config(active_ini);
 
-    log_debug("Merging configuration");
-    keyfile_string = g_string_new(NULL);
-    keyfile_string = g_string_append(keyfile_string,
-                                     g_key_file_to_data(settingsfile,
-                                                        NULL, NULL));
-    if (keyfile_string) {
-        ret = !g_file_set_contents(FS_MOUNT_CONFIG_FILE,
-                                   keyfile_string->str,-1, NULL);
-        g_string_free(keyfile_string, TRUE);
-    }
-out:
-    g_key_file_free(tempfile);
-    g_key_file_free(settingsfile);
-    return ret;
+    /* Filter out dynamic data that matches static values */
+    config_purge_data(active_ini, static_ini);
+
+    /* Update data on filesystem if changed */
+    config_save_dynamic_config(active_ini);
+
+    g_key_file_free(active_ini);
+    g_key_file_free(static_ini);
+    g_key_file_free(legacy_ini);
+
+    return ack;
+}
+
+static GKeyFile *config_get_settings(void)
+{
+    LOG_REGISTER_CONTEXT;
+
+    GKeyFile *ini = g_key_file_new();
+    config_setup_default_values(ini);
+    config_load_static_config(ini);
+    config_load_dynamic_config(ini);
+    return ini;
 }
 
 char * config_get_android_manufacturer(void)
 {
+    LOG_REGISTER_CONTEXT;
+
 #ifdef USE_MER_SSU
     /* If SSU can provide manufacturer name, use it. Otherwise fall
      * back to using the name specified in configuration files. */
@@ -896,11 +967,15 @@ char * config_get_android_manufacturer(void)
 
 char * config_get_android_vendor_id(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(ANDROID_ENTRY, ANDROID_VENDOR_ID_KEY);
 }
 
 char * config_get_android_product(void)
 {
+    LOG_REGISTER_CONTEXT;
+
 #ifdef USE_MER_SSU
     /* If SSU can provide device model name, use it. Otherwise fall
      * back to using the name specified in configuration files. */
@@ -916,19 +991,27 @@ char * config_get_android_product(void)
 
 char * config_get_android_product_id(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(ANDROID_ENTRY, ANDROID_PRODUCT_ID_KEY);
 }
 
 char * config_get_hidden_modes(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(MODE_SETTING_ENTRY, MODE_HIDE_KEY);
 }
 char * config_get_mode_whitelist(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_string(MODE_SETTING_ENTRY, MODE_WHITELIST_KEY);
 }
 
 int config_is_roaming_not_allowed(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return config_get_conf_int(NETWORK_ENTRY, NO_ROAMING_KEY);
 }

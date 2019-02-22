@@ -82,6 +82,8 @@ static int appsync_no_dbus = 1; // always disabled
 
 static void appsync_free_elem(list_elem_t *elem)
 {
+    LOG_REGISTER_CONTEXT;
+
     g_free(elem->name);
     g_free(elem->launch);
     g_free(elem->mode);
@@ -90,12 +92,16 @@ static void appsync_free_elem(list_elem_t *elem)
 
 static void appsync_free_elem_cb(gpointer elem, gpointer user_data)
 {
+    LOG_REGISTER_CONTEXT;
+
     (void)user_data;
     appsync_free_elem(elem);
 }
 
 void appsync_free_appsync_list(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( appsync_sync_list != 0 )
     {
         /*g_list_free_full(appsync_sync_list, appsync_free_elem); */
@@ -108,11 +114,15 @@ void appsync_free_appsync_list(void)
 
 static gint appsync_list_sort_func(gconstpointer a, gconstpointer b)
 {
+    LOG_REGISTER_CONTEXT;
+
     return strcasecmp( (char*)a, (char*)b );
 }
 
 void appsync_read_list(int diag)
 {
+    LOG_REGISTER_CONTEXT;
+
     GDir *confdir = 0;
 
     const gchar *dirname;
@@ -160,6 +170,8 @@ cleanup:
 
 static list_elem_t *appsync_read_file(const gchar *filename, int diag)
 {
+    LOG_REGISTER_CONTEXT;
+
     gchar *full_filename = NULL;
     GKeyFile *settingsfile = NULL;
     list_elem_t *list_item = NULL;
@@ -215,6 +227,8 @@ cleanup:
 /* @return 0 on succes, 1 if there is a failure */
 int appsync_activate_sync(const char *mode)
 {
+    LOG_REGISTER_CONTEXT;
+
     GList *iter;
     int count = 0;
 
@@ -316,6 +330,8 @@ error:
 
 int appsync_activate_sync_post(const char *mode)
 {
+    LOG_REGISTER_CONTEXT;
+
     GList *iter;
 
     log_debug("activate post sync");
@@ -374,6 +390,8 @@ error:
 
 int appsync_mark_active(const gchar *name, int post)
 {
+    LOG_REGISTER_CONTEXT;
+
     int ret = -1; // assume name not found
     int missing = 0;
 
@@ -417,6 +435,8 @@ int appsync_mark_active(const gchar *name, int post)
 #ifdef APP_SYNC_DBUS
 static gboolean appsync_enumerate_usb_cb(gpointer data)
 {
+    LOG_REGISTER_CONTEXT;
+
     (void)data;
     appsync_enumerate_usb_id = 0;
     log_debug("handling enumeration timeout");
@@ -427,6 +447,8 @@ static gboolean appsync_enumerate_usb_cb(gpointer data)
 
 static void appsync_start_enumerate_usb_timer(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     log_debug("scheduling enumeration timeout");
     if( appsync_enumerate_usb_id )
         g_source_remove(appsync_enumerate_usb_id), appsync_enumerate_usb_id = 0;
@@ -441,6 +463,8 @@ static void appsync_start_enumerate_usb_timer(void)
 
 static void appsync_cancel_enumerate_usb_timer(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( appsync_enumerate_usb_id )
     {
         log_debug("canceling enumeration timeout");
@@ -450,6 +474,8 @@ static void appsync_cancel_enumerate_usb_timer(void)
 
 static void appsync_enumerate_usb(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     struct timeval tv;
 
     log_debug("Enumerating");
@@ -469,6 +495,8 @@ static void appsync_enumerate_usb(void)
 
 void appsync_stop_apps(int post)
 {
+    LOG_REGISTER_CONTEXT;
+
     GList *iter = 0;
 
     for( iter = appsync_sync_list; iter; iter = g_list_next(iter) )
@@ -487,6 +515,8 @@ void appsync_stop_apps(int post)
 
 int appsync_stop(gboolean force)
 {
+    LOG_REGISTER_CONTEXT;
+
     /* If force arg is used, stop all applications that
      * could have been started by usb-moded */
     if(force)

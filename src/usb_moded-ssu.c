@@ -57,6 +57,8 @@ static gboolean      ssu_intialized = FALSE;
 /** Atexit callback for releasing cached ssu-sysinfo handle */
 static void ssu_free_handle(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     /* Make sure instance does not get created on exit path */
     ssu_intialized = TRUE;
 
@@ -71,6 +73,8 @@ static void ssu_free_handle(void)
  */
 static ssusysinfo_t *ssu_get_handle(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     /* Attempt only once */
     if( !ssu_intialized ) {
         ssu_intialized = TRUE;
@@ -89,6 +93,8 @@ static ssusysinfo_t *ssu_get_handle(void)
 gchar *
 ssu_get_manufacturer_name(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     gchar *res = 0;
     const char *val = ssusysinfo_device_manufacturer(ssu_get_handle());
     if( val && strcmp(val, "UNKNOWN") )
@@ -106,6 +112,8 @@ ssu_get_manufacturer_name(void)
 gchar *
 ssu_get_product_name(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     gchar *res = 0;
     const char *val = ssusysinfo_device_pretty_name(ssu_get_handle());
     if( val && strcmp(val, "UNKNOWN") )

@@ -50,6 +50,8 @@ static mode_list_elem_t      *dynconfig_read_mode_file(const gchar *filename);
 
 void dynconfig_free_list_item(mode_list_elem_t *list_item)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( list_item ) {
         free(list_item->mode_name);
         free(list_item->mode_module);
@@ -76,6 +78,8 @@ void dynconfig_free_list_item(mode_list_elem_t *list_item)
 
 void dynconfig_free_mode_list(GList *modelist)
 {
+    LOG_REGISTER_CONTEXT;
+
     if(modelist)
     {
         g_list_foreach(modelist, (GFunc) dynconfig_free_list_item, NULL);
@@ -86,6 +90,8 @@ void dynconfig_free_mode_list(GList *modelist)
 
 static gint dynconfig_compare_modes(gconstpointer a, gconstpointer b)
 {
+    LOG_REGISTER_CONTEXT;
+
     mode_list_elem_t *aa = (mode_list_elem_t *)a;
     mode_list_elem_t *bb = (mode_list_elem_t *)b;
 
@@ -94,6 +100,8 @@ static gint dynconfig_compare_modes(gconstpointer a, gconstpointer b)
 
 GList *dynconfig_read_mode_list(int diag)
 {
+    LOG_REGISTER_CONTEXT;
+
     GDir *confdir;
     GList *modelist = NULL;
     const gchar *dirname;
@@ -130,6 +138,8 @@ GList *dynconfig_read_mode_list(int diag)
 
 static mode_list_elem_t *dynconfig_read_mode_file(const gchar *filename)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool success = false;
     GKeyFile *settingsfile = g_key_file_new();
     mode_list_elem_t *list_item = NULL;

@@ -90,6 +90,8 @@ static gint  umudev_cable_state_timer_delay = -1;
 
 static gboolean umudev_cable_state_timer_cb(gpointer aptr)
 {
+    LOG_REGISTER_CONTEXT;
+
     (void)aptr;
     umudev_cable_state_timer_id = 0;
     umudev_cable_state_timer_delay = -1;
@@ -102,6 +104,8 @@ static gboolean umudev_cable_state_timer_cb(gpointer aptr)
 
 static void umudev_cable_state_stop_timer(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( umudev_cable_state_timer_id ) {
         log_debug("cancel delayed transfer to: %s",
                   cable_state_repr(umudev_cable_state_current));
@@ -113,6 +117,8 @@ static void umudev_cable_state_stop_timer(void)
 
 static void umudev_cable_state_start_timer(gint delay)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( umudev_cable_state_timer_delay != delay ) {
         umudev_cable_state_stop_timer();
     }
@@ -130,6 +136,8 @@ static void umudev_cable_state_start_timer(gint delay)
 static bool
 umudev_cable_state_connected(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool connected = false;
     switch( umudev_cable_state_get() ) {
     default:
@@ -144,11 +152,15 @@ umudev_cable_state_connected(void)
 
 static cable_state_t umudev_cable_state_get(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     return umudev_cable_state_active;
 }
 
 static void umudev_cable_state_set(cable_state_t state)
 {
+    LOG_REGISTER_CONTEXT;
+
     umudev_cable_state_stop_timer();
 
     if( umudev_cable_state_active == state )
@@ -169,6 +181,8 @@ EXIT:
 
 static void umudev_cable_state_changed(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     /* The rest of usb-moded separates charger
      * and pc connection states... make single
      * state tracking compatible with that. */
@@ -212,6 +226,8 @@ static void umudev_cable_state_changed(void)
 
 static void umudev_cable_state_from_udev(cable_state_t curr)
 {
+    LOG_REGISTER_CONTEXT;
+
     cable_state_t prev = umudev_cable_state_current;
     umudev_cable_state_current = curr;
 
@@ -260,6 +276,8 @@ EXIT:
 
 static void umudev_io_error_cb(gpointer data)
 {
+    LOG_REGISTER_CONTEXT;
+
     (void)data;
 
     /* we do not want to restart when we try to clean up */
@@ -273,6 +291,8 @@ static void umudev_io_error_cb(gpointer data)
 
 static gboolean umudev_io_input_cb(GIOChannel *iochannel, GIOCondition cond, gpointer data)
 {
+    LOG_REGISTER_CONTEXT;
+
     (void)iochannel;
     (void)data;
 
@@ -324,6 +344,8 @@ static gboolean umudev_io_input_cb(GIOChannel *iochannel, GIOCondition cond, gpo
 
 static void umudev_parse_properties(struct udev_device *dev, bool initial)
 {
+    LOG_REGISTER_CONTEXT;
+
     (void)initial;
 
     /* udev properties we are interested in */
@@ -429,6 +451,8 @@ cleanup:
 
 static int umudev_score_as_power_supply(const char *syspath)
 {
+    LOG_REGISTER_CONTEXT;
+
     int                 score   = 0;
     struct udev_device *dev     = 0;
     const char         *sysname = 0;
@@ -478,6 +502,8 @@ EXIT:
 
 gboolean umudev_init(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     gboolean                success = FALSE;
 
     char                   *configured_device = NULL;
@@ -606,6 +632,8 @@ EXIT:
 
 void umudev_quit(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     umudev_in_cleanup = true;
 
     log_debug("HWhal cleanup\n");

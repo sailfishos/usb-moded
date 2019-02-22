@@ -45,6 +45,8 @@ char        *mac_read_mac           (void);
 
 static void mac_random_ether_addr(unsigned char *addr)
 {
+    LOG_REGISTER_CONTEXT;
+
     FILE *random;
     size_t count = 0;
 
@@ -63,6 +65,8 @@ static void mac_random_ether_addr(unsigned char *addr)
 
 void mac_generate_random_mac (void)
 {
+    LOG_REGISTER_CONTEXT;
+
     unsigned char addr[6];
     int i;
     FILE *g_ether;
@@ -88,6 +92,8 @@ void mac_generate_random_mac (void)
 
 char * mac_read_mac(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     FILE *g_ether;
     char *mac = NULL, *ret = NULL;
     size_t read = 0;

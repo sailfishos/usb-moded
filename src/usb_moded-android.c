@@ -42,7 +42,8 @@
 bool         android_in_use           (void);
 static bool  android_probe            (void);
 gchar       *android_get_serial       (void);
-bool         android_init_values      (void);
+bool         android_init             (void);
+void         android_quit             (void);
 bool         android_set_enabled      (bool enable);
 bool         android_set_charging_mode(void);
 bool         android_set_function     (const char *function);
@@ -63,6 +64,8 @@ static int android_probed = -1;
 static bool
 android_write_file(const char *path, const char *text)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     if( !path || !text )
@@ -86,6 +89,8 @@ EXIT:
 bool
 android_in_use(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( android_probed < 0 )
         log_debug("android_in_use() called before android_probe()");
 
@@ -95,6 +100,8 @@ android_in_use(void)
 static bool
 android_probe(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( android_probed <= 0 ) {
         android_probed = access(ANDROID0_ENABLE, F_OK) == 0;
         log_warning("ANDROID0 %sdetected", android_probed ? "" : "not ");
@@ -108,6 +115,8 @@ android_probe(void)
 gchar *
 android_get_serial(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     static const char path[] = "/proc/cmdline";
     static const char find[] = "androidboot.serialno=";
     static const char pbrk[] = " \t\r\n,";
@@ -153,10 +162,14 @@ EXIT:
 }
 
 /** initialize the basic android values
+ *
+ * @return true if android usb backend is ready for use, false otherwise
  */
 bool
-android_init_values(void)
+android_init(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     gchar *text;
 
     if( !android_probe() )
@@ -214,9 +227,19 @@ EXIT:
     return android_in_use();
 }
 
+/** Cleanup resources allocated by android usb backend
+ */
+void
+android_quit(void)
+{
+    /* For now this exists for symmetry with other backends only */
+}
+
 bool
 android_set_enabled(bool enable)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
     if( android_in_use() ) {
         const char *val = enable ? "1" : "0";
@@ -233,6 +256,8 @@ android_set_enabled(bool enable)
 bool
 android_set_charging_mode(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     if( !android_in_use() )
@@ -262,6 +287,8 @@ EXIT:
 bool
 android_set_function(const char *function)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     if( !function )
@@ -293,6 +320,8 @@ EXIT:
 bool
 android_set_productid(const char *id)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     if( id && android_in_use() ) {
@@ -316,6 +345,8 @@ android_set_productid(const char *id)
 bool
 android_set_vendorid(const char *id)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
     if( id && android_in_use() ) {
         char str[16];
@@ -338,6 +369,8 @@ android_set_vendorid(const char *id)
 bool
 android_set_attr(const char *function, const char *attr, const char *value)
 {
+    LOG_REGISTER_CONTEXT;
+
     bool ack = false;
 
     if( function && attr && value && android_in_use() ) {

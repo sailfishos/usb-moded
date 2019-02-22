@@ -112,6 +112,8 @@ static const char default_interface[] = "usb0";
 
 static void network_free_ipforward_data (ipforward_data_t *ipforward)
 {
+    LOG_REGISTER_CONTEXT;
+
     if(ipforward)
     {
         if(ipforward->dns1)
@@ -127,6 +129,8 @@ static void network_free_ipforward_data (ipforward_data_t *ipforward)
 /* This function checks if the configured interface exists */
 static int network_check_interface(char *interface)
 {
+    LOG_REGISTER_CONTEXT;
+
     int ret = -1;
 
     if(interface)
@@ -141,6 +145,8 @@ static int network_check_interface(char *interface)
 
 static char* network_get_interface(mode_list_elem_t *data)
 {
+    LOG_REGISTER_CONTEXT;
+
     (void)data; // FIXME: why is this passed in the 1st place?
 
     char *interface = 0;
@@ -176,6 +182,8 @@ static char* network_get_interface(mode_list_elem_t *data)
  */
 static int network_set_usb_ip_forward(mode_list_elem_t *data, ipforward_data_t *ipforward)
 {
+    LOG_REGISTER_CONTEXT;
+
     char *interface, *nat_interface;
     char command[128];
 
@@ -217,6 +225,8 @@ static int network_set_usb_ip_forward(mode_list_elem_t *data, ipforward_data_t *
  */
 static void network_clean_usb_ip_forward(void)
 {
+    LOG_REGISTER_CONTEXT;
+
 #ifdef CONNMAN
     connman_reset_state();
 #endif
@@ -232,6 +242,8 @@ static void network_clean_usb_ip_forward(void)
  */
 static int get_roaming(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     int ret = 0, type;
     DBusError error;
     DBusMessage *msg = NULL, *reply;
@@ -304,6 +316,8 @@ static int get_roaming(void)
  */
 static int resolv_conf_dns(ipforward_data_t *ipforward)
 {
+    LOG_REGISTER_CONTEXT;
+
     FILE *resolv;
     int i = 0, count = 0;
     char *line = NULL, **tokens;
@@ -343,6 +357,8 @@ end:
 
 static int network_checklink(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     int ret = -1;
     char dest[sizeof UDHCP_CONFIG_PATH + 1];
     size_t len = readlink(UDHCP_CONFIG_LINK, dest, sizeof dest - 1);
@@ -361,6 +377,8 @@ static int network_checklink(void)
  */
 static int network_write_udhcpd_conf(ipforward_data_t *ipforward, mode_list_elem_t *data)
 {
+    LOG_REGISTER_CONTEXT;
+
     FILE *conffile;
     char *ip, *interface, *netmask;
     char *ipstart, *ipend;
@@ -473,6 +491,8 @@ end:
  */
 static gboolean connman_try_set_tethering(DBusConnection *connection, const char *path, gboolean on)
 {
+    LOG_REGISTER_CONTEXT;
+
     gboolean ok = FALSE;
     DBusMessage *message = dbus_message_new_method_call(CONNMAN_SERVICE, path, CONNMAN_TECH_INTERFACE, "SetProperty");
     if (message)
@@ -520,6 +540,8 @@ static gboolean connman_try_set_tethering(DBusConnection *connection, const char
 
 gboolean connman_set_tethering(const char *path, gboolean on)
 {
+    LOG_REGISTER_CONTEXT;
+
     gboolean ok = FALSE;
     DBusError error;
     DBusConnection *connection;
@@ -558,6 +580,8 @@ gboolean connman_set_tethering(const char *path, gboolean on)
  */
 static char * connman_parse_manager_reply(DBusMessage *reply, const char *req_service)
 {
+    LOG_REGISTER_CONTEXT;
+
     DBusMessageIter iter, subiter, origiter;
     int type;
     char *service;
@@ -597,6 +621,8 @@ static char * connman_parse_manager_reply(DBusMessage *reply, const char *req_se
 
 static int connman_fill_connection_data(DBusMessage *reply, ipforward_data_t *ipforward)
 {
+    LOG_REGISTER_CONTEXT;
+
     DBusMessageIter array_iter, dict_iter, inside_dict_iter, variant_iter;
     DBusMessageIter sub_array_iter, string_iter;
     int type, next;
@@ -715,6 +741,8 @@ static int connman_fill_connection_data(DBusMessage *reply, ipforward_data_t *ip
  */
 static int connman_set_cellular_online(DBusConnection *dbus_conn_connman, const char *service, int retry)
 {
+    LOG_REGISTER_CONTEXT;
+
     DBusMessage *msg = NULL, *reply;
     DBusError error;
     int ret = 0;
@@ -770,6 +798,8 @@ static int connman_set_cellular_online(DBusConnection *dbus_conn_connman, const 
  */
 static int connman_wifi_power_control(DBusConnection *dbus_conn_connman, int on)
 {
+    LOG_REGISTER_CONTEXT;
+
     static int wifistatus = 0;
     int type = 0;
     char *string;
@@ -832,6 +862,8 @@ static int connman_wifi_power_control(DBusConnection *dbus_conn_connman, int on)
 
 static int connman_get_connection_data(ipforward_data_t *ipforward)
 {
+    LOG_REGISTER_CONTEXT;
+
     DBusConnection *dbus_conn_connman = NULL;
     DBusMessage *msg = NULL, *reply = NULL;
     DBusError error;
@@ -893,6 +925,8 @@ try_again:
 
 static int connman_reset_state(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     DBusConnection *dbus_conn_connman = NULL;
     DBusError error;
 
@@ -918,6 +952,8 @@ static int connman_reset_state(void)
  */
 int network_set_up_dhcpd(mode_list_elem_t *data)
 {
+    LOG_REGISTER_CONTEXT;
+
     ipforward_data_t *ipforward = NULL;
     int ret = 1;
 
@@ -962,6 +998,8 @@ end:
 static int append_variant(DBusMessageIter *iter, const char *property,
                           int type, const char *value)
 {
+    LOG_REGISTER_CONTEXT;
+
     DBusMessageIter variant;
     const char *type_str;
 
@@ -998,6 +1036,8 @@ static int append_variant(DBusMessageIter *iter, const char *property,
  */
 int network_up(mode_list_elem_t *data)
 {
+    LOG_REGISTER_CONTEXT;
+
     char *ip = NULL, *gateway = NULL;
     int ret = -1;
 
@@ -1164,6 +1204,8 @@ int network_up(mode_list_elem_t *data)
  */
 int network_down(mode_list_elem_t *data)
 {
+    LOG_REGISTER_CONTEXT;
+
 #if CONNMAN_WORKS_BETTER
     DBusConnection *dbus_conn_connman = NULL;
     DBusMessage *msg = NULL, *reply = NULL;
@@ -1236,6 +1278,8 @@ int network_down(mode_list_elem_t *data)
  */
 int network_update(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( control_get_cable_state() == CABLE_STATE_PC_CONNECTED ) {
         mode_list_elem_t *data = worker_get_usb_mode_data();
         if( data && data->network ) {

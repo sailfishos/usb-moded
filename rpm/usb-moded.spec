@@ -353,6 +353,8 @@ install -m 644 -D config/diag/* %{buildroot}/%{_sysconfdir}/usb-moded/diag/
 install -m 644 -D config/run/* %{buildroot}/%{_sysconfdir}/usb-moded/run/
 install -m 644 -D config/run-diag/* %{buildroot}/%{_sysconfdir}/usb-moded/run-diag/
 install -m 644 -D config/mass-storage-jolla.ini %{buildroot}/%{_sysconfdir}/usb-moded/
+install -d %{buildroot}/%{_sharedstatedir}/usb-moded
+
 
 touch %{buildroot}/%{_sysconfdir}/modprobe.d/g_ether.conf
 touch %{buildroot}/%{_sysconfdir}/udhcpd.conf
@@ -386,11 +388,14 @@ systemctl daemon-reload || :
 %config(noreplace) %{_sysconfdir}/modprobe.d/usb_moded.conf
 %ghost %config(noreplace) %{_sysconfdir}/modprobe.d/g_ether.conf
 %ghost %{_sysconfdir}/udhcpd.conf
+%ghost %{_sysconfdir}/usb-moded/usb-moded.ini
 %{_sbindir}/usb_moded
 %{_sbindir}/usb_moded_util
 /lib/systemd/system/%{name}.service
 /lib/systemd/system/basic.target.wants/%{name}.service
 %config %{_sysconfdir}/tmpfiles.d/usb-moded.conf
+%dir %{_sharedstatedir}/usb-moded
+%ghost %{_sharedstatedir}/usb-moded/usb-moded.ini
 
 %files devel
 %defattr(-,root,root,-)

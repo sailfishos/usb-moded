@@ -64,6 +64,8 @@ static gboolean        dbus_connection_disc = FALSE; // got disconnected
 
 static void dbusappsync_release_name(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     /* Drop the service name - if we have it */
     if( dbus_connection_ses && dbus_connection_name )
     {
@@ -96,6 +98,8 @@ static void dbusappsync_release_name(void)
 
 static gboolean dbusappsync_obtain_name(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     DBusError error = DBUS_ERROR_INIT;
 
     int ret;
@@ -150,6 +154,8 @@ EXIT:
 
 static DBusHandlerResult dbusappsync_msg_handler(DBusConnection *const connection, DBusMessage *const msg, gpointer const user_data)
 {
+    LOG_REGISTER_CONTEXT;
+
     DBusHandlerResult   status    = DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
     int                 type      = dbus_message_get_type(msg);
     const char         *interface = dbus_message_get_interface(msg);
@@ -221,6 +227,8 @@ IGNORE:
  */
 static DBusHandlerResult dbusappsync_handle_disconnect(DBusConnection *conn, DBusMessage *msg, void *user_data)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( dbus_message_is_signal(msg, DBUS_INTERFACE_LOCAL, "Disconnected") )
     {
         log_warning("disconnected from session bus - expecting restart/stop soon\n");
@@ -235,6 +243,8 @@ static DBusHandlerResult dbusappsync_handle_disconnect(DBusConnection *conn, DBu
  */
 static void dbusappsync_cleanup_connection(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( dbus_connection_ses != 0 )
     {
         /* Remove message filters */
@@ -259,6 +269,8 @@ static void dbusappsync_cleanup_connection(void)
  */
 gboolean dbusappsync_init_connection(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     gboolean  result = FALSE;
     DBusError error  = DBUS_ERROR_INIT;
 
@@ -316,6 +328,8 @@ EXIT:
  */
 gboolean dbusappsync_init(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     gboolean status = FALSE;
 
     if( !dbusappsync_init_connection() )
@@ -336,6 +350,8 @@ EXIT:
  */
 void dbusappsync_cleanup(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     dbusappsync_cleanup_connection();
     // NOP
 }
@@ -345,6 +361,8 @@ void dbusappsync_cleanup(void)
  */
 int dbusappsync_launch_app(char *launch)
 {
+    LOG_REGISTER_CONTEXT;
+
     int ret = -1; // assume failure
 
     if( dbus_connection_ses == 0 )

@@ -219,6 +219,8 @@ static const char umdbus_introspect_usbmoded[] =
 */
 static void umdbus_send_config_signal(const char *section, const char *key, const char *value)
 {
+    LOG_REGISTER_CONTEXT;
+
     DBusMessage* msg = 0;
 
     if( !section || !key || !value )  {
@@ -258,6 +260,8 @@ EXIT:
 
 static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DBusMessage *const msg, gpointer const user_data)
 {
+    LOG_REGISTER_CONTEXT;
+
     DBusHandlerResult   status    = DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
     DBusMessage        *reply     = 0;
     const char         *interface = dbus_message_get_interface(msg);
@@ -657,6 +661,8 @@ EXIT:
 
 DBusConnection *umdbus_get_connection(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     DBusConnection *connection = 0;
     if( umdbus_connection )
         connection = dbus_connection_ref(umdbus_connection);
@@ -672,6 +678,8 @@ DBusConnection *umdbus_get_connection(void)
  */
 gboolean umdbus_init_connection(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     gboolean status = FALSE;
     DBusError error = DBUS_ERROR_INIT;
 
@@ -710,6 +718,8 @@ EXIT:
  */
 gboolean umdbus_init_service(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     gboolean status = FALSE;
     DBusError error = DBUS_ERROR_INIT;
     int ret;
@@ -741,6 +751,8 @@ EXIT:
  */
 static void umdbus_cleanup_service(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     if( !umdbus_service_name_acquired )
         goto EXIT;
 
@@ -763,6 +775,8 @@ EXIT:
  */
 void umdbus_cleanup(void)
 {
+    LOG_REGISTER_CONTEXT;
+
     /* clean up system bus connection */
     if (umdbus_connection != NULL)
     {
@@ -784,6 +798,8 @@ void umdbus_cleanup(void)
 */
 static int umdbus_send_signal_ex(const char *signal_type, const char *content)
 {
+    LOG_REGISTER_CONTEXT;
+
     int result = 1;
     DBusMessage* msg = 0;
 
@@ -845,6 +861,8 @@ EXIT:
  */
 static void umdbus_send_legacy_signal(const char *state_ind)
 {
+    LOG_REGISTER_CONTEXT;
+
     umdbus_send_signal_ex(USB_MODE_SIGNAL_NAME, state_ind);
 }
 
@@ -854,6 +872,8 @@ static void umdbus_send_legacy_signal(const char *state_ind)
  */
 void umdbus_send_current_state_signal(const char *state_ind)
 {
+    LOG_REGISTER_CONTEXT;
+
     umdbus_send_signal_ex(USB_MODE_CURRENT_STATE_SIGNAL_NAME,
                           state_ind);
     umdbus_send_legacy_signal(state_ind);
@@ -865,6 +885,8 @@ void umdbus_send_current_state_signal(const char *state_ind)
  */
 void umdbus_send_target_state_signal(const char *state_ind)
 {
+    LOG_REGISTER_CONTEXT;
+
     umdbus_send_signal_ex(USB_MODE_TARGET_STATE_SIGNAL_NAME,
                           state_ind);
 }
@@ -875,6 +897,8 @@ void umdbus_send_target_state_signal(const char *state_ind)
  */
 void umdbus_send_event_signal(const char *state_ind)
 {
+    LOG_REGISTER_CONTEXT;
+
     umdbus_send_signal_ex(USB_MODE_EVENT_SIGNAL_NAME,
                           state_ind);
     umdbus_send_legacy_signal(state_ind);
@@ -889,6 +913,8 @@ void umdbus_send_event_signal(const char *state_ind)
 */
 int umdbus_send_error_signal(const char *error)
 {
+    LOG_REGISTER_CONTEXT;
+
     return umdbus_send_signal_ex(USB_MODE_ERROR_SIGNAL_NAME, error);
 }
 
@@ -901,6 +927,8 @@ int umdbus_send_error_signal(const char *error)
 */
 int umdbus_send_supported_modes_signal(const char *supported_modes)
 {
+    LOG_REGISTER_CONTEXT;
+
     return umdbus_send_signal_ex(USB_MODE_SUPPORTED_MODES_SIGNAL_NAME, supported_modes);
 }
 
@@ -913,6 +941,8 @@ int umdbus_send_supported_modes_signal(const char *supported_modes)
 */
 int umdbus_send_available_modes_signal(const char *available_modes)
 {
+    LOG_REGISTER_CONTEXT;
+
     return umdbus_send_signal_ex(USB_MODE_AVAILABLE_MODES_SIGNAL_NAME, available_modes);
 }
 
@@ -925,6 +955,8 @@ int umdbus_send_available_modes_signal(const char *available_modes)
 */
 int umdbus_send_hidden_modes_signal(const char *hidden_modes)
 {
+    LOG_REGISTER_CONTEXT;
+
     return umdbus_send_signal_ex(USB_MODE_HIDDEN_MODES_SIGNAL_NAME, hidden_modes);
 }
 
@@ -936,6 +968,8 @@ int umdbus_send_hidden_modes_signal(const char *hidden_modes)
  */
 int umdbus_send_whitelisted_modes_signal(const char *whitelist)
 {
+    LOG_REGISTER_CONTEXT;
+
     return umdbus_send_signal_ex(USB_MODE_WHITELISTED_MODES_SIGNAL_NAME, whitelist);
 }
 
@@ -946,6 +980,8 @@ int umdbus_send_whitelisted_modes_signal(const char *whitelist)
  */
 static void umdbus_get_name_owner_cb(DBusPendingCall *pc, void *aptr)
 {
+    LOG_REGISTER_CONTEXT;
+
     usb_moded_get_name_owner_fn cb = aptr;
 
     DBusMessage *rsp = 0;
@@ -995,6 +1031,8 @@ gboolean umdbus_get_name_owner_async(const char *name,
                                         usb_moded_get_name_owner_fn cb,
                                         DBusPendingCall **ppc)
 {
+    LOG_REGISTER_CONTEXT;
+
     gboolean         ack = FALSE;
     DBusMessage     *req = 0;
     DBusPendingCall *pc  = 0;

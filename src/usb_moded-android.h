@@ -48,7 +48,8 @@
 
 bool   android_in_use           (void);
 gchar *android_get_serial       (void);
-bool   android_init_values      (void);
+bool   android_init             (void);
+void   android_quit             (void);
 bool   android_set_enabled      (bool enable);
 bool   android_set_charging_mode(void);
 bool   android_set_function     (const char *function);
