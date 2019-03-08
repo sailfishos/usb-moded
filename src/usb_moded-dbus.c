@@ -64,9 +64,15 @@ gboolean                  umdbus_init_connection              (void);
 gboolean                  umdbus_init_service                 (void);
 static void               umdbus_cleanup_service              (void);
 void                      umdbus_cleanup                      (void);
-static int                umdbus_send_signal_ex               (const char *signal_type, const char *content);
+static DBusMessage       *umdbus_new_signal                   (const char *signal_name);
+static int                umdbus_send_signal_ex               (const char *signal_name, const char *content);
 static void               umdbus_send_legacy_signal           (const char *state_ind);
 void                      umdbus_send_current_state_signal    (const char *state_ind);
+static bool               umsdbus_append_basic_entry          (DBusMessageIter *iter, const char *key, int type, const void *val);
+static bool               umsdbus_append_int32_entry          (DBusMessageIter *iter, const char *key, int val);
+static bool               umsdbus_append_string_entry         (DBusMessageIter *iter, const char *key, const char *val);
+static bool               umdbus_append_mode_details          (DBusMessage *msg, const char *mode_name);
+static void               umdbus_send_mode_details_signal     (const char *mode_name);
 void                      umdbus_send_target_state_signal     (const char *state_ind);
 void                      umdbus_send_event_signal            (const char *state_ind);
 int                       umdbus_send_error_signal            (const char *error);
@@ -207,6 +213,12 @@ static const char umdbus_introspect_usbmoded[] =
 "    <signal name=\"" USB_MODE_WHITELISTED_MODES_SIGNAL_NAME "\">\n"
 "      <arg name=\"modes\" type=\"s\"/>\n"
 "    </signal>\n"
+"    <signal name=\"" USB_MODE_TARGET_CONFIG_SIGNAL_NAME "\">"
+"      <arg name=\"config\" type=\"a{sv}\"/>"
+"    </signal>"
+"    <method name=\"" USB_MODE_TARGET_CONFIG_GET "\">"
+"      <arg name=\"config\" type=\"a{sv}\" direction=\"out\"/>"
+"    </signal>"
 "  </interface>\n"
 "</node>\n";
 
@@ -306,6 +318,12 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
                 mode = MODE_CHARGING;
             if((reply = dbus_message_new_method_return(msg)))
                 dbus_message_append_args (reply, DBUS_TYPE_STRING, &mode, DBUS_TYPE_INVALID);
+        }
+        else if(!strcmp(member, USB_MODE_TARGET_CONFIG_GET))
+        {
+            const char *mode = control_get_target_mode();
+            if((reply = dbus_message_new_method_return(msg)))
+                umdbus_append_mode_details(reply, mode);
         }
         else if(!strcmp(member, USB_MODE_TARGET_STATE_GET))
         {
@@ -789,14 +807,52 @@ void umdbus_cleanup(void)
     }
 }
 
+/** Helper for allocating usb-moded D-Bus signal
+ *
+ * @param signal_name Name of the signal to allocate
+ *
+ * @return dbus message object, or NULL in case of errors
+ */
+static DBusMessage*
+umdbus_new_signal(const char *signal_name)
+{
+    LOG_REGISTER_CONTEXT;
+
+    DBusMessage *msg = 0;
+
+    if( !umdbus_connection )
+    {
+        log_err("sending signal %s without dbus connection", signal_name);
+        goto EXIT;
+    }
+    if( !umdbus_service_name_acquired )
+    {
+        log_err("sending signal %s before acquiring name", signal_name);
+        goto EXIT;
+    }
+    // create a signal and check for errors
+    msg = dbus_message_new_signal(USB_MODE_OBJECT, USB_MODE_INTERFACE,
+                                  signal_name );
+    if( !msg )
+    {
+        log_err("allocating signal %s failed", signal_name);
+        goto EXIT;
+    }
+
+EXIT:
+    return msg;
+}
+
 /**
  * Helper function for sending the different signals
  *
+ * @param signal_name  the type of signal (normal, error, ...)
+ * @param content      string which can be mode name, error, list of modes, ...
+ *
  * @return 0 on success, 1 on failure
- * @param signal_type the type of signal (normal, error, ...)
- * @@param content string which can be mode name, error, list of modes, ...
-*/
-static int umdbus_send_signal_ex(const char *signal_type, const char *content)
+ */
+static int
+umdbus_send_signal_ex(const char *signal_name, const char *content)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -808,38 +864,24 @@ static int umdbus_send_signal_ex(const char *signal_type, const char *content)
     if( !content )
         content = "";
 
-    log_debug("broadcast signal %s(%s)\n", signal_type, content);
+    log_debug("broadcast signal %s(%s)", signal_name, content);
 
-    if( !umdbus_service_name_acquired )
-    {
-        log_err("sending signal without service: %s(%s)",
-                signal_type, content);
+    if( !(msg = umdbus_new_signal(signal_name)) )
         goto EXIT;
-    }
-    if(!umdbus_connection)
-    {
-        log_err("Dbus system connection broken!\n");
-        goto EXIT;
-    }
-    // create a signal and check for errors
-    msg = dbus_message_new_signal(USB_MODE_OBJECT, USB_MODE_INTERFACE, signal_type );
-    if (NULL == msg)
-    {
-        log_debug("Message Null\n");
-        goto EXIT;
-    }
 
     // append arguments onto signal
-    if (!dbus_message_append_args(msg, DBUS_TYPE_STRING, &content, DBUS_TYPE_INVALID))
+    if( !dbus_message_append_args(msg,
+                                  DBUS_TYPE_STRING, &content,
+                                  DBUS_TYPE_INVALID) )
     {
-        log_debug("Appending arguments failed. Out Of Memory!\n");
+        log_err("appending arguments to signal %s failed", signal_name);
         goto EXIT;
     }
 
-    // send the message on the correct bus  and flush the connection
-    if (!dbus_connection_send(umdbus_connection, msg, 0))
+    // send the message on the correct bus
+    if( !dbus_connection_send(umdbus_connection, msg, 0) )
     {
-        log_debug("Failed sending message. Out Of Memory!\n");
+        log_err("sending signal %s failed", signal_name);
         goto EXIT;
     }
     result = 0;
@@ -879,6 +921,222 @@ void umdbus_send_current_state_signal(const char *state_ind)
     umdbus_send_legacy_signal(state_ind);
 }
 
+/** Append string key, variant value dict entry to dbus iterator
+ *
+ * @param iter   Iterator to append data to
+ * @param key    Entry name string
+ * @param type   Entry value data tupe
+ * @param val    Pointer to basic data (as void pointer)
+ *
+ * @return true on success, false on failure
+ */
+static bool
+umsdbus_append_basic_entry(DBusMessageIter *iter, const char *key,
+                           int type, const void *val)
+{
+    LOG_REGISTER_CONTEXT;
+
+    /* Signature must be provided for variant containers */
+    const char *signature = 0;
+    switch( type ) {
+    case DBUS_TYPE_INT32:  signature = DBUS_TYPE_INT32_AS_STRING;  break;
+    case DBUS_TYPE_STRING: signature = DBUS_TYPE_STRING_AS_STRING; break;
+    default: break;
+    }
+    if( !signature ) {
+        log_err("unhandled D-Bus type: %d", type);
+        goto bailout_message;
+    }
+
+    DBusMessageIter entry, variant;
+
+    if( !dbus_message_iter_open_container(iter, DBUS_TYPE_DICT_ENTRY,
+                                          0, &entry) )
+        goto bailout_message;
+
+    if( !dbus_message_iter_append_basic(&entry, DBUS_TYPE_STRING, &key) )
+        goto bailout_entry;
+
+    if( !dbus_message_iter_open_container(&entry, DBUS_TYPE_VARIANT,
+                                          signature, &variant) )
+        goto bailout_entry;
+
+    if( !dbus_message_iter_append_basic(&variant, type, val) )
+        goto bailout_variant;
+
+    if( !dbus_message_iter_close_container(&entry, &variant) )
+        goto bailout_variant;
+
+    if( !dbus_message_iter_close_container(iter, &entry) )
+        goto bailout_entry;
+
+    return true;
+
+bailout_variant:
+    dbus_message_iter_abandon_container(&entry, &variant);
+
+bailout_entry:
+    dbus_message_iter_abandon_container(iter, &entry);
+
+bailout_message:
+    return false;
+}
+
+/** Append string key, variant:int32 value dict entry to dbus iterator
+ *
+ * @param iter   Iterator to append data to
+ * @param key    Entry name string
+ * @param val    Entry value
+ *
+ * @return true on success, false on failure
+ */
+static bool
+umsdbus_append_int32_entry(DBusMessageIter *iter, const char *key, int val)
+{
+    LOG_REGISTER_CONTEXT;
+
+    dbus_int32_t arg = val;
+    return umsdbus_append_basic_entry(iter, key, DBUS_TYPE_INT32, &arg);
+}
+
+/** Append string key, variant:string value dict entry to dbus iterator
+ *
+ * @param iter   Iterator to append data to
+ * @param key    Entry name string
+ * @param val    Entry value
+ *
+ * @return true on success, false on failure
+ */
+static bool
+umsdbus_append_string_entry(DBusMessageIter *iter, const char *key,
+                            const char *val)
+{
+    LOG_REGISTER_CONTEXT;
+
+    if( !val )
+        val = "";
+    return umsdbus_append_basic_entry(iter, key, DBUS_TYPE_STRING, &val);
+}
+
+/** Append dynamic mode configuration to dbus message
+ *
+ * @param msg         D-Bus message object
+ * @param mode_name   Name of the mode to use
+ *
+ * @return true on success, false on failure
+ */
+static bool
+umdbus_append_mode_details(DBusMessage *msg, const char *mode_name)
+{
+    LOG_REGISTER_CONTEXT;
+
+    const mode_list_elem_t *data = 0;
+
+    for( GList *iter = usbmoded_get_modelist(); iter; iter = g_list_next(iter) )
+    {
+        const mode_list_elem_t *iter_data = iter->data;
+        if( g_strcmp0(iter_data->mode_name, mode_name) )
+            continue;
+        data = iter_data;
+        break;
+    }
+
+    DBusMessageIter body, dict;
+
+    dbus_message_iter_init_append(msg, &body);
+
+    if( !dbus_message_iter_open_container(&body,
+                                          DBUS_TYPE_ARRAY,
+                                          DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
+                                          DBUS_TYPE_STRING_AS_STRING
+                                          DBUS_TYPE_VARIANT_AS_STRING
+                                          DBUS_DICT_ENTRY_END_CHAR_AS_STRING,
+                                          &dict) )
+        goto bailout_message;
+
+    /* Note: mode_name is special case: It needs to be valid even
+     *       if the mode does not have dynamic configuration.
+     */
+    if( !umsdbus_append_string_entry(&dict, "mode_name", mode_name) )
+        goto bailout_dict;
+
+    /* For the rest of the mode attrs we use fallback data if there
+     * is no dynamic config / dynamic config does not define some value.
+     */
+
+#define ADD_STR(name) \
+     if( !umsdbus_append_string_entry(&dict, #name, data ? data->name : 0) )\
+             goto bailout_dict;
+#define ADD_INT(name) \
+     if( !umsdbus_append_int32_entry(&dict, #name, data ? data->name : 0) )\
+             goto bailout_dict;
+
+    /* Attributes that we presume to be needed */
+    ADD_INT(appsync);
+    ADD_INT(network);
+    ADD_STR(network_interface);
+    ADD_INT(nat);
+    ADD_INT(dhcp_server);
+#ifdef CONNMAN
+    ADD_STR(connman_tethering);
+#endif
+
+    /* Attributes that are not exposed for now */
+#if 0
+    ADD_INT(mass_storage);
+    ADD_STR(mode_module);
+    ADD_STR(sysfs_path);
+    ADD_STR(sysfs_value);
+    ADD_STR(sysfs_reset_value);
+    ADD_STR(android_extra_sysfs_path);
+    ADD_STR(android_extra_sysfs_value);
+    ADD_STR(android_extra_sysfs_path2);
+    ADD_STR(android_extra_sysfs_value2);
+    ADD_STR(android_extra_sysfs_path3);
+    ADD_STR(android_extra_sysfs_value3);
+    ADD_STR(android_extra_sysfs_path4);
+    ADD_STR(android_extra_sysfs_value4);
+    ADD_STR(idProduct);
+    ADD_STR(idVendorOverride);
+#endif
+
+#undef ADD_STR
+#undef ADD_INT
+
+    if( !dbus_message_iter_close_container(&body, &dict) )
+        goto bailout_dict;
+
+    return true;
+
+bailout_dict:
+    dbus_message_iter_abandon_container(&body, &dict);
+
+bailout_message:
+    return false;
+}
+
+/** Send usb_moded target state configuration signal
+ *
+ * @param mode_name mode name
+ */
+static void
+umdbus_send_mode_details_signal(const char *mode_name)
+{
+    DBusMessage* msg = 0;
+
+    if( !(msg = umdbus_new_signal(USB_MODE_TARGET_CONFIG_SIGNAL_NAME)) )
+        goto EXIT;
+
+    if( !umdbus_append_mode_details(msg, mode_name) )
+        goto EXIT;
+
+    dbus_connection_send(umdbus_connection, msg, 0);
+
+EXIT:
+    if(msg != 0)
+        dbus_message_unref(msg);
+}
+
 /** Send usb_moded target state signal
  *
  * @param state_ind mode name
@@ -886,6 +1144,17 @@ void umdbus_send_current_state_signal(const char *state_ind)
 void umdbus_send_target_state_signal(const char *state_ind)
 {
     LOG_REGISTER_CONTEXT;
+
+    /* Send target mode details before claiming intent to
+     * do mode transition. This way the clients tracking
+     * configuration changes can assume they have valid
+     * details immediately when transition begins.
+     *
+     * If clients for any reason need to pay closer attention
+     * to signal timing, the mode_name contained in this broadcast
+     * can be checked against current / target mode.
+     */
+    umdbus_send_mode_details_signal(state_ind);
 
     umdbus_send_signal_ex(USB_MODE_TARGET_STATE_SIGNAL_NAME,
                           state_ind);

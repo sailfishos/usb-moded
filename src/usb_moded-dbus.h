@@ -56,6 +56,7 @@
 # define USB_MODE_HIDDEN_MODES_SIGNAL_NAME      "sig_usb_hidden_modes_ind"
 # define USB_MODE_WHITELISTED_MODES_SIGNAL_NAME "sig_usb_whitelisted_modes_ind"
 # define USB_MODE_AVAILABLE_MODES_SIGNAL_NAME   "sig_usb_available_modes_ind"
+# define USB_MODE_TARGET_CONFIG_SIGNAL_NAME     "sig_usb_taget_mode_config_ind"
 
 /* supported methods */
 # define USB_MODE_STATE_REQUEST         "mode_request"  /* returns the current mode */
@@ -74,6 +75,7 @@
 # define USB_MODE_WHITELISTED_MODES_SET "set_whitelisted_modes" /* set the list of whitelisted modes */
 # define USB_MODE_WHITELISTED_SET       "set_whitelisted" /* sets whether an specific mode is in the whitelist */
 # define USB_MODE_AVAILABLE_MODES_GET   "get_available_modes" /* returns a comma separated list of modes which are currently available for selection */
+# define USB_MODE_TARGET_CONFIG_GET     "get_target_mode_config" /* returns current target mode configuration */
 
 /**
  * (Transient) states reported by "sig_usb_state_ind" that are not modes.
