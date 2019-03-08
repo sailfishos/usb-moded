@@ -90,5 +90,11 @@
     <signal name="sig_usb_whitelisted_modes_ind">
       <arg name="modes" type="s"/>
     </signal>
+    <signal name="sig_usb_taget_mode_config_ind">
+      <arg name="config" type="a{sv}"/>
+    </signal>
+    <method name="get_target_mode_config">
+      <arg name="config" type="a{sv}" direction="out"/>
+    </signal>
   </interface>
 </node>
