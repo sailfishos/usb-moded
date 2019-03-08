@@ -92,9 +92,11 @@
     </signal>
     <signal name="sig_usb_taget_mode_config_ind">
       <arg name="config" type="a{sv}"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.In0" value="QVariantMap"/>
     </signal>
     <method name="get_target_mode_config">
       <arg name="config" type="a{sv}" direction="out"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QVariantMap"/>
     </signal>
   </interface>
 </node>
