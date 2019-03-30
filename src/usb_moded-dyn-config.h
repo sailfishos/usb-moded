@@ -131,6 +131,7 @@ typedef struct modedata_t
  * ------------------------------------------------------------------------- */
 
 void        modedata_free(modedata_t *self);
+modedata_t *modedata_copy(const modedata_t *that);
 
 /* ------------------------------------------------------------------------- *
  * MODELIST

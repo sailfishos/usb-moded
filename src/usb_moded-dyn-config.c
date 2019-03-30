@@ -43,6 +43,7 @@
 
 static void        modedata_free_cb(gpointer self);
 void               modedata_free   (modedata_t *self);
+modedata_t        *modedata_copy   (const modedata_t *that);
 static gint        modedata_sort_cb(gconstpointer a, gconstpointer b);
 static modedata_t *modedata_load   (const gchar *filename);
 
@@ -98,6 +99,52 @@ modedata_free(modedata_t *self)
 #endif
         free(self);
     }
+}
+
+/** Clone modedata_t object
+ *
+ * @param that Object pointer, or NULL
+ *
+ * @return Object pointer, or NULL
+ */
+modedata_t *
+modedata_copy(const modedata_t *that)
+{
+    modedata_t *self = 0;
+
+    if( !that )
+        goto EXIT;
+
+    if( !(self = calloc(1, sizeof *self)) )
+        goto EXIT;
+
+    self->mode_name                  = g_strdup(that->mode_name);
+    self->mode_module                = g_strdup(that->mode_module);
+    self->appsync                    = that->appsync;
+    self->network                    = that->network;
+    self->mass_storage               = that->mass_storage;
+    self->network_interface          = g_strdup(that->network_interface);
+    self->sysfs_path                 = g_strdup(that->sysfs_path);
+    self->sysfs_value                = g_strdup(that->sysfs_value);
+    self->sysfs_reset_value          = g_strdup(that->sysfs_reset_value);
+    self->android_extra_sysfs_path   = g_strdup(that->android_extra_sysfs_path);
+    self->android_extra_sysfs_value  = g_strdup(that->android_extra_sysfs_value);
+    self->android_extra_sysfs_path2  = g_strdup(that->android_extra_sysfs_path2);
+    self->android_extra_sysfs_value2 = g_strdup(that->android_extra_sysfs_value2);
+    self->android_extra_sysfs_path3  = g_strdup(that->android_extra_sysfs_path3);
+    self->android_extra_sysfs_value3 = g_strdup(that->android_extra_sysfs_value3);
+    self->android_extra_sysfs_path4  = g_strdup(that->android_extra_sysfs_path4);
+    self->android_extra_sysfs_value4 = g_strdup(that->android_extra_sysfs_value4);
+    self->idProduct                  = g_strdup(that->idProduct);
+    self->idVendorOverride           = g_strdup(that->idVendorOverride);
+    self->nat                        = that->nat;
+    self->dhcp_server                = that->dhcp_server;
+#ifdef CONNMAN
+    self->connman_tethering          = g_strdup(that->connman_tethering);
+#endif
+
+EXIT:
+    return self;
 }
 
 /** Callback for sorting mode list alphabetically
