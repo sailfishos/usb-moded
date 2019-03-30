@@ -1,7 +1,7 @@
 /**
  * @file usb_moded-worker.c
  *
- * Copyright (C) 2013-2018 Jolla. All rights reserved.
+ * Copyright (C) 2013-2019 Jolla. All rights reserved.
  *
  * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
  * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
@@ -44,39 +44,43 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- worker -- */
+/* ------------------------------------------------------------------------- *
+ * WORKER
+ * ------------------------------------------------------------------------- */
 
-static bool            worker_thread_p                 (void);
-bool                   worker_bailing_out              (void);
-static bool            worker_mode_is_mtp_mode         (const char *mode);
-static bool            worker_is_mtpd_running          (void);
-static bool            worker_stop_mtpd                (void);
-static bool            worker_start_mtpd               (void);
-static bool            worker_switch_to_charging       (void);
-const char            *worker_get_kernel_module           (void);
-bool                   worker_set_kernel_module           (const char *module);
-void                   worker_clear_kernel_module         (void);
-mode_list_elem_t      *worker_get_usb_mode_data        (void);
-void                   worker_set_usb_mode_data        (mode_list_elem_t *data);
-static const char     *worker_get_activated_mode_locked(void);
-static bool            worker_set_activated_mode_locked(const char *mode);
-static const char     *worker_get_requested_mode_locked(void);
-static bool            worker_set_requested_mode_locked(const char *mode);
-void                   worker_request_hardware_mode    (const char *mode);
-void                   worker_clear_hardware_mode      (void);
-static void            worker_execute                  (void);
-void                   worker_switch_to_mode           (const char *mode);
-static guint           worker_add_iowatch              (int fd, bool close_on_unref, GIOCondition cnd, GIOFunc io_cb, gpointer aptr);
-static void           *worker_thread_cb                (void *aptr);
-static gboolean        worker_notify_cb                (GIOChannel *chn, GIOCondition cnd, gpointer data);
-static bool            worker_start_thread             (void);
-static void            worker_stop_thread              (void);
-static void            worker_delete_eventfd           (void);
-static bool            worker_create_eventfd           (void);
-bool                   worker_init                     (void);
-void                   worker_quit                     (void);
-void                   worker_wakeup                   (void);
-static void            worker_notify                   (void);
+static bool        worker_thread_p                 (void);
+bool               worker_bailing_out              (void);
+static bool        worker_mode_is_mtp_mode         (const char *mode);
+static bool        worker_is_mtpd_running          (void);
+static bool        worker_mtpd_running_p           (void *aptr);
+static bool        worker_mtpd_stopped_p           (void *aptr);
+static bool        worker_stop_mtpd                (void);
+static bool        worker_start_mtpd               (void);
+static bool        worker_switch_to_charging       (void);
+const char        *worker_get_kernel_module        (void);
+bool               worker_set_kernel_module        (const char *module);
+void               worker_clear_kernel_module      (void);
+mode_list_elem_t  *worker_get_usb_mode_data        (void);
+void               worker_set_usb_mode_data        (mode_list_elem_t *data);
+static const char *worker_get_activated_mode_locked(void);
+static bool        worker_set_activated_mode_locked(const char *mode);
+static const char *worker_get_requested_mode_locked(void);
+static bool        worker_set_requested_mode_locked(const char *mode);
+void               worker_request_hardware_mode    (const char *mode);
+void               worker_clear_hardware_mode      (void);
+static void        worker_execute                  (void);
+void               worker_switch_to_mode           (const char *mode);
+static guint       worker_add_iowatch              (int fd, bool close_on_unref, GIOCondition cnd, GIOFunc io_cb, gpointer aptr);
+static void       *worker_thread_cb                (void *aptr);
+static gboolean    worker_notify_cb                (GIOChannel *chn, GIOCondition cnd, gpointer data);
+static bool        worker_start_thread             (void);
+static void        worker_stop_thread              (void);
+static void        worker_delete_eventfd           (void);
+static bool        worker_create_eventfd           (void);
+bool               worker_init                     (void);
+void               worker_quit                     (void);
+void               worker_wakeup                   (void);
+static void        worker_notify                   (void);
 
 /* ========================================================================= *
  * Data

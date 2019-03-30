@@ -1,7 +1,7 @@
 /**
  * @file usb_moded-dsme.h
  *
- * Copyright (C) 2013-2018 Jolla. All rights reserved.
+ * Copyright (C) 2013-2019 Jolla. All rights reserved.
  *
  * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
  * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
@@ -34,10 +34,12 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- dsme -- */
+/* ------------------------------------------------------------------------- *
+ * DSME
+ * ------------------------------------------------------------------------- */
 
-gboolean dsme_listener_start(void);
-void     dsme_listener_stop (void);
-gboolean dsme_in_user_state (void);
+gboolean dsme_start_listener(void);
+void     dsme_stop_listener(void);
+gboolean dsme_in_user_state(void);
 
 #endif /* USB_MODED_DSME_H_ */

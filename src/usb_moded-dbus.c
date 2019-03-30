@@ -55,7 +55,9 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- umdbus -- */
+/* ------------------------------------------------------------------------- *
+ * UMDBUS
+ * ------------------------------------------------------------------------- */
 
 static void               umdbus_send_config_signal           (const char *section, const char *key, const char *value);
 static DBusHandlerResult  umdbus_msg_handler                  (DBusConnection *const connection, DBusMessage *const msg, gpointer const user_data);
@@ -68,9 +70,9 @@ static DBusMessage       *umdbus_new_signal                   (const char *signa
 static int                umdbus_send_signal_ex               (const char *signal_name, const char *content);
 static void               umdbus_send_legacy_signal           (const char *state_ind);
 void                      umdbus_send_current_state_signal    (const char *state_ind);
-static bool               umsdbus_append_basic_entry          (DBusMessageIter *iter, const char *key, int type, const void *val);
-static bool               umsdbus_append_int32_entry          (DBusMessageIter *iter, const char *key, int val);
-static bool               umsdbus_append_string_entry         (DBusMessageIter *iter, const char *key, const char *val);
+static bool               umdbus_append_basic_entry           (DBusMessageIter *iter, const char *key, int type, const void *val);
+static bool               umdbus_append_int32_entry           (DBusMessageIter *iter, const char *key, int val);
+static bool               umdbus_append_string_entry          (DBusMessageIter *iter, const char *key, const char *val);
 static bool               umdbus_append_mode_details          (DBusMessage *msg, const char *mode_name);
 static void               umdbus_send_mode_details_signal     (const char *mode_name);
 void                      umdbus_send_target_state_signal     (const char *state_ind);
@@ -933,7 +935,7 @@ void umdbus_send_current_state_signal(const char *state_ind)
  * @return true on success, false on failure
  */
 static bool
-umsdbus_append_basic_entry(DBusMessageIter *iter, const char *key,
+umdbus_append_basic_entry(DBusMessageIter *iter, const char *key,
                            int type, const void *val)
 {
     LOG_REGISTER_CONTEXT;
@@ -993,12 +995,12 @@ bailout_message:
  * @return true on success, false on failure
  */
 static bool
-umsdbus_append_int32_entry(DBusMessageIter *iter, const char *key, int val)
+umdbus_append_int32_entry(DBusMessageIter *iter, const char *key, int val)
 {
     LOG_REGISTER_CONTEXT;
 
     dbus_int32_t arg = val;
-    return umsdbus_append_basic_entry(iter, key, DBUS_TYPE_INT32, &arg);
+    return umdbus_append_basic_entry(iter, key, DBUS_TYPE_INT32, &arg);
 }
 
 /** Append string key, variant:string value dict entry to dbus iterator
@@ -1010,14 +1012,14 @@ umsdbus_append_int32_entry(DBusMessageIter *iter, const char *key, int val)
  * @return true on success, false on failure
  */
 static bool
-umsdbus_append_string_entry(DBusMessageIter *iter, const char *key,
+umdbus_append_string_entry(DBusMessageIter *iter, const char *key,
                             const char *val)
 {
     LOG_REGISTER_CONTEXT;
 
     if( !val )
         val = "";
-    return umsdbus_append_basic_entry(iter, key, DBUS_TYPE_STRING, &val);
+    return umdbus_append_basic_entry(iter, key, DBUS_TYPE_STRING, &val);
 }
 
 /** Append dynamic mode configuration to dbus message
@@ -1059,7 +1061,7 @@ umdbus_append_mode_details(DBusMessage *msg, const char *mode_name)
     /* Note: mode_name is special case: It needs to be valid even
      *       if the mode does not have dynamic configuration.
      */
-    if( !umsdbus_append_string_entry(&dict, "mode_name", mode_name) )
+    if( !umdbus_append_string_entry(&dict, "mode_name", mode_name) )
         goto bailout_dict;
 
     /* For the rest of the mode attrs we use fallback data if there
@@ -1067,10 +1069,10 @@ umdbus_append_mode_details(DBusMessage *msg, const char *mode_name)
      */
 
 #define ADD_STR(name) \
-     if( !umsdbus_append_string_entry(&dict, #name, data ? data->name : 0) )\
+     if( !umdbus_append_string_entry(&dict, #name, data ? data->name : 0) )\
              goto bailout_dict;
 #define ADD_INT(name) \
-     if( !umsdbus_append_int32_entry(&dict, #name, data ? data->name : 0) )\
+     if( !umdbus_append_int32_entry(&dict, #name, data ? data->name : 0) )\
              goto bailout_dict;
 
     /* Attributes that we presume to be needed */

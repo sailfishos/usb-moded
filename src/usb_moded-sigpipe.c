@@ -2,7 +2,7 @@
  * @file usb_moded-sigpipe.c
  *
  * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2012-2018 Jolla. All rights reserved.
+ * Copyright (C) 2012-2019 Jolla. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the Lesser GNU General Public License
@@ -33,7 +33,9 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- sigpipe -- */
+/* ------------------------------------------------------------------------- *
+ * SIGPIPE
+ * ------------------------------------------------------------------------- */
 
 static gboolean sigpipe_read_signal_cb(GIOChannel *channel, GIOCondition condition, gpointer data);
 static void     sigpipe_trap_signal_cb(int sig);

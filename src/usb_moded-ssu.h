@@ -1,7 +1,7 @@
 /**
  * @file usb_moded-ssu.h
  *
- * Copyright (C) 2016-2018 Jolla. All rights reserved.
+ * Copyright (C) 2016-2019 Jolla. All rights reserved.
  *
  * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
  *
@@ -29,7 +29,9 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- ssu -- */
+/* ------------------------------------------------------------------------- *
+ * SSU
+ * ------------------------------------------------------------------------- */
 
 gchar *ssu_get_manufacturer_name(void);
 gchar *ssu_get_product_name     (void);

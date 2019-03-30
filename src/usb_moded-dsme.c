@@ -1,7 +1,7 @@
 /**
  * @file usb_moded-dsme.c
  *
- * Copyright (C) 2013-2018 Jolla. All rights reserved.
+ * Copyright (C) 2013-2019 Jolla. All rights reserved.
  *
  * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
  * @author: Jonni Rainisto <jonni.rainisto@jollamobile.com>
@@ -62,64 +62,59 @@
      ",arg0='"DSME_DBUS_SERVICE"'"
 
 /* ========================================================================= *
- * Functionality
+ * Prototypes
  * ========================================================================= */
 
 /* ------------------------------------------------------------------------- *
- * DSME_STATE_TRACKING
+ * DSME_STATE
  * ------------------------------------------------------------------------- */
 
-static const char        *dsme_state_repr                       (dsme_state_t state);
-static dsme_state_t       dsme_state_parse                      (const char *name);
-
-static void               dsme_state_update                     (dsme_state_t state);
-static bool               dsme_state_is_shutdown                (void);
-static bool               dsme_state_is_user                    (void);
+static const char   *dsme_state_repr       (dsme_state_t state);
+static dsme_state_t  dsme_state_parse      (const char *name);
+static void          dsme_state_update     (dsme_state_t state);
+static bool          dsme_state_is_shutdown(void);
+static bool          dsme_state_is_user    (void);
 
 /* ------------------------------------------------------------------------- *
- * DSME_SOCKET_IPC
+ * DSME_SOCKET
  * ------------------------------------------------------------------------- */
 
-static bool               dsme_socket_send_message              (void *msg);
-static void               dsme_socket_processwd_pong            (void);
-static void               dsme_socket_processwd_init            (void);
-static void               dsme_socket_processwd_quit            (void);
-static void               dsme_socket_query_state               (void);
-
-static gboolean           dsme_socket_recv_cb                   (GIOChannel *source, GIOCondition condition, gpointer data);
-static bool               dsme_socket_is_connected              (void);
-static bool               dsme_socket_connect                   (void);
-static void               dsme_socket_disconnect                (void);
+static bool     dsme_socket_send_message  (gpointer msg);
+static void     dsme_socket_processwd_pong(void);
+static void     dsme_socket_processwd_init(void);
+static void     dsme_socket_processwd_quit(void);
+static void     dsme_socket_query_state   (void);
+static gboolean dsme_socket_recv_cb       (GIOChannel *source, GIOCondition condition, gpointer data);
+static bool     dsme_socket_is_connected  (void);
+static bool     dsme_socket_connect       (void);
+static void     dsme_socket_disconnect    (void);
 
 /* ------------------------------------------------------------------------- *
- * DSME_DBUS_IPC
+ * DSME_DBUS
  * ------------------------------------------------------------------------- */
 
-static void               dsme_dbus_device_state_update         (const char *state);
-static void               dsme_dbus_device_state_query_cb       (DBusPendingCall *pending, void *aptr);
-static void               dsme_dbus_device_state_query          (void);
-static void               dsme_dbus_device_state_cancel         (void);
-static void               dsme_dbus_device_state_signal         (DBusMessage *msg);
-
-static bool               dsme_dbus_name_owner_available        (void);
-static void               dsme_dbus_name_owner_update           (const char *owner);
-static void               dsme_dbus_name_owner_query_cb         (const char *owner);
-static void               dsme_dbus_name_owner_query            (void);
-static void               dsme_dbus_name_owner_cancel           (void);
-static void               dsme_dbus_name_owner_signal           (DBusMessage *msg);
-
-static DBusHandlerResult  dsme_dbus_filter_cb                   (DBusConnection *con, DBusMessage *msg, void *user_data);
-
-static bool               dsme_dbus_init                        (void);
-static void               dsme_dbus_quit                        (void);
+static void              dsme_dbus_device_state_update  (const char *state);
+static void              dsme_dbus_device_state_query_cb(DBusPendingCall *pending, void *aptr);
+static void              dsme_dbus_device_state_query   (void);
+static void              dsme_dbus_device_state_cancel  (void);
+static void              dsme_dbus_device_state_signal  (DBusMessage *msg);
+static bool              dsme_dbus_name_owner_available (void);
+static void              dsme_dbus_name_owner_update    (const char *owner);
+static void              dsme_dbus_name_owner_query_cb  (const char *owner);
+static void              dsme_dbus_name_owner_query     (void);
+static void              dsme_dbus_name_owner_cancel    (void);
+static void              dsme_dbus_name_owner_signal    (DBusMessage *msg);
+static DBusHandlerResult dsme_dbus_filter_cb            (DBusConnection *con, DBusMessage *msg, void *user_data);
+static bool              dsme_dbus_init                 (void);
+static void              dsme_dbus_quit                 (void);
 
 /* ------------------------------------------------------------------------- *
- * MODULE_API
+ * DSME
  * ------------------------------------------------------------------------- */
 
-gboolean                  dsme_listener_start                   (void);
-void                      dsme_listener_stop                    (void);
-gboolean                  dsme_in_user_state                    (void);
+gboolean dsme_start_listener(void);
+void     dsme_stop_listener(void);
+gboolean dsme_in_user_state(void);
 
 /* ========================================================================= *
  * DSME_STATE_TRACKING
@@ -858,7 +853,7 @@ dsme_dbus_quit(void)
  * ========================================================================= */
 
 gboolean
-dsme_listener_start(void)
+dsme_start_listener(void)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -866,7 +861,7 @@ dsme_listener_start(void)
 }
 
 void
-dsme_listener_stop(void)
+dsme_stop_listener(void)
 {
     LOG_REGISTER_CONTEXT;
 

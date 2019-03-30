@@ -1,7 +1,7 @@
 /**
  * @file usb_moded-android.h
  *
- * Copyright (C) 2013-2018 Jolla. All rights reserved.
+ * Copyright (C) 2013-2019 Jolla. All rights reserved.
  *
  * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
  * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
@@ -44,7 +44,9 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- android -- */
+/* ------------------------------------------------------------------------- *
+ * ANDROID
+ * ------------------------------------------------------------------------- */
 
 bool   android_in_use           (void);
 gchar *android_get_serial       (void);

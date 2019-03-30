@@ -1,7 +1,7 @@
 /**
  * @file usb_moded-systemd.c
  *
- * Copyright (C) 2013-2018 Jolla oy. All rights reserved.
+ * Copyright (C) 2013-2019 Jolla oy. All rights reserved.
  *
  * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
  * @author: Slava Monich <slava.monich@jolla.com>
@@ -39,7 +39,9 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- systemd -- */
+/* ------------------------------------------------------------------------- *
+ * SYSTEMD
+ * ------------------------------------------------------------------------- */
 
 gboolean systemd_control_service(const char *name, const char *method);
 gboolean systemd_control_start  (void);

@@ -2,7 +2,7 @@
  * @file usb_moded-modesetting.h
  *
  * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2013-2018 Jolla Ltd.
+ * Copyright (C) 2013-2019 Jolla Ltd.
  *
  * @author: Philippe De Swert <philippe.de-swert@nokia.com>
  * @author: Philippe De Swert <phdeswer@lumi.maa>
@@ -35,10 +35,15 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- modesetting -- */
+/* ------------------------------------------------------------------------- *
+ * MODESETTING
+ * ------------------------------------------------------------------------- */
 
 void modesetting_verify_values     (void);
 int  modesetting_write_to_file_real(const char *file, int line, const char *func, const char *path, const char *text);
+bool modesetting_is_mounted        (const char *mountpoint);
+bool modesetting_mount             (const char *mountpoint);
+bool modesetting_unmount           (const char *mountpoint);
 bool modesetting_enter_dynamic_mode(void);
 void modesetting_leave_dynamic_mode(void);
 void modesetting_init              (void);

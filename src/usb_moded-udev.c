@@ -42,7 +42,9 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- umudev -- */
+/* ------------------------------------------------------------------------- *
+ * UMUDEV
+ * ------------------------------------------------------------------------- */
 
 static gboolean      umudev_cable_state_timer_cb   (gpointer aptr);
 static void          umudev_cable_state_stop_timer (void);
@@ -51,14 +53,13 @@ static bool          umudev_cable_state_connected  (void);
 static cable_state_t umudev_cable_state_get        (void);
 static void          umudev_cable_state_set        (cable_state_t state);
 static void          umudev_cable_state_changed    (void);
-static void          umudev_cable_state_from_udev  (cable_state_t state);
-
-static void     umudev_io_error_cb          (gpointer data);
-static gboolean umudev_io_input_cb          (GIOChannel *iochannel, GIOCondition cond, gpointer data);
-static void     umudev_parse_properties     (struct udev_device *dev, bool initial);
-static int      umudev_score_as_power_supply(const char *syspath);
-gboolean        umudev_init                 (void);
-void            umudev_quit                 (void);
+static void          umudev_cable_state_from_udev  (cable_state_t curr);
+static void          umudev_io_error_cb            (gpointer data);
+static gboolean      umudev_io_input_cb            (GIOChannel *iochannel, GIOCondition cond, gpointer data);
+static void          umudev_parse_properties       (struct udev_device *dev, bool initial);
+static int           umudev_score_as_power_supply  (const char *syspath);
+gboolean             umudev_init                   (void);
+void                 umudev_quit                   (void);
 
 /* ========================================================================= *
  * Data

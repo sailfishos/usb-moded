@@ -1,7 +1,7 @@
 /*
  *
  * Copyright (C) 2011 Nokia Corporation. All rights reserved.
- * Copyright (C) 2013-2018 Jolla Ltd.
+ * Copyright (C) 2013-2019 Jolla Ltd.
  *
  * author: Philippe De Swert <philippe.de-swert@nokia.com>
  * author: Philippe De Swert <phdeswer@lumi.maa>
@@ -125,7 +125,9 @@ typedef struct mode_list_elem_t
  * Prototypes
  * ========================================================================= */
 
-/* -- dynconfig -- */
+/* ------------------------------------------------------------------------- *
+ * UTILITY
+ * ------------------------------------------------------------------------- */
 
 void   dynconfig_free_list_item(mode_list_elem_t *list_item);
 void   dynconfig_free_mode_list(GList *modelist);

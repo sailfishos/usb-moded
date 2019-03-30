@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2018 Jolla Ltd.
+ * Copyright (C) 2018-2019 Jolla Ltd.
  *
  * Author: Philippe De Swert <philippe.de-swert@nokia.com>
  * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
@@ -36,7 +36,9 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- umudev -- */
+/* ------------------------------------------------------------------------- *
+ * UMUDEV
+ * ------------------------------------------------------------------------- */
 
 gboolean umudev_init(void);
 void     umudev_quit(void);

@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2012-2018 Jolla. All rights reserved.
+ * Copyright (C) 2012-2019 Jolla. All rights reserved.
  *
  * Author: Philippe De Swert <philippe.de-swert@nokia.com>
  * Author: Philippe De Swert <philippedeswert@gmail.com>
@@ -53,7 +53,9 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- config -- */
+/* ------------------------------------------------------------------------- *
+ * CONFIG
+ * ------------------------------------------------------------------------- */
 
 char                *config_find_mounts             (void);
 int                  config_find_sync               (void);
@@ -65,8 +67,8 @@ char                *config_get_trigger_subsystem   (void);
 char                *config_get_trigger_mode        (void);
 char                *config_get_trigger_property    (void);
 char                *config_get_trigger_value       (void);
+char                *config_get_conf_string         (const gchar *entry, const gchar *key);
 char                *config_get_mode_setting        (void);
-int                  config_value_changed           (GKeyFile *settingsfile, const char *entry, const char *key, const char *new_value);
 set_config_result_t  config_set_config_setting      (const char *entry, const char *key, const char *value);
 set_config_result_t  config_set_mode_setting        (const char *mode);
 set_config_result_t  config_set_hide_mode_setting   (const char *mode);
@@ -83,7 +85,6 @@ char                *config_get_android_product_id  (void);
 char                *config_get_hidden_modes        (void);
 char                *config_get_mode_whitelist      (void);
 int                  config_is_roaming_not_allowed  (void);
-char                *config_get_conf_string         (const gchar *entry, const gchar *key);
 
 /* ========================================================================= *
  * Macros

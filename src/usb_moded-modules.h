@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2013-2018 Jolla Ltd.
+ * Copyright (C) 2013-2019 Jolla Ltd.
  *
  * Author: Philippe De Swert <philippe.de-swert@nokia.com>
  * Author: Philippe De Swert <phdeswer@lumi.maa>
@@ -46,12 +46,14 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- modules -- */
+/* ------------------------------------------------------------------------- *
+ * MODULES
+ * ------------------------------------------------------------------------- */
 
-bool        modules_in_use            (void);
-bool        modules_init              (void);
-void        modules_quit              (void);
-int         modules_load_module       (const char *module);
-int         modules_unload_module     (const char *module);
+bool modules_in_use       (void);
+bool modules_init         (void);
+void modules_quit         (void);
+int  modules_load_module  (const char *module);
+int  modules_unload_module(const char *module);
 
 #endif /* USB_MODED_MODULES_H_ */

@@ -1,7 +1,7 @@
 /**
  * @file usb_moded-worker.h
  *
- * Copyright (C) 2013-2018 Jolla. All rights reserved.
+ * Copyright (C) 2013-2019 Jolla. All rights reserved.
  *
  * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
  * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
@@ -36,19 +36,21 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- worker -- */
+/* ------------------------------------------------------------------------- *
+ * WORKER
+ * ------------------------------------------------------------------------- */
 
-bool                   worker_bailing_out          (void);
-const char            *worker_get_kernel_module       (void);
-bool                   worker_set_kernel_module       (const char *module);
-void                   worker_clear_kernel_module     (void);
-mode_list_elem_t      *worker_get_usb_mode_data    (void);
-void                   worker_set_usb_mode_data    (mode_list_elem_t *data);
-void                   worker_request_hardware_mode(const char *mode);
-void                   worker_clear_hardware_mode  (void);
-void                   worker_switch_to_mode       (const char *mode);
-bool                   worker_init                 (void);
-void                   worker_quit                 (void);
-void                   worker_wakeup               (void);
+bool              worker_bailing_out          (void);
+const char       *worker_get_kernel_module    (void);
+bool              worker_set_kernel_module    (const char *module);
+void              worker_clear_kernel_module  (void);
+mode_list_elem_t *worker_get_usb_mode_data    (void);
+void              worker_set_usb_mode_data    (mode_list_elem_t *data);
+void              worker_request_hardware_mode(const char *mode);
+void              worker_clear_hardware_mode  (void);
+void              worker_switch_to_mode       (const char *mode);
+bool              worker_init                 (void);
+void              worker_quit                 (void);
+void              worker_wakeup               (void);
 
 #endif /* USB_MODED_WORKER_H_ */

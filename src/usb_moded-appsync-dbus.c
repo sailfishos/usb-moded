@@ -2,7 +2,7 @@
  * @file        usb_moded-dbus.c
  *
  * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2013-2018 Jolla Ltd.
+ * Copyright (C) 2013-2019 Jolla Ltd.
  *
  * @author: Philippe De Swert <philippe.de-swert@nokia.com>
  * @author: Philippe De Swert <phdeswer@lumi.maa>
@@ -38,7 +38,9 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- dbusappsync -- */
+/* ------------------------------------------------------------------------- *
+ * DBUSAPPSYNC
+ * ------------------------------------------------------------------------- */
 
 static void              dbusappsync_release_name      (void);
 static gboolean          dbusappsync_obtain_name       (void);

@@ -2,7 +2,7 @@
  * @file usb_moded-trigger.c
  *
  * Copyright (C) 2011 Nokia Corporation. All rights reserved.
- * Copyright (C) 2014-2018 Jolla Ltd.
+ * Copyright (C) 2014-2019 Jolla Ltd.
  *
  * @author: Philippe De Swert <philippedeswert@gmail.com>
  * @author: Philippe De Swert <phdeswer@lumi.maa>
@@ -40,13 +40,15 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- trigger -- */
+/* ------------------------------------------------------------------------- *
+ * TRIGGER
+ * ------------------------------------------------------------------------- */
 
 static void     trigger_udev_error_cb        (gpointer data);
-static gboolean trigger_udev_input_cb        (GIOChannel *iochannel, GIOCondition cond, gpointer data);
-static void     trigger_parse_udev_properties(struct udev_device *dev);
 bool            trigger_init                 (void);
+static gboolean trigger_udev_input_cb        (GIOChannel *iochannel, GIOCondition cond, gpointer data);
 void            trigger_stop                 (void);
+static void     trigger_parse_udev_properties(struct udev_device *dev);
 
 /* ========================================================================= *
  * Data

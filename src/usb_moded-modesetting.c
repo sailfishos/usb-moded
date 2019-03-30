@@ -48,29 +48,44 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <mntent.h>
+
+/* ========================================================================= *
+ * Types
+ * ========================================================================= */
+
+typedef struct storage_info_t
+{
+    gchar *si_mountpoint;
+    gchar *si_mountdevice;;
+} storage_info_t;
 
 /* ========================================================================= *
  * Prototypes
  * ========================================================================= */
 
-/* -- modesetting -- */
+/* ------------------------------------------------------------------------- *
+ * MODESETTING
+ * ------------------------------------------------------------------------- */
 
-static void      modesetting_track_value                (const char *path, const char *text);
-void             modesetting_verify_values              (void);
-
-static char     *modesetting_strip                      (char *str);
-static char     *modesetting_read_from_file             (const char *path, size_t maxsize);
-int              modesetting_write_to_file_real         (const char *file, int line, const char *func, const char *path, const char *text);
-
-static bool      modesetting_enter_mass_storage_mode    (mode_list_elem_t *data);
-static int       modesetting_leave_mass_storage_mode    (mode_list_elem_t *data);
-static void      modesetting_report_mass_storage_blocker(const char *mountpoint, int try);
-
-bool             modesetting_enter_dynamic_mode         (void);
-void             modesetting_leave_dynamic_mode         (void);
-
-void             modesetting_init                       (void);
-void             modesetting_quit                       (void);
+static void            modesetting_track_value                (const char *path, const char *text);
+void                   modesetting_verify_values              (void);
+static char           *modesetting_strip                      (char *str);
+static char           *modesetting_read_from_file             (const char *path, size_t maxsize);
+int                    modesetting_write_to_file_real         (const char *file, int line, const char *func, const char *path, const char *text);
+bool                   modesetting_is_mounted                 (const char *mountpoint);
+bool                   modesetting_mount                      (const char *mountpoint);
+bool                   modesetting_unmount                    (const char *mountpoint);
+static gchar          *modesetting_mountdev                   (const char *mountpoint);
+static void            modesetting_free_storage_info          (storage_info_t *info);
+static storage_info_t *modesetting_get_storage_info           (size_t *pcount);
+static bool            modesetting_enter_mass_storage_mode    (mode_list_elem_t *data);
+static int             modesetting_leave_mass_storage_mode    (mode_list_elem_t *data);
+static void            modesetting_report_mass_storage_blocker(const char *mountpoint, int try);
+bool                   modesetting_enter_dynamic_mode         (void);
+void                   modesetting_leave_dynamic_mode         (void);
+void                   modesetting_init                       (void);
+void                   modesetting_quit                       (void);
 
 /* ========================================================================= *
  * Data
@@ -280,22 +295,6 @@ cleanup:
     return err;
 }
 
-#include <mntent.h>
-
-typedef struct storage_info_t
-{
-    gchar *si_mountpoint;
-    gchar *si_mountdevice;;
-} storage_info_t;
-
-static void modesetting_free_storage_info(storage_info_t *info);
-static storage_info_t * modesetting_get_storage_info(size_t *pcount);
-
-bool  modesetting_is_mounted(const char *mountpoint);
-bool  modesetting_mount(const char *mountpoint);
-bool  modesetting_unmount(const char *mountpoint);
-char *modesetting_mountdev(const char *mountpoint);
-
 bool modesetting_is_mounted(const char *mountpoint)
 {
     LOG_REGISTER_CONTEXT;
@@ -323,7 +322,7 @@ bool modesetting_unmount(const char *mountpoint)
     return common_system(cmd) == 0;
 }
 
-gchar *modesetting_mountdev(const char *mountpoint)
+static gchar *modesetting_mountdev(const char *mountpoint)
 {
     LOG_REGISTER_CONTEXT;
 

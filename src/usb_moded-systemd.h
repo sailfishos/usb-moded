@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2018 Jolla Oy. All rights reserved.
+ * Copyright (C) 2013-2019 Jolla Oy. All rights reserved.
  *
  * author: Philippe De Swert <philippe.deswert@njollamobile.com>
  * author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
@@ -35,7 +35,9 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- systemd -- */
+/* ------------------------------------------------------------------------- *
+ * SYSTEMD
+ * ------------------------------------------------------------------------- */
 
 gboolean systemd_control_service(const char *name, const char *method);
 gboolean systemd_control_start  (void);

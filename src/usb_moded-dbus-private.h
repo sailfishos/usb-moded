@@ -53,7 +53,9 @@ typedef void (*usb_moded_get_name_owner_fn)(const char *owner);
  * Prototypes
  * ========================================================================= */
 
-/* -- umdbus -- */
+/* ------------------------------------------------------------------------- *
+ * UMDBUS
+ * ------------------------------------------------------------------------- */
 
 DBusConnection *umdbus_get_connection               (void);
 gboolean        umdbus_init_connection              (void);

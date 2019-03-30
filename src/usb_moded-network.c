@@ -2,7 +2,7 @@
  * @file usb-moded_network.c : (De)activates network depending on the network setting system.
  *
  * Copyright (C) 2011 Nokia Corporation. All rights reserved.
- * Copyright (C) 2012-2018 Jolla. All rights reserved.
+ * Copyright (C) 2012-2019 Jolla. All rights reserved.
  *
  * @author: Philippe De Swert <philippe.de-swert@nokia.com>
  * @author: Philippe De Swert <philippedeswert@gmail.com>
@@ -73,7 +73,9 @@ typedef struct ipforward_data_t
  * Prototypes
  * ========================================================================= */
 
-/* -- network -- */
+/* ------------------------------------------------------------------------- *
+ * NETWORK
+ * ------------------------------------------------------------------------- */
 
 static void  network_free_ipforward_data (ipforward_data_t *ipforward);
 static int   network_check_interface     (char *interface);
@@ -87,9 +89,22 @@ int          network_up                  (mode_list_elem_t *data);
 int          network_down                (mode_list_elem_t *data);
 int          network_update              (void);
 
-/* -- connman -- */
+/* ------------------------------------------------------------------------- *
+ * UTILITY
+ * ------------------------------------------------------------------------- */
 
-#ifdef CONNMAN
+#ifdef OFONO
+static int get_roaming   (void);
+#endif // OFONO
+
+#if CONNMAN_WORKS_BETTER
+static int append_variant(DBusMessageIter *iter, const char *property, int type, const char *value);
+#endif // CONNMAN_WORKS_BETTER
+
+/* ------------------------------------------------------------------------- *
+ * CONNMAN
+ * ------------------------------------------------------------------------- */
+
 static gboolean  connman_try_set_tethering   (DBusConnection *connection, const char *path, gboolean on);
 gboolean         connman_set_tethering       (const char *path, gboolean on);
 static char     *connman_parse_manager_reply (DBusMessage *reply, const char *req_service);
@@ -98,7 +113,6 @@ static int       connman_set_cellular_online (DBusConnection *dbus_conn_connman,
 static int       connman_wifi_power_control  (DBusConnection *dbus_conn_connman, int on);
 static int       connman_get_connection_data (ipforward_data_t *ipforward);
 static int       connman_reset_state         (void);
-#endif
 
 /* ========================================================================= *
  * Data

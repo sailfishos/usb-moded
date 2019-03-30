@@ -316,10 +316,24 @@ endif
 # ----------------------------------------------------------------------------
 
 .SUFFIXES: .q .p .g
+.PRECIOUS: .q
 
-%.q : %.c ; $(CC) -o $@ -E $< $(CPPFLAGS) $(MCE_CFLAGS)
-%.p : %.q ; cproto -s < $< | prettyproto.py > $@
-%.g : %.q ; cproto    < $< | prettyproto.py > $@
+PROTO_CPPFLAGS += -DAPP_SYNC
+PROTO_CPPFLAGS += -DAPP_SYNC_DBUS
+PROTO_CPPFLAGS += -DCONNMAN
+PROTO_CPPFLAGS += -DDEAD_CODE
+PROTO_CPPFLAGS += -DDEBIAN
+PROTO_CPPFLAGS += -DMEEGOLOCK
+PROTO_CPPFLAGS += -DOFONO
+PROTO_CPPFLAGS += -DSYSTEMD
+PROTO_CPPFLAGS += -DUSE_MER_SSU
+PROTO_CPPFLAGS += -DCONNMAN_WORKS_BETTER=1
+PROTO_CPPFLAGS += -DVERBOSE_WAKELOCKING=1
+
+%.q : CPPFLAGS += $(PROTO_CPPFLAGS)
+%.q : %.c ; $(CC) -o $@ -E $< $(CPPFLAGS) -O
+%.p : %.q prettyproto.groups ; cproto -s < $< | prettyproto.py > $@
+%.g : %.q prettyproto.groups ; cproto    < $< | prettyproto.py > $@
 
 clean::
 	$(RM) *.[qpg] src/*.[qpg] utils/*.[qpg]

@@ -35,11 +35,15 @@ typedef struct modemapping_t
  * Prototypes
  * ========================================================================= */
 
-/* -- cable -- */
+/* ------------------------------------------------------------------------- *
+ * CABLE_STATE
+ * ------------------------------------------------------------------------- */
 
 const char *cable_state_repr(cable_state_t state);
 
-/* -- common -- */
+/* ------------------------------------------------------------------------- *
+ * COMMON
+ * ------------------------------------------------------------------------- */
 
 const char  *common_map_mode_to_hardware         (const char *internal_mode);
 const char  *common_map_mode_to_external         (const char *internal_mode);

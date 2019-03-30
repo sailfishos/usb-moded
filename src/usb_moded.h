@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2012-2018 Jolla. All rights reserved.
+ * Copyright (C) 2012-2019 Jolla. All rights reserved.
  *
  * @author: Philippe De Swert <philippe.de-swert@nokia.com>
  * @author: Philippe De Swert <philippedeswert@gmail.com>
@@ -57,10 +57,12 @@
      (USB_MODED_SUSPEND_DELAY_DEFAULT_MS * 2)
 
 /* ========================================================================= *
- * Functions
+ * Prototypes
  * ========================================================================= */
 
-/* -- usbmoded -- */
+/* ------------------------------------------------------------------------- *
+ * USBMODED
+ * ------------------------------------------------------------------------- */
 
 GList *usbmoded_get_modelist              (void);
 void   usbmoded_load_modelist             (void);
@@ -73,11 +75,17 @@ void   usbmoded_set_cable_connection_delay(int delay_ms);
 int    usbmoded_get_cable_connection_delay(void);
 void   usbmoded_allow_suspend             (void);
 void   usbmoded_delay_suspend             (void);
+bool   usbmoded_can_export                (void);
 bool   usbmoded_init_done_p               (void);
 void   usbmoded_set_init_done             (bool reached);
 void   usbmoded_probe_init_done           (void);
-bool   usbmoded_can_export                (void);
 void   usbmoded_exit_mainloop             (int exitcode);
 void   usbmoded_handle_signal             (int signum);
+
+/* ------------------------------------------------------------------------- *
+ * MAIN
+ * ------------------------------------------------------------------------- */
+
+int main(int argc, char *argv[]);
 
 #endif /* USB_MODED_H_ */

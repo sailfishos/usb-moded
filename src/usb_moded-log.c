@@ -2,7 +2,7 @@
  * @file usb_moded-log.c
  *
  * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2016-2018 Jolla Ltd.
+ * Copyright (C) 2016-2019 Jolla Ltd.
  *
  * @author: Philippe De Swert <philippe.de-swert@nokia.com>
  * @author: Simo Piiroinen <simo.piiroinen@nokia.com>
@@ -39,7 +39,9 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- log -- */
+/* ------------------------------------------------------------------------- *
+ * LOG
+ * ------------------------------------------------------------------------- */
 
 static char *log_strip       (char *str);
 static void  log_gettime     (struct timeval *tv);

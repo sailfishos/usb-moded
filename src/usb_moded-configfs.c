@@ -1,7 +1,7 @@
 /**
  * @file usb_moded-configfs.c
  *
- * Copyright (C) 2018 Jolla. All rights reserved.
+ * Copyright (C) 2018-2019 Jolla. All rights reserved.
  *
  * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
  *
@@ -64,7 +64,9 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- configfs -- */
+/* ------------------------------------------------------------------------- *
+ * CONFIGFS
+ * ------------------------------------------------------------------------- */
 
 static gchar      *configfs_get_conf               (const char *key, const char *def);
 static void        configfs_read_configuration     (void);
@@ -75,6 +77,9 @@ static const char *configfs_config_path            (char *buff, size_t size, con
 static bool        configfs_mkdir                  (const char *path);
 static bool        configfs_rmdir                  (const char *path);
 static const char *configfs_register_function      (const char *function);
+#ifdef DEAD_CODE
+static bool        configfs_unregister_function    (const char *function);
+#endif //DEAD_CODE
 static const char *configfs_add_unit               (const char *function, const char *unit);
 static bool        configfs_remove_unit            (const char *function, const char *unit);
 static bool        configfs_enable_function        (const char *function);
@@ -86,6 +91,9 @@ static bool        configfs_probe                  (void);
 static const char *configfs_udc_enable_value       (void);
 static bool        configfs_write_file             (const char *path, const char *text);
 static bool        configfs_read_file              (const char *path, char *buff, size_t size);
+#ifdef DEAD_CODE
+static bool        configfs_read_udc               (char *buff, size_t size);
+#endif // DEAD_CODE
 static bool        configfs_write_udc              (const char *text);
 bool               configfs_set_udc                (bool enable);
 bool               configfs_init                   (void);

@@ -102,7 +102,9 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- usbmoded -- */
+/* ------------------------------------------------------------------------- *
+ * USBMODED
+ * ------------------------------------------------------------------------- */
 
 GList           *usbmoded_get_modelist              (void);
 void             usbmoded_load_modelist             (void);
@@ -116,16 +118,22 @@ int              usbmoded_get_cable_connection_delay(void);
 static gboolean  usbmoded_allow_suspend_timer_cb    (gpointer aptr);
 void             usbmoded_allow_suspend             (void);
 void             usbmoded_delay_suspend             (void);
+bool             usbmoded_can_export                (void);
 bool             usbmoded_init_done_p               (void);
 void             usbmoded_set_init_done             (bool reached);
 void             usbmoded_probe_init_done           (void);
-bool             usbmoded_can_export                (void);
 void             usbmoded_exit_mainloop             (int exitcode);
 void             usbmoded_handle_signal             (int signum);
 static bool      usbmoded_init                      (void);
 static void      usbmoded_cleanup                   (void);
 static void      usbmoded_usage                     (void);
 static void      usbmoded_parse_options             (int argc, char *argv[]);
+
+/* ------------------------------------------------------------------------- *
+ * MAIN
+ * ------------------------------------------------------------------------- */
+
+int main(int argc, char *argv[]);
 
 /* ========================================================================= *
  * Data
@@ -520,7 +528,7 @@ static bool usbmoded_init(void)
     /* DSME listener maintains in-user-mode state and is relevant
      * only when MEEGOLOCK configure option has been chosen. */
 #ifdef MEEGOLOCK
-    if( !dsme_listener_start() ) {
+    if( !dsme_start_listener() ) {
         log_crit("dsme tracking could not be started");
         goto EXIT;
     }
@@ -674,7 +682,7 @@ static void usbmoded_cleanup(void)
 
     /* Stop tracking device state */
 #ifdef MEEGOLOCK
-    dsme_listener_stop();
+    dsme_stop_listener();
 #endif
 
     /* Stop udev listener */

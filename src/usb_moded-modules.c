@@ -2,7 +2,7 @@
  * @file usb_moded-modules.c
  *
  * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2012-2018 Jolla. All rights reserved.
+ * Copyright (C) 2012-2019 Jolla. All rights reserved.
  *
  * @author: Philippe De Swert <philippe.de-swert@nokia.com>
  * @author: Philippe De Swert <phdeswer@lumi.maa>
@@ -42,13 +42,17 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- modules -- */
+/* ------------------------------------------------------------------------- *
+ * MODULES
+ * ------------------------------------------------------------------------- */
 
-bool        modules_init                     (void);
-bool        modules_in_use                   (void);
-void        modules_quit                     (void);
-int         modules_load_module              (const char *module);
-int         modules_unload_module            (const char *module);
+static bool modules_have_module  (const char *module);
+bool        modules_in_use       (void);
+static bool modules_probe        (void);
+bool        modules_init         (void);
+void        modules_quit         (void);
+int         modules_load_module  (const char *module);
+int         modules_unload_module(const char *module);
 
 /* ========================================================================= *
  * Data

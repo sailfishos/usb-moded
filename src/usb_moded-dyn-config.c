@@ -2,7 +2,7 @@
  * @file usb_moded-dyn-mode.c
  *
  * Copyright (C) 2011 Nokia Corporation. All rights reserved.
- * Copyright (C) 2013-2018 Jolla. All rights reserved.
+ * Copyright (C) 2013-2019 Jolla. All rights reserved.
  *
  * @author: Philippe De Swert <philippe.de-swert@nokia.com>
  * @author: Philippe De Swert <philippedeswert@gmail.com>
@@ -36,13 +36,15 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- dynconfig -- */
+/* ------------------------------------------------------------------------- *
+ * UTILITY
+ * ------------------------------------------------------------------------- */
 
-void                          dynconfig_free_list_item(mode_list_elem_t *list_item);
-void                          dynconfig_free_mode_list(GList *modelist);
-static gint                   dynconfig_compare_modes (gconstpointer a, gconstpointer b);
-GList                        *dynconfig_read_mode_list(int diag);
-static mode_list_elem_t      *dynconfig_read_mode_file(const gchar *filename);
+void                     dynconfig_free_list_item(mode_list_elem_t *list_item);
+void                     dynconfig_free_mode_list(GList *modelist);
+static gint              dynconfig_compare_modes (gconstpointer a, gconstpointer b);
+GList                   *dynconfig_read_mode_list(int diag);
+static mode_list_elem_t *dynconfig_read_mode_file(const gchar *filename);
 
 /* ========================================================================= *
  * Functions

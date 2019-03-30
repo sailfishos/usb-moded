@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2018 Jolla Ltd.
+ * Copyright (C) 2018-2019 Jolla Ltd.
  *
  * Author: Philippe De Swert <philippe.de-swert@nokia.com>
  * Author: Philippe De Swert <phdeswer@lumi.maa>
@@ -33,7 +33,9 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- dbusappsync -- */
+/* ------------------------------------------------------------------------- *
+ * DBUSAPPSYNC
+ * ------------------------------------------------------------------------- */
 
 gboolean dbusappsync_init_connection(void);
 gboolean dbusappsync_init           (void);
