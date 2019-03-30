@@ -52,7 +52,7 @@ void   modelist_free(GList *modelist);
 GList *modelist_load(int diag);
 
 /* ========================================================================= *
- * Functions
+ * MODEDATA
  * ========================================================================= */
 
 /** Relase modedata_t object
@@ -88,23 +88,6 @@ modedata_free(modedata_t *list_item)
     }
 }
 
-/** Release mode list
- *
- * @param modelist List pointer, or NULL
- */
-void
-modelist_free(GList *modelist)
-{
-    LOG_REGISTER_CONTEXT;
-
-    if(modelist)
-    {
-        g_list_foreach(modelist, (GFunc) modedata_free, NULL);
-        g_list_free(modelist);
-        modelist = 0;
-    }
-}
-
 /** Callback for sorting mode list alphabetically
  *
  * For use with g_list_sort()
@@ -123,51 +106,6 @@ modedata_sort_cb(gconstpointer a, gconstpointer b)
     modedata_t *bb = (modedata_t *)b;
 
     return g_strcmp0(aa->mode_name, bb->mode_name);
-}
-
-/** Load mode data files from configuration directory
- *
- * @param diag  true to load diagnostic modes, false for normal modes
- *
- * @return List of mode data objects, or NULL
- */
-GList *
-modelist_load(int diag)
-{
-    LOG_REGISTER_CONTEXT;
-
-    GDir *confdir;
-    GList *modelist = NULL;
-    const gchar *dirname;
-    modedata_t *list_item;
-    gchar *full_filename = NULL;
-
-    if(diag)
-        confdir = g_dir_open(DIAG_DIR_PATH, 0, NULL);
-    else
-        confdir = g_dir_open(MODE_DIR_PATH, 0, NULL);
-    if(confdir)
-    {
-        while((dirname = g_dir_read_name(confdir)) != NULL)
-        {
-            log_debug("Read file %s\n", dirname);
-            if(diag)
-                full_filename = g_strconcat(DIAG_DIR_PATH, "/", dirname, NULL);
-            else
-                full_filename = g_strconcat(MODE_DIR_PATH, "/", dirname, NULL);
-            list_item = modedata_load(full_filename);
-            /* free full_filename immediately as we do not use it anymore */
-            free(full_filename);
-            if(list_item)
-                modelist = g_list_append(modelist, list_item);
-        }
-        g_dir_close(confdir);
-    }
-    else
-        log_debug("Mode confdir open failed or file is incomplete/invalid.\n");
-
-    modelist = g_list_sort (modelist, modedata_sort_cb);
-    return modelist;
 }
 
 /** Load mode data from file
@@ -267,4 +205,70 @@ EXIT:
         modedata_free(list_item), list_item = 0;
 
     return list_item;
+}
+
+/* ========================================================================= *
+ * MODELIST
+ * ========================================================================= */
+
+/** Release mode list
+ *
+ * @param modelist List pointer, or NULL
+ */
+void
+modelist_free(GList *modelist)
+{
+    LOG_REGISTER_CONTEXT;
+
+    if(modelist)
+    {
+        g_list_foreach(modelist, (GFunc) modedata_free, NULL);
+        g_list_free(modelist);
+        modelist = 0;
+    }
+}
+
+/** Load mode data files from configuration directory
+ *
+ * @param diag  true to load diagnostic modes, false for normal modes
+ *
+ * @return List of mode data objects, or NULL
+ */
+GList *
+modelist_load(int diag)
+{
+    LOG_REGISTER_CONTEXT;
+
+    GDir *confdir;
+    GList *modelist = NULL;
+    const gchar *dirname;
+    modedata_t *list_item;
+    gchar *full_filename = NULL;
+
+    if(diag)
+        confdir = g_dir_open(DIAG_DIR_PATH, 0, NULL);
+    else
+        confdir = g_dir_open(MODE_DIR_PATH, 0, NULL);
+    if(confdir)
+    {
+        while((dirname = g_dir_read_name(confdir)) != NULL)
+        {
+            log_debug("Read file %s\n", dirname);
+            if(diag)
+                full_filename = g_strconcat(DIAG_DIR_PATH, "/", dirname, NULL);
+            else
+                full_filename = g_strconcat(MODE_DIR_PATH, "/", dirname, NULL);
+            list_item = modedata_load(full_filename);
+            /* free full_filename immediately as we do not use it anymore */
+            free(full_filename);
+            if(list_item)
+                modelist = g_list_append(modelist, list_item);
+        }
+        g_dir_close(confdir);
+    }
+    else
+        log_debug("Mode confdir open failed or file is incomplete/invalid.\n");
+
+    modelist = g_list_sort (modelist, modedata_sort_cb);
+    return modelist;
 }
