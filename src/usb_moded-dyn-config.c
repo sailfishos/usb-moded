@@ -55,7 +55,12 @@ GList *modelist_load(int diag);
  * Functions
  * ========================================================================= */
 
-void modedata_free(modedata_t *list_item)
+/** Relase modedata_t object
+ *
+ * @param list_item Object pointer, or NULL
+ */
+void
+modedata_free(modedata_t *list_item)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -83,7 +88,12 @@ void modedata_free(modedata_t *list_item)
     }
 }
 
-void modelist_free(GList *modelist)
+/** Release mode list
+ *
+ * @param modelist List pointer, or NULL
+ */
+void
+modelist_free(GList *modelist)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -95,7 +105,17 @@ void modelist_free(GList *modelist)
     }
 }
 
-static gint modedata_sort_cb(gconstpointer a, gconstpointer b)
+/** Callback for sorting mode list alphabetically
+ *
+ * For use with g_list_sort()
+ *
+ * @param a  Object pointer
+ * @param b  Object pointer
+ *
+ * @return result of comparing object names
+ */
+static gint
+modedata_sort_cb(gconstpointer a, gconstpointer b)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -105,7 +125,14 @@ static gint modedata_sort_cb(gconstpointer a, gconstpointer b)
     return g_strcmp0(aa->mode_name, bb->mode_name);
 }
 
-GList *modelist_load(int diag)
+/** Load mode data files from configuration directory
+ *
+ * @param diag  true to load diagnostic modes, false for normal modes
+ *
+ * @return List of mode data objects, or NULL
+ */
+GList *
+modelist_load(int diag)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -143,7 +170,14 @@ GList *modelist_load(int diag)
     return modelist;
 }
 
-static modedata_t *modedata_load(const gchar *filename)
+/** Load mode data from file
+ *
+ * @param filename  Path to file from which to read
+ *
+ * @return Mode data object, or NULL
+ */
+static modedata_t *
+modedata_load(const gchar *filename)
 {
     LOG_REGISTER_CONTEXT;
 
