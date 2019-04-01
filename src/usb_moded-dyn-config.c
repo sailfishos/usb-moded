@@ -37,20 +37,25 @@
  * ========================================================================= */
 
 /* ------------------------------------------------------------------------- *
- * UTILITY
+ * MODEDATA
  * ------------------------------------------------------------------------- */
 
-void                     dynconfig_free_list_item(mode_list_elem_t *list_item);
-void                     dynconfig_free_mode_list(GList *modelist);
-static gint              dynconfig_compare_modes (gconstpointer a, gconstpointer b);
-GList                   *dynconfig_read_mode_list(int diag);
-static mode_list_elem_t *dynconfig_read_mode_file(const gchar *filename);
+void               modedata_free   (modedata_t *list_item);
+static gint        modedata_sort_cb(gconstpointer a, gconstpointer b);
+static modedata_t *modedata_load   (const gchar *filename);
+
+/* ------------------------------------------------------------------------- *
+ * MODELIST
+ * ------------------------------------------------------------------------- */
+
+void   modelist_free(GList *modelist);
+GList *modelist_load(int diag);
 
 /* ========================================================================= *
  * Functions
  * ========================================================================= */
 
-void dynconfig_free_list_item(mode_list_elem_t *list_item)
+void modedata_free(modedata_t *list_item)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -78,36 +83,36 @@ void dynconfig_free_list_item(mode_list_elem_t *list_item)
     }
 }
 
-void dynconfig_free_mode_list(GList *modelist)
+void modelist_free(GList *modelist)
 {
     LOG_REGISTER_CONTEXT;
 
     if(modelist)
     {
-        g_list_foreach(modelist, (GFunc) dynconfig_free_list_item, NULL);
+        g_list_foreach(modelist, (GFunc) modedata_free, NULL);
         g_list_free(modelist);
         modelist = 0;
     }
 }
 
-static gint dynconfig_compare_modes(gconstpointer a, gconstpointer b)
+static gint modedata_sort_cb(gconstpointer a, gconstpointer b)
 {
     LOG_REGISTER_CONTEXT;
 
-    mode_list_elem_t *aa = (mode_list_elem_t *)a;
-    mode_list_elem_t *bb = (mode_list_elem_t *)b;
+    modedata_t *aa = (modedata_t *)a;
+    modedata_t *bb = (modedata_t *)b;
 
     return g_strcmp0(aa->mode_name, bb->mode_name);
 }
 
-GList *dynconfig_read_mode_list(int diag)
+GList *modelist_load(int diag)
 {
     LOG_REGISTER_CONTEXT;
 
     GDir *confdir;
     GList *modelist = NULL;
     const gchar *dirname;
-    mode_list_elem_t *list_item;
+    modedata_t *list_item;
     gchar *full_filename = NULL;
 
     if(diag)
@@ -123,7 +128,7 @@ GList *dynconfig_read_mode_list(int diag)
                 full_filename = g_strconcat(DIAG_DIR_PATH, "/", dirname, NULL);
             else
                 full_filename = g_strconcat(MODE_DIR_PATH, "/", dirname, NULL);
-            list_item = dynconfig_read_mode_file(full_filename);
+            list_item = modedata_load(full_filename);
             /* free full_filename immediately as we do not use it anymore */
             free(full_filename);
             if(list_item)
@@ -134,17 +139,17 @@ GList *dynconfig_read_mode_list(int diag)
     else
         log_debug("Mode confdir open failed or file is incomplete/invalid.\n");
 
-    modelist = g_list_sort (modelist, dynconfig_compare_modes);
+    modelist = g_list_sort (modelist, modedata_sort_cb);
     return modelist;
 }
 
-static mode_list_elem_t *dynconfig_read_mode_file(const gchar *filename)
+static modedata_t *modedata_load(const gchar *filename)
 {
     LOG_REGISTER_CONTEXT;
 
     bool success = false;
     GKeyFile *settingsfile = g_key_file_new();
-    mode_list_elem_t *list_item = NULL;
+    modedata_t *list_item = NULL;
 
     if( !g_key_file_load_from_file(settingsfile, filename, G_KEY_FILE_NONE, NULL) ) {
         log_err("%s: can't read mode configuration file", filename);
@@ -225,7 +230,7 @@ EXIT:
     g_key_file_free(settingsfile);
 
     if( !success )
-        dynconfig_free_list_item(list_item), list_item = 0;
+        modedata_free(list_item), list_item = 0;
 
     return list_item;
 }

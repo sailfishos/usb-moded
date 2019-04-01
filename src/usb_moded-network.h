@@ -45,9 +45,9 @@ gboolean connman_set_tethering(const char *path, gboolean on);
  * NETWORK
  * ------------------------------------------------------------------------- */
 
-int network_set_up_dhcpd(mode_list_elem_t *data);
-int network_up          (mode_list_elem_t *data);
-int network_down        (mode_list_elem_t *data);
+int network_set_up_dhcpd(modedata_t *data);
+int network_up          (modedata_t *data);
+int network_down        (modedata_t *data);
 int network_update      (void);
 
 #endif /* USB_MODED_NETWORK_H_ */

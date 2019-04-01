@@ -622,7 +622,7 @@ char * config_get_network_setting(const char *config)
     LOG_REGISTER_CONTEXT;
 
     char * ret = 0;
-    mode_list_elem_t *data;
+    modedata_t *data;
 
     if(!strcmp(config, NETWORK_IP_KEY))
     {

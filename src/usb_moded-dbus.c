@@ -1034,11 +1034,11 @@ umdbus_append_mode_details(DBusMessage *msg, const char *mode_name)
 {
     LOG_REGISTER_CONTEXT;
 
-    const mode_list_elem_t *data = 0;
+    const modedata_t *data = 0;
 
     for( GList *iter = usbmoded_get_modelist(); iter; iter = g_list_next(iter) )
     {
-        const mode_list_elem_t *iter_data = iter->data;
+        const modedata_t *iter_data = iter->data;
         if( g_strcmp0(iter_data->mode_name, mode_name) )
             continue;
         data = iter_data;

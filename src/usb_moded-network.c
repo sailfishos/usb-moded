@@ -79,14 +79,14 @@ typedef struct ipforward_data_t
 
 static void  network_free_ipforward_data (ipforward_data_t *ipforward);
 static int   network_check_interface     (char *interface);
-static char *network_get_interface       (mode_list_elem_t *data);
-static int   network_set_usb_ip_forward  (mode_list_elem_t *data, ipforward_data_t *ipforward);
+static char *network_get_interface       (modedata_t *data);
+static int   network_set_usb_ip_forward  (modedata_t *data, ipforward_data_t *ipforward);
 static void  network_clean_usb_ip_forward(void);
 static int   network_checklink           (void);
-static int   network_write_udhcpd_conf   (ipforward_data_t *ipforward, mode_list_elem_t *data);
-int          network_set_up_dhcpd        (mode_list_elem_t *data);
-int          network_up                  (mode_list_elem_t *data);
-int          network_down                (mode_list_elem_t *data);
+static int   network_write_udhcpd_conf   (ipforward_data_t *ipforward, modedata_t *data);
+int          network_set_up_dhcpd        (modedata_t *data);
+int          network_up                  (modedata_t *data);
+int          network_down                (modedata_t *data);
 int          network_update              (void);
 
 /* ------------------------------------------------------------------------- *
@@ -157,7 +157,7 @@ static int network_check_interface(char *interface)
     return ret;
 }
 
-static char* network_get_interface(mode_list_elem_t *data)
+static char* network_get_interface(modedata_t *data)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -194,7 +194,7 @@ static char* network_get_interface(mode_list_elem_t *data)
  * Turn on ip forwarding on the usb interface
  * @return: 0 on success, 1 on failure
  */
-static int network_set_usb_ip_forward(mode_list_elem_t *data, ipforward_data_t *ipforward)
+static int network_set_usb_ip_forward(modedata_t *data, ipforward_data_t *ipforward)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -389,7 +389,7 @@ static int network_checklink(void)
  * Write udhcpd.conf
  * @ipforward : NULL if we want a simple config, otherwise include dns info etc...
  */
-static int network_write_udhcpd_conf(ipforward_data_t *ipforward, mode_list_elem_t *data)
+static int network_write_udhcpd_conf(ipforward_data_t *ipforward, modedata_t *data)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -964,7 +964,7 @@ static int connman_reset_state(void)
 /**
  * Write out /etc/udhcpd.conf conf so the config is available when it gets started
  */
-int network_set_up_dhcpd(mode_list_elem_t *data)
+int network_set_up_dhcpd(modedata_t *data)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -1048,7 +1048,7 @@ static int append_variant(DBusMessageIter *iter, const char *property,
  * Activate the network interface
  *
  */
-int network_up(mode_list_elem_t *data)
+int network_up(modedata_t *data)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -1216,7 +1216,7 @@ int network_up(mode_list_elem_t *data)
  * Deactivate the network interface
  *
  */
-int network_down(mode_list_elem_t *data)
+int network_down(modedata_t *data)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -1295,7 +1295,7 @@ int network_update(void)
     LOG_REGISTER_CONTEXT;
 
     if( control_get_cable_state() == CABLE_STATE_PC_CONNECTED ) {
-        mode_list_elem_t *data = worker_get_usb_mode_data();
+        modedata_t *data = worker_get_usb_mode_data();
         if( data && data->network ) {
             network_down(data);
             network_up(data);

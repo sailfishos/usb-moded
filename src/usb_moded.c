@@ -173,7 +173,7 @@ usbmoded_load_modelist(void)
 
     if( !usbmoded_modelist ) {
         log_notice("load modelist");
-        usbmoded_modelist = dynconfig_read_mode_list(usbmoded_get_diag_mode());
+        usbmoded_modelist = modelist_load(usbmoded_get_diag_mode());
     }
 }
 
@@ -184,7 +184,7 @@ usbmoded_free_modelist(void)
 
     if( usbmoded_modelist ) {
         log_notice("free modelist");
-        dynconfig_free_mode_list(usbmoded_modelist),
+        modelist_free(usbmoded_modelist),
             usbmoded_modelist = 0;
     }
 }

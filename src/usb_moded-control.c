@@ -325,7 +325,7 @@ void control_select_usb_mode(void)
             log_err("Diagnostic mode is not configured!");
         }
         else {
-            mode_list_elem_t *data = iter->data;
+            modedata_t *data = iter->data;
             log_debug("Entering diagnostic mode!");
             control_set_usb_mode(data->mode_name);
         }
