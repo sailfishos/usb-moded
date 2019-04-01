@@ -32,6 +32,8 @@
 #  include "../config.h" // NOTRIM
 # endif
 
+# include "usb_moded-dyn-config.h"
+
 # include <stdbool.h>
 # include <stdio.h>
 
@@ -64,23 +66,24 @@
  * USBMODED
  * ------------------------------------------------------------------------- */
 
-GList *usbmoded_get_modelist              (void);
-void   usbmoded_load_modelist             (void);
-void   usbmoded_free_modelist             (void);
-bool   usbmoded_get_rescue_mode           (void);
-void   usbmoded_set_rescue_mode           (bool rescue_mode);
-bool   usbmoded_get_diag_mode             (void);
-void   usbmoded_set_diag_mode             (bool diag_mode);
-void   usbmoded_set_cable_connection_delay(int delay_ms);
-int    usbmoded_get_cable_connection_delay(void);
-void   usbmoded_allow_suspend             (void);
-void   usbmoded_delay_suspend             (void);
-bool   usbmoded_can_export                (void);
-bool   usbmoded_init_done_p               (void);
-void   usbmoded_set_init_done             (bool reached);
-void   usbmoded_probe_init_done           (void);
-void   usbmoded_exit_mainloop             (int exitcode);
-void   usbmoded_handle_signal             (int signum);
+GList            *usbmoded_get_modelist              (void);
+void              usbmoded_load_modelist             (void);
+void              usbmoded_free_modelist             (void);
+const modedata_t *usbmoded_get_modedata              (const char *modename);
+bool              usbmoded_get_rescue_mode           (void);
+void              usbmoded_set_rescue_mode           (bool rescue_mode);
+bool              usbmoded_get_diag_mode             (void);
+void              usbmoded_set_diag_mode             (bool diag_mode);
+void              usbmoded_set_cable_connection_delay(int delay_ms);
+int               usbmoded_get_cable_connection_delay(void);
+void              usbmoded_allow_suspend             (void);
+void              usbmoded_delay_suspend             (void);
+bool              usbmoded_can_export                (void);
+bool              usbmoded_init_done_p               (void);
+void              usbmoded_set_init_done             (bool reached);
+void              usbmoded_probe_init_done           (void);
+void              usbmoded_exit_mainloop             (int exitcode);
+void              usbmoded_handle_signal             (int signum);
 
 /* ------------------------------------------------------------------------- *
  * MAIN
