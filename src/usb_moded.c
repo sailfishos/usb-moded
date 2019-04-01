@@ -53,6 +53,7 @@
 #include "usb_moded-trigger.h"
 #include "usb_moded-udev.h"
 #include "usb_moded-worker.h"
+#include "usb_moded-modes.h"
 
 #ifdef MEEGOLOCK
 # include "usb_moded-dsme.h"
@@ -491,14 +492,57 @@ void usbmoded_handle_signal(int signum)
     }
     else if( signum == SIGHUP )
     {
-        /* free and read in modelist again */
+        /* Reload mode list */
+        log_debug("reloading dynamic mode configuration");
         usbmoded_free_modelist();
         usbmoded_load_modelist();
 
+        /* If default mode selection became invalid,
+         * revert setting to "ask" */
+        gchar *config = config_get_mode_setting();
+        if( g_strcmp0(config, MODE_ASK) &&
+            common_valid_mode(config) ) {
+            log_warning("default mode '%s' is not valid, reset to '%s'",
+                        config, MODE_ASK);
+            config_set_mode_setting(MODE_ASK);
+        }
+        else {
+            log_debug("default mode '%s' is still valid", config);
+        }
+        g_free(config);
+
+        /* If current mode became invalid, select appropriate mode.
+         *
+         * Use target mode so that we catch also situations where
+         * we are making transition to invalid state.
+         */
+        const char *current = control_get_target_mode();
+        if( common_modename_is_internal(current) ) {
+            /* Internal modes are not affected by configuration
+             * file changes - no changes required. */
+            log_debug("current mode '%s' is internal", current);
+        }
+        else if( common_valid_mode(current) ) {
+            /* Dynamic mode that is no longer valid - choose
+             * something else. */
+            log_warning("current mode '%s' is not valid, re-evaluating",
+                        current);
+            control_select_usb_mode();
+        }
+        else {
+            /* Dynamic mode that is still valid - do nothing.
+             *
+             * Note: While the mode details /might/ have changed,
+             * skipping immediate usb reprogramming is assumed to
+             * be less harmful than potentially cutting developer
+             * mode connection during upgrade, etc. */
+            log_debug("current mode '%s' is still valid", current);
+        }
+
+        /* Signal availability */
+        log_debug("broadcast mode availability lists");
         common_send_supported_modes_signal();
         common_send_available_modes_signal();
-
-        // FIXME invalidate current mode
     }
     else
     {

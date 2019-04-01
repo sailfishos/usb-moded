@@ -59,6 +59,7 @@ FILE        *common_popen_                       (const char *file, int line, co
 waitres_t    common_wait                         (unsigned tot_ms, bool (*ready_cb)(void *aptr), void *aptr);
 bool         common_msleep_                      (const char *file, int line, const char *func, unsigned msec);
 static bool  common_mode_in_list                 (const char *mode, char *const *modes);
+bool         common_modename_is_internal         (const char *modename);
 int          common_valid_mode                   (const char *mode);
 gchar       *common_get_mode_list                (mode_list_type_t type);
 
@@ -441,6 +442,25 @@ static bool common_mode_in_list(const char *mode, char * const *modes)
             return true;
     }
     return false;
+}
+
+/** Check if given usb mode is internal
+ *
+ * @param modename name of a more
+ *
+ * @return true if mode is internal, false otherwise
+ */
+bool
+common_modename_is_internal(const char *modename)
+{
+    LOG_REGISTER_CONTEXT;
+
+    return (!g_strcmp0(modename, MODE_UNDEFINED) ||
+            !g_strcmp0(modename, MODE_CHARGER) ||
+            !g_strcmp0(modename, MODE_CHARGING_FALLBACK) ||
+            !g_strcmp0(modename, MODE_ASK) ||
+            !g_strcmp0(modename, MODE_CHARGING) ||
+            !g_strcmp0(modename, MODE_BUSY));
 }
 
 /** check if a given usb_mode exists

@@ -59,6 +59,7 @@ int         common_system_                      (const char *file, int line, con
 FILE       *common_popen_                       (const char *file, int line, const char *func, const char *command, const char *type);
 waitres_t   common_wait                         (unsigned tot_ms, bool (*ready_cb)(void *aptr), void *aptr);
 bool        common_msleep_                      (const char *file, int line, const char *func, unsigned msec);
+bool        common_modename_is_internal         (const char *modename);
 int         common_valid_mode                   (const char *mode);
 gchar      *common_get_mode_list                (mode_list_type_t type);
 
