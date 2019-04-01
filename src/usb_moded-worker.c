@@ -69,7 +69,7 @@ static bool        worker_set_requested_mode_locked(const char *mode);
 void               worker_request_hardware_mode    (const char *mode);
 void               worker_clear_hardware_mode      (void);
 static void        worker_execute                  (void);
-void               worker_switch_to_mode           (const char *mode);
+static void        worker_switch_to_mode           (const char *mode);
 static guint       worker_add_iowatch              (int fd, bool close_on_unref, GIOCondition cnd, GIOFunc io_cb, gpointer aptr);
 static void       *worker_thread_cb                (void *aptr);
 static gboolean    worker_notify_cb                (GIOChannel *chn, GIOCondition cnd, gpointer data);
@@ -391,7 +391,7 @@ void worker_clear_kernel_module(void)
  * ------------------------------------------------------------------------- */
 
 /** Contains the mode data */
-static const modedata_t *worker_mode_data = NULL;
+static modedata_t *worker_mode_data = NULL;
 
 /** get the usb mode data
  *
@@ -414,7 +414,8 @@ void worker_set_usb_mode_data(const modedata_t *data)
 {
     LOG_REGISTER_CONTEXT;
 
-    worker_mode_data = data;
+    modedata_free(worker_mode_data),
+        worker_mode_data = modedata_copy(data);
 }
 
 /* ------------------------------------------------------------------------- *
@@ -546,7 +547,7 @@ worker_execute(void)
  * MODE_SWITCH
  * ------------------------------------------------------------------------- */
 
-void
+static void
 worker_switch_to_mode(const char *mode)
 {
     LOG_REGISTER_CONTEXT;
