@@ -60,8 +60,8 @@ static bool        worker_switch_to_charging       (void);
 const char        *worker_get_kernel_module        (void);
 bool               worker_set_kernel_module        (const char *module);
 void               worker_clear_kernel_module      (void);
-modedata_t        *worker_get_usb_mode_data        (void);
-void               worker_set_usb_mode_data        (modedata_t *data);
+const modedata_t  *worker_get_usb_mode_data        (void);
+void               worker_set_usb_mode_data        (const modedata_t *data);
 static const char *worker_get_activated_mode_locked(void);
 static bool        worker_set_activated_mode_locked(const char *mode);
 static const char *worker_get_requested_mode_locked(void);
@@ -391,14 +391,14 @@ void worker_clear_kernel_module(void)
  * ------------------------------------------------------------------------- */
 
 /** Contains the mode data */
-static modedata_t *worker_mode_data = NULL;
+static const modedata_t *worker_mode_data = NULL;
 
 /** get the usb mode data
  *
  * @return a pointer to the usb mode data
  *
  */
-modedata_t *worker_get_usb_mode_data(void)
+const modedata_t *worker_get_usb_mode_data(void)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -410,7 +410,7 @@ modedata_t *worker_get_usb_mode_data(void)
  * @param data mode_list_element pointer
  *
  */
-void worker_set_usb_mode_data(modedata_t *data)
+void worker_set_usb_mode_data(const modedata_t *data)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -585,13 +585,8 @@ worker_switch_to_mode(const char *mode)
         goto FAILED;
     }
 
-    /* go through all the dynamic modes if the modelist exists*/
-    for( GList *iter = usbmoded_get_modelist(); iter; iter = g_list_next(iter) )
-    {
-        modedata_t *data = iter->data;
-        if( strcmp(mode, data->mode_name) )
-            continue;
-
+    const modedata_t *data = usbmoded_get_modedata(mode);
+    if( data ) {
         log_debug("Matching mode %s found.\n", mode);
 
         /* set data before calling any of the dynamic mode functions

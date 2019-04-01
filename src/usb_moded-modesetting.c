@@ -79,8 +79,8 @@ bool                   modesetting_unmount                    (const char *mount
 static gchar          *modesetting_mountdev                   (const char *mountpoint);
 static void            modesetting_free_storage_info          (storage_info_t *info);
 static storage_info_t *modesetting_get_storage_info           (size_t *pcount);
-static bool            modesetting_enter_mass_storage_mode    (modedata_t *data);
-static int             modesetting_leave_mass_storage_mode    (modedata_t *data);
+static bool            modesetting_enter_mass_storage_mode    (const modedata_t *data);
+static int             modesetting_leave_mass_storage_mode    (const modedata_t *data);
 static void            modesetting_report_mass_storage_blocker(const char *mountpoint, int try);
 bool                   modesetting_enter_dynamic_mode         (void);
 void                   modesetting_leave_dynamic_mode         (void);
@@ -426,7 +426,7 @@ EXIT:
     return *pcount = count, info;
 }
 
-static bool modesetting_enter_mass_storage_mode(modedata_t *data)
+static bool modesetting_enter_mass_storage_mode(const modedata_t *data)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -564,7 +564,7 @@ EXIT:
     return ack;
 }
 
-static int modesetting_leave_mass_storage_mode(modedata_t *data)
+static int modesetting_leave_mass_storage_mode(const modedata_t *data)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -704,7 +704,7 @@ bool modesetting_enter_dynamic_mode(void)
 
     bool ack = false;
 
-    modedata_t *data;
+    const modedata_t *data;
 
     log_debug("DYNAMIC MODE: SETUP");
 
@@ -856,9 +856,7 @@ void modesetting_leave_dynamic_mode(void)
 
     log_debug("DYNAMIC MODE: CLEANUP");
 
-    modedata_t *data;
-
-    data = worker_get_usb_mode_data();
+    const modedata_t *data = worker_get_usb_mode_data();
 
     /* - - - - - - - - - - - - - - - - - - - *
      * Is a dynamic mode?

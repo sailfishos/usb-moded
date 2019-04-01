@@ -461,24 +461,21 @@ int common_valid_mode(const char *mode)
     }
     else
     {
-        gchar  *whitelist_value = 0;
-        gchar **whitelist_array = 0;
+        const modedata_t *data = usbmoded_get_modedata(mode);
 
-        if( (whitelist_value = config_get_mode_whitelist()) )
-            whitelist_array = g_strsplit(whitelist_value, ",", 0);
+        if( data ) {
+            gchar  *whitelist_value = 0;
+            gchar **whitelist_array = 0;
 
-        for( GList *iter = usbmoded_get_modelist(); iter; iter = g_list_next(iter) ) {
-            modedata_t *data = iter->data;
-            if( strcmp(mode, data->mode_name) )
-                continue;
+            if( (whitelist_value = config_get_mode_whitelist()) )
+                whitelist_array = g_strsplit(whitelist_value, ",", 0);
 
             if (!whitelist_array || common_mode_in_list(data->mode_name, whitelist_array))
                 valid = 0;
-            break;
-        }
 
-        g_strfreev(whitelist_array);
-        g_free(whitelist_value);
+            g_strfreev(whitelist_array);
+            g_free(whitelist_value);
+        }
     }
     return valid;
 }

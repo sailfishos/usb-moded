@@ -622,7 +622,6 @@ char * config_get_network_setting(const char *config)
     LOG_REGISTER_CONTEXT;
 
     char * ret = 0;
-    modedata_t *data;
 
     if(!strcmp(config, NETWORK_IP_KEY))
     {
@@ -641,7 +640,7 @@ char * config_get_network_setting(const char *config)
             goto end;
         /* no interface override specified, let's use the one
          * from the mode config */
-        data = worker_get_usb_mode_data();
+        const modedata_t *data = worker_get_usb_mode_data();
         if(data)
         {
             if(data->network_interface)
