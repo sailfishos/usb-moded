@@ -579,6 +579,7 @@ worker_switch_to_mode(const char *mode)
     LOG_REGISTER_CONTEXT;
 
     const char *override = 0;
+    modedata_t *data     = 0;
 
     /* set return to 1 to be sure to error out if no matching mode is found either */
 
@@ -612,8 +613,7 @@ worker_switch_to_mode(const char *mode)
         goto FAILED;
     }
 
-    const modedata_t *data = usbmoded_get_modedata(mode);
-    if( data ) {
+    if( (data = usbmoded_dup_modedata(mode)) ) {
         log_debug("Matching mode %s found.\n", mode);
 
         /* set data before calling any of the dynamic mode functions
@@ -703,6 +703,8 @@ SUCCESS:
     WORKER_LOCKED_LEAVE;
 
     worker_notify();
+
+    modedata_free(data);
 
     return;
 }

@@ -111,6 +111,7 @@ GList            *usbmoded_get_modelist              (void);
 void              usbmoded_load_modelist             (void);
 void              usbmoded_free_modelist             (void);
 const modedata_t *usbmoded_get_modedata              (const char *modename);
+modedata_t       *usbmoded_dup_modedata              (const char *modename);
 bool              usbmoded_get_rescue_mode           (void);
 void              usbmoded_set_rescue_mode           (bool rescue_mode);
 bool              usbmoded_get_diag_mode             (void);
@@ -150,6 +151,22 @@ static bool       usbmoded_systemd_notify = false;
 #endif
 static bool       usbmoded_auto_exit      = false;
 
+static pthread_mutex_t  usbmoded_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+#define USBMODED_LOCKED_ENTER do {\
+    if( pthread_mutex_lock(&usbmoded_mutex) != 0 ) { \
+        log_crit("USBMODED LOCK FAILED");\
+        _exit(EXIT_FAILURE);\
+    }\
+}while(0)
+
+#define USBMODED_LOCKED_LEAVE do {\
+    if( pthread_mutex_unlock(&usbmoded_mutex) != 0 ) { \
+        log_crit("USBMODED UNLOCK FAILED");\
+        _exit(EXIT_FAILURE);\
+    }\
+}while(0)
+
 /* ========================================================================= *
  * Functions
  * ========================================================================= */
@@ -158,8 +175,18 @@ static bool       usbmoded_auto_exit      = false;
  * MODELIST
  * ------------------------------------------------------------------------- */
 
+/** List of mode data items read from configuration files
+ *
+ * Note: Worker thread should access this only via #usbmoded_dup_modedata().
+ */
 static GList *usbmoded_modelist = 0;
 
+/** Get list of dynamic mode data items
+ *
+ * Note: This function should be called only from the main thread.
+ *
+ * @returns List of mode data objects, or NULL
+ */
 GList *
 usbmoded_get_modelist(void)
 {
@@ -168,32 +195,58 @@ usbmoded_get_modelist(void)
     return usbmoded_modelist;
 }
 
+/** Load dynamic mode data items
+ *
+ * Note: This function should be called only from the main thread.
+ */
 void
 usbmoded_load_modelist(void)
 {
     LOG_REGISTER_CONTEXT;
 
+    USBMODED_LOCKED_ENTER;
+
     if( !usbmoded_modelist ) {
         log_notice("load modelist");
         usbmoded_modelist = modelist_load(usbmoded_get_diag_mode());
     }
+
+    USBMODED_LOCKED_LEAVE;
 }
 
+/** Free dynamic mode data items
+ *
+ * Note: This function should be called only from the main thread.
+ */
 void
 usbmoded_free_modelist(void)
 {
     LOG_REGISTER_CONTEXT;
+
+    USBMODED_LOCKED_ENTER;
 
     if( usbmoded_modelist ) {
         log_notice("free modelist");
         modelist_free(usbmoded_modelist),
             usbmoded_modelist = 0;
     }
+
+    USBMODED_LOCKED_LEAVE;
 }
 
+/** Lookup dynamic mode data by name
+ *
+ * Note: This function should be called only from the main thread.
+ *
+ * @param modename  Name of mode to lookup
+ *
+ * @return Mode data object, or NULL
+ */
 const modedata_t *
 usbmoded_get_modedata(const char *modename)
 {
+    LOG_REGISTER_CONTEXT;
+
     modedata_t *modedata = 0;
 
     for( GList *iter = usbmoded_get_modelist(); iter; iter = g_list_next(iter) ) {
@@ -203,6 +256,30 @@ usbmoded_get_modedata(const char *modename)
             break;
         }
     }
+    return modedata;
+}
+
+/** Lookup and clone dynamic mode data by name
+ *
+ * Note: This function is safe to call from worker thread too.
+ *
+ * Caller must release the returned object via #modedata_free().
+ *
+ * @param modename  Name of mode to lookup
+ *
+ * @return Mode data object, or NULL
+ */
+modedata_t *
+usbmoded_dup_modedata(const char *modename)
+{
+    LOG_REGISTER_CONTEXT;
+
+    USBMODED_LOCKED_ENTER;
+
+    modedata_t *modedata = modedata_copy(usbmoded_get_modedata(modename));
+
+    USBMODED_LOCKED_LEAVE;
+
     return modedata;
 }
 
