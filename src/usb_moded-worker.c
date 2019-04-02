@@ -61,6 +61,7 @@ const char        *worker_get_kernel_module        (void);
 bool               worker_set_kernel_module        (const char *module);
 void               worker_clear_kernel_module      (void);
 const modedata_t  *worker_get_usb_mode_data        (void);
+modedata_t        *worker_dup_usb_mode_data        (void);
 void               worker_set_usb_mode_data        (const modedata_t *data);
 static const char *worker_get_activated_mode_locked(void);
 static bool        worker_set_activated_mode_locked(const char *mode);
@@ -395,8 +396,9 @@ static modedata_t *worker_mode_data = NULL;
 
 /** get the usb mode data
  *
- * @return a pointer to the usb mode data
+ * Note: This function should be called only from the worker thread.
  *
+ * @return a pointer to the usb mode data
  */
 const modedata_t *worker_get_usb_mode_data(void)
 {
@@ -405,17 +407,41 @@ const modedata_t *worker_get_usb_mode_data(void)
     return worker_mode_data;
 }
 
+/** get clone of the usb mode data
+ *
+ * Caller must release the returned object via #modedata_free().
+ *
+ * @return a pointer to the usb mode data
+ */
+modedata_t *worker_dup_usb_mode_data(void)
+{
+    LOG_REGISTER_CONTEXT;
+
+    WORKER_LOCKED_ENTER;
+
+    modedata_t *modedata = modedata_copy(worker_mode_data);
+
+    WORKER_LOCKED_LEAVE;
+
+    return modedata;;
+}
+
 /** set the modedata_t data
  *
- * @param data mode_list_element pointer
+ * Note: This function should be called only from the worker thread,
  *
+ * @param data mode_list_element pointer
  */
 void worker_set_usb_mode_data(const modedata_t *data)
 {
     LOG_REGISTER_CONTEXT;
 
+    WORKER_LOCKED_ENTER;
+
     modedata_free(worker_mode_data),
         worker_mode_data = modedata_copy(data);
+
+    WORKER_LOCKED_LEAVE;
 }
 
 /* ------------------------------------------------------------------------- *
@@ -962,6 +988,9 @@ worker_quit(void)
 
     worker_stop_thread();
     worker_delete_eventfd();
+
+    /* Worker thread is stopped and resources can be released. */
+    worker_set_usb_mode_data(0);
 }
 
 void

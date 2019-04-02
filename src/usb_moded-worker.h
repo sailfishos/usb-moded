@@ -45,6 +45,7 @@ const char       *worker_get_kernel_module    (void);
 bool              worker_set_kernel_module    (const char *module);
 void              worker_clear_kernel_module  (void);
 const modedata_t *worker_get_usb_mode_data    (void);
+modedata_t       *worker_dup_usb_mode_data    (void);
 void              worker_set_usb_mode_data    (const modedata_t *data);
 void              worker_request_hardware_mode(const char *mode);
 void              worker_clear_hardware_mode  (void);

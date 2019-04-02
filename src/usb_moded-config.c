@@ -617,54 +617,50 @@ set_config_result_t config_set_network_setting(const char *config, const char *s
     return SET_CONFIG_ERROR;
 }
 
-char * config_get_network_setting(const char *config)
+char *config_get_network_setting(const char *config)
 {
     LOG_REGISTER_CONTEXT;
 
-    char * ret = 0;
+    char *ret = 0;
 
-    if(!strcmp(config, NETWORK_IP_KEY))
-    {
-        ret = config_get_network_ip();
-        if(!ret)
-            ret = strdup("192.168.2.15");
+    modedata_t *data = 0;
+
+    if( !g_strcmp0(config, NETWORK_IP_KEY) ) {
+        if( !(ret = config_get_network_ip()) )
+            ret = g_strdup("192.168.2.15");
     }
-    else if(!strcmp(config, NETWORK_INTERFACE_KEY))
-    {
-
+    else if( !g_strcmp0(config, NETWORK_INTERFACE_KEY)) {
         /* check main configuration before using
          * the information from the specific mode */
-        ret = config_get_network_interface();
+        if( (ret = config_get_network_interface()) )
+            goto EXIT;
 
-        if(ret)
-            goto end;
         /* no interface override specified, let's use the one
          * from the mode config */
-        const modedata_t *data = worker_get_usb_mode_data();
-        if(data)
-        {
-            if(data->network_interface)
-            {
-                ret = strdup(data->network_interface);
-                goto end;
-            }
+        if( (data = worker_dup_usb_mode_data()) ) {
+            if( (ret = g_strdup(data->network_interface)) )
+                goto EXIT;
         }
-        ret = strdup("usb0");
+
+        ret = g_strdup("usb0");
     }
-    else if(!strcmp(config, NETWORK_GATEWAY_KEY))
-        return config_get_network_gateway();
-    else if(!strcmp(config, NETWORK_NETMASK_KEY))
-    {
-        ret = config_get_network_netmask();
-        if(!ret)
-            ret = strdup("255.255.255.0");
+    else if( !g_strcmp0(config, NETWORK_GATEWAY_KEY) ) {
+        ret = config_get_network_gateway();
     }
-    else if(!strcmp(config, NETWORK_NAT_INTERFACE_KEY))
-        return config_get_network_nat_interface();
-    else
+    else if( !g_strcmp0(config, NETWORK_NETMASK_KEY) ) {
+        if( !(ret = config_get_network_netmask()) )
+            ret = g_strdup("255.255.255.0");
+    }
+    else if( !g_strcmp0(config, NETWORK_NAT_INTERFACE_KEY) ) {
+        ret = config_get_network_nat_interface();
+    }
+    else {
         /* no matching keys, return error */
-        return NULL;
-end:
+    }
+
+EXIT:
+    modedata_free(data);
+
     return ret;
 }
 

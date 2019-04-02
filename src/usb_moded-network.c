@@ -1295,12 +1295,12 @@ int network_update(void)
     LOG_REGISTER_CONTEXT;
 
     if( control_get_cable_state() == CABLE_STATE_PC_CONNECTED ) {
-        // FIXME: data hazard
-        const modedata_t *data = worker_get_usb_mode_data();
+        modedata_t *data = worker_dup_usb_mode_data();
         if( data && data->network ) {
             network_down(data);
             network_up(data);
         }
+        modedata_free(data);
     }
     return 0;
 }
