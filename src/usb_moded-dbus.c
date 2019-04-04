@@ -59,7 +59,7 @@
  * UMDBUS
  * ------------------------------------------------------------------------- */
 
-static void               umdbus_send_config_signal           (const char *section, const char *key, const char *value);
+void                      umdbus_send_config_signal           (const char *section, const char *key, const char *value);
 static DBusHandlerResult  umdbus_msg_handler                  (DBusConnection *const connection, DBusMessage *const msg, gpointer const user_data);
 DBusConnection           *umdbus_get_connection               (void);
 gboolean                  umdbus_init_connection              (void);
@@ -233,7 +233,7 @@ static const char umdbus_introspect_usbmoded[] =
 /**
  * Issues "sig_usb_config_ind" signal.
 */
-static void umdbus_send_config_signal(const char *section, const char *key, const char *value)
+void umdbus_send_config_signal(const char *section, const char *key, const char *value)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -384,8 +384,6 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
             {
                 /* error checking is done when setting configuration */
                 int ret = config_set_mode_setting(config);
-                if (ret == SET_CONFIG_UPDATED)
-                    umdbus_send_config_signal(MODE_SETTING_ENTRY, MODE_SETTING_KEY, config);
                 if (SET_CONFIG_OK(ret))
                 {
                     if((reply = dbus_message_new_method_return(msg)))
@@ -407,8 +405,6 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
             {
                 /* error checking is done when setting configuration */
                 int ret = config_set_hide_mode_setting(config);
-                if (ret == SET_CONFIG_UPDATED)
-                    umdbus_send_config_signal(MODE_SETTING_ENTRY, MODE_HIDE_KEY, config);
                 if (SET_CONFIG_OK(ret))
                 {
                     if((reply = dbus_message_new_method_return(msg)))
@@ -430,8 +426,6 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
             {
                 /* error checking is done when setting configuration */
                 int ret = config_set_unhide_mode_setting(config);
-                if (ret == SET_CONFIG_UPDATED)
-                    umdbus_send_config_signal(MODE_SETTING_ENTRY, MODE_HIDE_KEY, config);
                 if (SET_CONFIG_OK(ret))
                 {
                     if((reply = dbus_message_new_method_return(msg)))
@@ -462,8 +456,6 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
             {
                 /* error checking is done when setting configuration */
                 int ret = config_set_network_setting(config, setting);
-                if (ret == SET_CONFIG_UPDATED)
-                    umdbus_send_config_signal(NETWORK_ENTRY, config, setting);
                 if (SET_CONFIG_OK(ret))
                 {
                     if((reply = dbus_message_new_method_return(msg)))
@@ -549,8 +541,6 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
             else
             {
                 int ret = config_set_mode_whitelist(whitelist);
-                if (ret == SET_CONFIG_UPDATED)
-                    umdbus_send_config_signal(MODE_SETTING_ENTRY, MODE_WHITELIST_KEY, whitelist);
                 if (SET_CONFIG_OK(ret))
                 {
                     if ((reply = dbus_message_new_method_return(msg)))
@@ -572,14 +562,6 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
             else
             {
                 int ret = config_set_mode_in_whitelist(mode, enabled);
-                if (ret == SET_CONFIG_UPDATED)
-                {
-                    char *whitelist = config_get_mode_whitelist();
-                    if (!whitelist)
-                        whitelist = g_strdup(MODE_UNDEFINED);
-                    umdbus_send_config_signal(MODE_SETTING_ENTRY, MODE_WHITELIST_KEY, whitelist);
-                    g_free(whitelist);
-                }
                 if (SET_CONFIG_OK(ret))
                     reply = dbus_message_new_method_return(msg);
                 else

@@ -415,6 +415,7 @@ set_config_result_t config_set_config_setting(const char *entry, const char *key
     if( g_strcmp0(prev, value) ) {
         g_key_file_set_string(active_ini, entry, key, value);
         ret = SET_CONFIG_UPDATED;
+        umdbus_send_config_signal(entry, key, value);
     }
 
     /* Filter out dynamic data that matches static values */
@@ -436,7 +437,11 @@ set_config_result_t config_set_mode_setting(const char *mode)
 
     if (strcmp(mode, MODE_ASK) && common_valid_mode(mode))
         return SET_CONFIG_ERROR;
-    return config_set_config_setting(MODE_SETTING_ENTRY, MODE_SETTING_KEY, mode);
+
+    int ret = config_set_config_setting(MODE_SETTING_ENTRY,
+                                        MODE_SETTING_KEY, mode);
+
+    return ret;
 }
 
 /* Builds the string used for hidden modes, when hide set to one builds the
@@ -588,9 +593,7 @@ set_config_result_t config_set_mode_in_whitelist(const char *mode, int allowed)
 
     char *whitelist = config_make_modes_string(MODE_WHITELIST_KEY, mode, allowed);
 
-    if (whitelist) {
-        ret = config_set_mode_whitelist(whitelist);
-    }
+    ret = config_set_mode_whitelist(whitelist ?: "");
 
     g_free(whitelist);
 
