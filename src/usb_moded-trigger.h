@@ -2,7 +2,7 @@
  * @file usb_moded-trigger.h
  *
  * Copyright (C) 2011 Nokia Corporation. All rights reserved.
- * Copyright (C) 2018 Jolla Ltd.
+ * Copyright (C) 2018-2019 Jolla Ltd.
  *
  * @author: Philippe De Swert <philippe.de-swert@nokia.com>
  * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
@@ -31,9 +31,11 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- trigger -- */
+/* ------------------------------------------------------------------------- *
+ * TRIGGER
+ * ------------------------------------------------------------------------- */
 
-bool     trigger_init(void);
-void     trigger_stop(void);
+bool trigger_init(void);
+void trigger_stop(void);
 
 #endif /* USB_MODED_TRIGGER_H_ */

@@ -1,7 +1,7 @@
 /**
  * @file usb_moded-ssu.c
  *
- * Copyright (C) 2016-2018 Jolla. All rights reserved.
+ * Copyright (C) 2016-2019 Jolla. All rights reserved.
  *
  * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
  *
@@ -33,7 +33,9 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- ssu -- */
+/* ------------------------------------------------------------------------- *
+ * SSU
+ * ------------------------------------------------------------------------- */
 
 static void          ssu_free_handle          (void);
 static ssusysinfo_t *ssu_get_handle           (void);

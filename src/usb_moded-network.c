@@ -2,7 +2,7 @@
  * @file usb-moded_network.c : (De)activates network depending on the network setting system.
  *
  * Copyright (C) 2011 Nokia Corporation. All rights reserved.
- * Copyright (C) 2012-2018 Jolla. All rights reserved.
+ * Copyright (C) 2012-2019 Jolla. All rights reserved.
  *
  * @author: Philippe De Swert <philippe.de-swert@nokia.com>
  * @author: Philippe De Swert <philippedeswert@gmail.com>
@@ -73,23 +73,38 @@ typedef struct ipforward_data_t
  * Prototypes
  * ========================================================================= */
 
-/* -- network -- */
+/* ------------------------------------------------------------------------- *
+ * NETWORK
+ * ------------------------------------------------------------------------- */
 
 static void  network_free_ipforward_data (ipforward_data_t *ipforward);
 static int   network_check_interface     (char *interface);
-static char *network_get_interface       (mode_list_elem_t *data);
-static int   network_set_usb_ip_forward  (mode_list_elem_t *data, ipforward_data_t *ipforward);
+static char *network_get_interface       (const modedata_t *data);
+static int   network_set_usb_ip_forward  (const modedata_t *data, ipforward_data_t *ipforward);
 static void  network_clean_usb_ip_forward(void);
 static int   network_checklink           (void);
-static int   network_write_udhcpd_conf   (ipforward_data_t *ipforward, mode_list_elem_t *data);
-int          network_set_up_dhcpd        (mode_list_elem_t *data);
-int          network_up                  (mode_list_elem_t *data);
-int          network_down                (mode_list_elem_t *data);
+static int   network_write_udhcpd_conf   (ipforward_data_t *ipforward, const modedata_t *data);
+int          network_set_up_dhcpd        (const modedata_t *data);
+int          network_up                  (const modedata_t *data);
+int          network_down                (const modedata_t *data);
 int          network_update              (void);
 
-/* -- connman -- */
+/* ------------------------------------------------------------------------- *
+ * UTILITY
+ * ------------------------------------------------------------------------- */
 
-#ifdef CONNMAN
+#ifdef OFONO
+static int get_roaming   (void);
+#endif // OFONO
+
+#if CONNMAN_WORKS_BETTER
+static int append_variant(DBusMessageIter *iter, const char *property, int type, const char *value);
+#endif // CONNMAN_WORKS_BETTER
+
+/* ------------------------------------------------------------------------- *
+ * CONNMAN
+ * ------------------------------------------------------------------------- */
+
 static gboolean  connman_try_set_tethering   (DBusConnection *connection, const char *path, gboolean on);
 gboolean         connman_set_tethering       (const char *path, gboolean on);
 static char     *connman_parse_manager_reply (DBusMessage *reply, const char *req_service);
@@ -98,7 +113,6 @@ static int       connman_set_cellular_online (DBusConnection *dbus_conn_connman,
 static int       connman_wifi_power_control  (DBusConnection *dbus_conn_connman, int on);
 static int       connman_get_connection_data (ipforward_data_t *ipforward);
 static int       connman_reset_state         (void);
-#endif
 
 /* ========================================================================= *
  * Data
@@ -143,7 +157,7 @@ static int network_check_interface(char *interface)
     return ret;
 }
 
-static char* network_get_interface(mode_list_elem_t *data)
+static char *network_get_interface(const modedata_t *data)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -180,7 +194,7 @@ static char* network_get_interface(mode_list_elem_t *data)
  * Turn on ip forwarding on the usb interface
  * @return: 0 on success, 1 on failure
  */
-static int network_set_usb_ip_forward(mode_list_elem_t *data, ipforward_data_t *ipforward)
+static int network_set_usb_ip_forward(const modedata_t *data, ipforward_data_t *ipforward)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -375,7 +389,7 @@ static int network_checklink(void)
  * Write udhcpd.conf
  * @ipforward : NULL if we want a simple config, otherwise include dns info etc...
  */
-static int network_write_udhcpd_conf(ipforward_data_t *ipforward, mode_list_elem_t *data)
+static int network_write_udhcpd_conf(ipforward_data_t *ipforward, const modedata_t *data)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -950,7 +964,7 @@ static int connman_reset_state(void)
 /**
  * Write out /etc/udhcpd.conf conf so the config is available when it gets started
  */
-int network_set_up_dhcpd(mode_list_elem_t *data)
+int network_set_up_dhcpd(const modedata_t *data)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -1034,7 +1048,7 @@ static int append_variant(DBusMessageIter *iter, const char *property,
  * Activate the network interface
  *
  */
-int network_up(mode_list_elem_t *data)
+int network_up(const modedata_t *data)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -1202,7 +1216,7 @@ int network_up(mode_list_elem_t *data)
  * Deactivate the network interface
  *
  */
-int network_down(mode_list_elem_t *data)
+int network_down(const modedata_t *data)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -1281,11 +1295,12 @@ int network_update(void)
     LOG_REGISTER_CONTEXT;
 
     if( control_get_cable_state() == CABLE_STATE_PC_CONNECTED ) {
-        mode_list_elem_t *data = worker_get_usb_mode_data();
+        modedata_t *data = worker_dup_usb_mode_data();
         if( data && data->network ) {
             network_down(data);
             network_up(data);
         }
+        modedata_free(data);
     }
     return 0;
 }

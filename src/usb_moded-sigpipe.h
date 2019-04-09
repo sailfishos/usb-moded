@@ -2,7 +2,7 @@
  * @file usb_moded-sigpipe.c
  *
  * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2012-2018 Jolla. All rights reserved.
+ * Copyright (C) 2012-2019 Jolla. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the Lesser GNU General Public License
@@ -24,7 +24,13 @@
 
 #include <stdbool.h>
 
-/* -- sigpipe -- */
+/* ========================================================================= *
+ * Prototypes
+ * ========================================================================= */
+
+/* ------------------------------------------------------------------------- *
+ * SIGPIPE
+ * ------------------------------------------------------------------------- */
 
 bool sigpipe_init(void);
 

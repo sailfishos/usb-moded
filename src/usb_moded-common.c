@@ -35,11 +35,15 @@ typedef struct modemapping_t
  * Prototypes
  * ========================================================================= */
 
-/* -- cable -- */
+/* ------------------------------------------------------------------------- *
+ * CABLE_STATE
+ * ------------------------------------------------------------------------- */
 
 const char *cable_state_repr(cable_state_t state);
 
-/* -- common -- */
+/* ------------------------------------------------------------------------- *
+ * COMMON
+ * ------------------------------------------------------------------------- */
 
 const char  *common_map_mode_to_hardware         (const char *internal_mode);
 const char  *common_map_mode_to_external         (const char *internal_mode);
@@ -55,6 +59,7 @@ FILE        *common_popen_                       (const char *file, int line, co
 waitres_t    common_wait                         (unsigned tot_ms, bool (*ready_cb)(void *aptr), void *aptr);
 bool         common_msleep_                      (const char *file, int line, const char *func, unsigned msec);
 static bool  common_mode_in_list                 (const char *mode, char *const *modes);
+bool         common_modename_is_internal         (const char *modename);
 int          common_valid_mode                   (const char *mode);
 gchar       *common_get_mode_list                (mode_list_type_t type);
 
@@ -439,6 +444,25 @@ static bool common_mode_in_list(const char *mode, char * const *modes)
     return false;
 }
 
+/** Check if given usb mode is internal
+ *
+ * @param modename name of a more
+ *
+ * @return true if mode is internal, false otherwise
+ */
+bool
+common_modename_is_internal(const char *modename)
+{
+    LOG_REGISTER_CONTEXT;
+
+    return (!g_strcmp0(modename, MODE_UNDEFINED) ||
+            !g_strcmp0(modename, MODE_CHARGER) ||
+            !g_strcmp0(modename, MODE_CHARGING_FALLBACK) ||
+            !g_strcmp0(modename, MODE_ASK) ||
+            !g_strcmp0(modename, MODE_CHARGING) ||
+            !g_strcmp0(modename, MODE_BUSY));
+}
+
 /** check if a given usb_mode exists
  *
  * @param mode The mode to look for
@@ -457,24 +481,21 @@ int common_valid_mode(const char *mode)
     }
     else
     {
-        gchar  *whitelist_value = 0;
-        gchar **whitelist_array = 0;
+        const modedata_t *data = usbmoded_get_modedata(mode);
 
-        if( (whitelist_value = config_get_mode_whitelist()) )
-            whitelist_array = g_strsplit(whitelist_value, ",", 0);
+        if( data ) {
+            gchar  *whitelist_value = 0;
+            gchar **whitelist_array = 0;
 
-        for( GList *iter = usbmoded_get_modelist(); iter; iter = g_list_next(iter) ) {
-            mode_list_elem_t *data = iter->data;
-            if( strcmp(mode, data->mode_name) )
-                continue;
+            if( (whitelist_value = config_get_mode_whitelist()) )
+                whitelist_array = g_strsplit(whitelist_value, ",", 0);
 
             if (!whitelist_array || common_mode_in_list(data->mode_name, whitelist_array))
                 valid = 0;
-            break;
-        }
 
-        g_strfreev(whitelist_array);
-        g_free(whitelist_value);
+            g_strfreev(whitelist_array);
+            g_free(whitelist_value);
+        }
     }
     return valid;
 }
@@ -521,7 +542,7 @@ gchar *common_get_mode_list(mode_list_type_t type)
 
     for( GList *iter = usbmoded_get_modelist(); iter; iter = g_list_next(iter) )
     {
-        mode_list_elem_t *data = iter->data;
+        modedata_t *data = iter->data;
 
         /* skip items in the hidden list */
         if (common_mode_in_list(data->mode_name, hidden_modes_array))

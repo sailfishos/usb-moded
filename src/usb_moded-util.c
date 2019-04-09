@@ -1,7 +1,7 @@
 /**
  * @file usb_moded-util.c
  *
- * Copyright (C) 2013-2018 Jolla. All rights reserved.
+ * Copyright (C) 2013-2019 Jolla. All rights reserved.
  *
  * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
  * @author: Philippe De Swert <philippedeswert@gmail.com>
@@ -34,7 +34,9 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- util -- */
+/* ------------------------------------------------------------------------- *
+ * UTIL
+ * ------------------------------------------------------------------------- */
 
 static int util_query_mode            (void);
 static int util_get_modelist          (void);
@@ -46,6 +48,12 @@ static int util_set_hide_mode_config  (char *mode);
 static int util_set_unhide_mode_config(char *mode);
 static int util_get_hiddenlist        (void);
 static int util_handle_network        (char *network);
+
+/* ------------------------------------------------------------------------- *
+ * MAIN
+ * ------------------------------------------------------------------------- */
+
+int main(int argc, char *argv[]);
 
 /* ========================================================================= *
  * Data

@@ -2,7 +2,7 @@
  * @file usb_moded-config.c
  *
  * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2012-2018 Jolla. All rights reserved.
+ * Copyright (C) 2012-2019 Jolla. All rights reserved.
  *
  * @author: Philippe De Swert <philippe.de-swert@nokia.com>
  * @author: Philippe De Swert <phdeswer@lumi.maa>
@@ -57,7 +57,9 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- config -- */
+/* ------------------------------------------------------------------------- *
+ * CONFIG
+ * ------------------------------------------------------------------------- */
 
 static int           config_validate_ip              (const char *ipadd);
 char                *config_find_mounts              (void);
@@ -413,6 +415,7 @@ set_config_result_t config_set_config_setting(const char *entry, const char *key
     if( g_strcmp0(prev, value) ) {
         g_key_file_set_string(active_ini, entry, key, value);
         ret = SET_CONFIG_UPDATED;
+        umdbus_send_config_signal(entry, key, value);
     }
 
     /* Filter out dynamic data that matches static values */
@@ -434,7 +437,11 @@ set_config_result_t config_set_mode_setting(const char *mode)
 
     if (strcmp(mode, MODE_ASK) && common_valid_mode(mode))
         return SET_CONFIG_ERROR;
-    return config_set_config_setting(MODE_SETTING_ENTRY, MODE_SETTING_KEY, mode);
+
+    int ret = config_set_config_setting(MODE_SETTING_ENTRY,
+                                        MODE_SETTING_KEY, mode);
+
+    return ret;
 }
 
 /* Builds the string used for hidden modes, when hide set to one builds the
@@ -586,9 +593,7 @@ set_config_result_t config_set_mode_in_whitelist(const char *mode, int allowed)
 
     char *whitelist = config_make_modes_string(MODE_WHITELIST_KEY, mode, allowed);
 
-    if (whitelist) {
-        ret = config_set_mode_whitelist(whitelist);
-    }
+    ret = config_set_mode_whitelist(whitelist ?: "");
 
     g_free(whitelist);
 
@@ -615,55 +620,50 @@ set_config_result_t config_set_network_setting(const char *config, const char *s
     return SET_CONFIG_ERROR;
 }
 
-char * config_get_network_setting(const char *config)
+char *config_get_network_setting(const char *config)
 {
     LOG_REGISTER_CONTEXT;
 
-    char * ret = 0;
-    mode_list_elem_t *data;
+    char *ret = 0;
 
-    if(!strcmp(config, NETWORK_IP_KEY))
-    {
-        ret = config_get_network_ip();
-        if(!ret)
-            ret = strdup("192.168.2.15");
+    modedata_t *data = 0;
+
+    if( !g_strcmp0(config, NETWORK_IP_KEY) ) {
+        if( !(ret = config_get_network_ip()) )
+            ret = g_strdup("192.168.2.15");
     }
-    else if(!strcmp(config, NETWORK_INTERFACE_KEY))
-    {
-
+    else if( !g_strcmp0(config, NETWORK_INTERFACE_KEY)) {
         /* check main configuration before using
          * the information from the specific mode */
-        ret = config_get_network_interface();
+        if( (ret = config_get_network_interface()) )
+            goto EXIT;
 
-        if(ret)
-            goto end;
         /* no interface override specified, let's use the one
          * from the mode config */
-        data = worker_get_usb_mode_data();
-        if(data)
-        {
-            if(data->network_interface)
-            {
-                ret = strdup(data->network_interface);
-                goto end;
-            }
+        if( (data = worker_dup_usb_mode_data()) ) {
+            if( (ret = g_strdup(data->network_interface)) )
+                goto EXIT;
         }
-        ret = strdup("usb0");
+
+        ret = g_strdup("usb0");
     }
-    else if(!strcmp(config, NETWORK_GATEWAY_KEY))
-        return config_get_network_gateway();
-    else if(!strcmp(config, NETWORK_NETMASK_KEY))
-    {
-        ret = config_get_network_netmask();
-        if(!ret)
-            ret = strdup("255.255.255.0");
+    else if( !g_strcmp0(config, NETWORK_GATEWAY_KEY) ) {
+        ret = config_get_network_gateway();
     }
-    else if(!strcmp(config, NETWORK_NAT_INTERFACE_KEY))
-        return config_get_network_nat_interface();
-    else
+    else if( !g_strcmp0(config, NETWORK_NETMASK_KEY) ) {
+        if( !(ret = config_get_network_netmask()) )
+            ret = g_strdup("255.255.255.0");
+    }
+    else if( !g_strcmp0(config, NETWORK_NAT_INTERFACE_KEY) ) {
+        ret = config_get_network_nat_interface();
+    }
+    else {
         /* no matching keys, return error */
-        return NULL;
-end:
+    }
+
+EXIT:
+    modedata_free(data);
+
     return ret;
 }
 

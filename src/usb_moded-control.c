@@ -37,7 +37,9 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- usbmoded -- */
+/* ------------------------------------------------------------------------- *
+ * CONTROL
+ * ------------------------------------------------------------------------- */
 
 void           control_rethink_usb_charging_fallback(void);
 const char    *control_get_external_mode            (void);
@@ -323,7 +325,7 @@ void control_select_usb_mode(void)
             log_err("Diagnostic mode is not configured!");
         }
         else {
-            mode_list_elem_t *data = iter->data;
+            modedata_t *data = iter->data;
             log_debug("Entering diagnostic mode!");
             control_set_usb_mode(data->mode_name);
         }

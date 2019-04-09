@@ -2,7 +2,7 @@
  * @file: usb_moded-devicelock.c
  *
  * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2013-2018 Jolla Ltd.
+ * Copyright (C) 2013-2019 Jolla Ltd.
  *
  * @author: Philippe De Swert <philippe.de-swert@nokia.com>
  * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
@@ -61,7 +61,9 @@ typedef enum devicelock_state_t
  * Prototypes
  * ========================================================================= */
 
-/* -- devicelock -- */
+/* ------------------------------------------------------------------------- *
+ * DEVICELOCK
+ * ------------------------------------------------------------------------- */
 
 static const char        *devicelock_state_repr            (devicelock_state_t state);
 bool                      devicelock_have_export_permission(void);

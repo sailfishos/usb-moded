@@ -55,9 +55,11 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- umdbus -- */
+/* ------------------------------------------------------------------------- *
+ * UMDBUS
+ * ------------------------------------------------------------------------- */
 
-static void               umdbus_send_config_signal           (const char *section, const char *key, const char *value);
+void                      umdbus_send_config_signal           (const char *section, const char *key, const char *value);
 static DBusHandlerResult  umdbus_msg_handler                  (DBusConnection *const connection, DBusMessage *const msg, gpointer const user_data);
 DBusConnection           *umdbus_get_connection               (void);
 gboolean                  umdbus_init_connection              (void);
@@ -68,9 +70,9 @@ static DBusMessage       *umdbus_new_signal                   (const char *signa
 static int                umdbus_send_signal_ex               (const char *signal_name, const char *content);
 static void               umdbus_send_legacy_signal           (const char *state_ind);
 void                      umdbus_send_current_state_signal    (const char *state_ind);
-static bool               umsdbus_append_basic_entry          (DBusMessageIter *iter, const char *key, int type, const void *val);
-static bool               umsdbus_append_int32_entry          (DBusMessageIter *iter, const char *key, int val);
-static bool               umsdbus_append_string_entry         (DBusMessageIter *iter, const char *key, const char *val);
+static bool               umdbus_append_basic_entry           (DBusMessageIter *iter, const char *key, int type, const void *val);
+static bool               umdbus_append_int32_entry           (DBusMessageIter *iter, const char *key, int val);
+static bool               umdbus_append_string_entry          (DBusMessageIter *iter, const char *key, const char *val);
 static bool               umdbus_append_mode_details          (DBusMessage *msg, const char *mode_name);
 static void               umdbus_send_mode_details_signal     (const char *mode_name);
 void                      umdbus_send_target_state_signal     (const char *state_ind);
@@ -231,7 +233,7 @@ static const char umdbus_introspect_usbmoded[] =
 /**
  * Issues "sig_usb_config_ind" signal.
 */
-static void umdbus_send_config_signal(const char *section, const char *key, const char *value)
+void umdbus_send_config_signal(const char *section, const char *key, const char *value)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -382,8 +384,6 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
             {
                 /* error checking is done when setting configuration */
                 int ret = config_set_mode_setting(config);
-                if (ret == SET_CONFIG_UPDATED)
-                    umdbus_send_config_signal(MODE_SETTING_ENTRY, MODE_SETTING_KEY, config);
                 if (SET_CONFIG_OK(ret))
                 {
                     if((reply = dbus_message_new_method_return(msg)))
@@ -405,8 +405,6 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
             {
                 /* error checking is done when setting configuration */
                 int ret = config_set_hide_mode_setting(config);
-                if (ret == SET_CONFIG_UPDATED)
-                    umdbus_send_config_signal(MODE_SETTING_ENTRY, MODE_HIDE_KEY, config);
                 if (SET_CONFIG_OK(ret))
                 {
                     if((reply = dbus_message_new_method_return(msg)))
@@ -428,8 +426,6 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
             {
                 /* error checking is done when setting configuration */
                 int ret = config_set_unhide_mode_setting(config);
-                if (ret == SET_CONFIG_UPDATED)
-                    umdbus_send_config_signal(MODE_SETTING_ENTRY, MODE_HIDE_KEY, config);
                 if (SET_CONFIG_OK(ret))
                 {
                     if((reply = dbus_message_new_method_return(msg)))
@@ -460,8 +456,6 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
             {
                 /* error checking is done when setting configuration */
                 int ret = config_set_network_setting(config, setting);
-                if (ret == SET_CONFIG_UPDATED)
-                    umdbus_send_config_signal(NETWORK_ENTRY, config, setting);
                 if (SET_CONFIG_OK(ret))
                 {
                     if((reply = dbus_message_new_method_return(msg)))
@@ -547,8 +541,6 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
             else
             {
                 int ret = config_set_mode_whitelist(whitelist);
-                if (ret == SET_CONFIG_UPDATED)
-                    umdbus_send_config_signal(MODE_SETTING_ENTRY, MODE_WHITELIST_KEY, whitelist);
                 if (SET_CONFIG_OK(ret))
                 {
                     if ((reply = dbus_message_new_method_return(msg)))
@@ -570,14 +562,6 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
             else
             {
                 int ret = config_set_mode_in_whitelist(mode, enabled);
-                if (ret == SET_CONFIG_UPDATED)
-                {
-                    char *whitelist = config_get_mode_whitelist();
-                    if (!whitelist)
-                        whitelist = g_strdup(MODE_UNDEFINED);
-                    umdbus_send_config_signal(MODE_SETTING_ENTRY, MODE_WHITELIST_KEY, whitelist);
-                    g_free(whitelist);
-                }
                 if (SET_CONFIG_OK(ret))
                     reply = dbus_message_new_method_return(msg);
                 else
@@ -933,7 +917,7 @@ void umdbus_send_current_state_signal(const char *state_ind)
  * @return true on success, false on failure
  */
 static bool
-umsdbus_append_basic_entry(DBusMessageIter *iter, const char *key,
+umdbus_append_basic_entry(DBusMessageIter *iter, const char *key,
                            int type, const void *val)
 {
     LOG_REGISTER_CONTEXT;
@@ -993,12 +977,12 @@ bailout_message:
  * @return true on success, false on failure
  */
 static bool
-umsdbus_append_int32_entry(DBusMessageIter *iter, const char *key, int val)
+umdbus_append_int32_entry(DBusMessageIter *iter, const char *key, int val)
 {
     LOG_REGISTER_CONTEXT;
 
     dbus_int32_t arg = val;
-    return umsdbus_append_basic_entry(iter, key, DBUS_TYPE_INT32, &arg);
+    return umdbus_append_basic_entry(iter, key, DBUS_TYPE_INT32, &arg);
 }
 
 /** Append string key, variant:string value dict entry to dbus iterator
@@ -1010,14 +994,14 @@ umsdbus_append_int32_entry(DBusMessageIter *iter, const char *key, int val)
  * @return true on success, false on failure
  */
 static bool
-umsdbus_append_string_entry(DBusMessageIter *iter, const char *key,
+umdbus_append_string_entry(DBusMessageIter *iter, const char *key,
                             const char *val)
 {
     LOG_REGISTER_CONTEXT;
 
     if( !val )
         val = "";
-    return umsdbus_append_basic_entry(iter, key, DBUS_TYPE_STRING, &val);
+    return umdbus_append_basic_entry(iter, key, DBUS_TYPE_STRING, &val);
 }
 
 /** Append dynamic mode configuration to dbus message
@@ -1032,16 +1016,7 @@ umdbus_append_mode_details(DBusMessage *msg, const char *mode_name)
 {
     LOG_REGISTER_CONTEXT;
 
-    const mode_list_elem_t *data = 0;
-
-    for( GList *iter = usbmoded_get_modelist(); iter; iter = g_list_next(iter) )
-    {
-        const mode_list_elem_t *iter_data = iter->data;
-        if( g_strcmp0(iter_data->mode_name, mode_name) )
-            continue;
-        data = iter_data;
-        break;
-    }
+    const modedata_t *data = usbmoded_get_modedata(mode_name);
 
     DBusMessageIter body, dict;
 
@@ -1059,7 +1034,7 @@ umdbus_append_mode_details(DBusMessage *msg, const char *mode_name)
     /* Note: mode_name is special case: It needs to be valid even
      *       if the mode does not have dynamic configuration.
      */
-    if( !umsdbus_append_string_entry(&dict, "mode_name", mode_name) )
+    if( !umdbus_append_string_entry(&dict, "mode_name", mode_name) )
         goto bailout_dict;
 
     /* For the rest of the mode attrs we use fallback data if there
@@ -1067,10 +1042,10 @@ umdbus_append_mode_details(DBusMessage *msg, const char *mode_name)
      */
 
 #define ADD_STR(name) \
-     if( !umsdbus_append_string_entry(&dict, #name, data ? data->name : 0) )\
+     if( !umdbus_append_string_entry(&dict, #name, data ? data->name : 0) )\
              goto bailout_dict;
 #define ADD_INT(name) \
-     if( !umsdbus_append_int32_entry(&dict, #name, data ? data->name : 0) )\
+     if( !umdbus_append_int32_entry(&dict, #name, data ? data->name : 0) )\
              goto bailout_dict;
 
     /* Attributes that we presume to be needed */

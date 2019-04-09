@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2013-2018 Jolla Ltd.
+ * Copyright (C) 2013-2019 Jolla Ltd.
  *
  * author: Philippe De Swert <philippe.de-swert@nokia.com>
  * author: Philippe De Swert <phdeswer@lumi.maa>
@@ -74,14 +74,16 @@ typedef struct list_elem_t
  * Prototypes
  * ========================================================================= */
 
-/* -- appsync -- */
+/* ------------------------------------------------------------------------- *
+ * APPSYNC
+ * ------------------------------------------------------------------------- */
 
 void appsync_free_appsync_list (void);
 void appsync_read_list         (int diag);
 int  appsync_activate_sync     (const char *mode);
 int  appsync_activate_sync_post(const char *mode);
 int  appsync_mark_active       (const gchar *name, int post);
-int  appsync_stop              (gboolean force);
 void appsync_stop_apps         (int post);
+int  appsync_stop              (gboolean force);
 
 #endif /* USB_MODED_APPSYNC_H_ */

@@ -1,7 +1,7 @@
 /**
  * @file usb_moded-mac.h
  *
- * Copyright (C) 2013-2018 Jolla. All rights reserved.
+ * Copyright (C) 2013-2019 Jolla. All rights reserved.
  *
  * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
  * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
@@ -28,7 +28,9 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- mac -- */
+/* ------------------------------------------------------------------------- *
+ * MAC
+ * ------------------------------------------------------------------------- */
 
 void  mac_generate_random_mac(void);
 char *mac_read_mac           (void);

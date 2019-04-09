@@ -27,7 +27,13 @@
 # include "usb_moded.h"
 # include "usb_moded-common.h"
 
-/* -- usbmoded -- */
+/* ========================================================================= *
+ * Prototypes
+ * ========================================================================= */
+
+/* ------------------------------------------------------------------------- *
+ * CONTROL
+ * ------------------------------------------------------------------------- */
 
 void           control_rethink_usb_charging_fallback(void);
 const char    *control_get_external_mode            (void);
@@ -37,7 +43,7 @@ void           control_clear_target_mode            (void);
 const char    *control_get_usb_mode                 (void);
 void           control_clear_internal_mode          (void);
 void           control_set_usb_mode                 (const char *mode);
-void           control_mode_switched                (const char *override);
+void           control_mode_switched                (const char *mode);
 void           control_select_usb_mode              (void);
 void           control_set_cable_state              (cable_state_t cable_state);
 cable_state_t  control_get_cable_state              (void);

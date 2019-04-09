@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2011 Nokia Corporation. All rights reserved.
- * Copyright (C) 2013-2018 Jolla Ltd.
+ * Copyright (C) 2013-2019 Jolla Ltd.
  *
  * Author: Philippe De Swert <philippe.de-swert@nokia.com>
  * Author: Philippe De Swert <philippe.deswert@jollamobile.com>
@@ -33,17 +33,21 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- connman -- */
+/* ------------------------------------------------------------------------- *
+ * CONNMAN
+ * ------------------------------------------------------------------------- */
 
 # ifdef CONNMAN
 gboolean connman_set_tethering(const char *path, gboolean on);
 # endif
 
-/* -- network -- */
+/* ------------------------------------------------------------------------- *
+ * NETWORK
+ * ------------------------------------------------------------------------- */
 
-int network_set_up_dhcpd(mode_list_elem_t *data);
-int network_up          (mode_list_elem_t *data);
-int network_down        (mode_list_elem_t *data);
+int network_set_up_dhcpd(const modedata_t *data);
+int network_up          (const modedata_t *data);
+int network_down        (const modedata_t *data);
 int network_update      (void);
 
 #endif /* USB_MODED_NETWORK_H_ */

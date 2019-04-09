@@ -1,7 +1,7 @@
 /**
  * @file usb_moded-android.c
  *
- * Copyright (C) 2013-2018 Jolla. All rights reserved.
+ * Copyright (C) 2013-2019 Jolla. All rights reserved.
  *
  * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
  * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
@@ -34,11 +34,14 @@
 #include <stdlib.h>
 
 /* ========================================================================= *
- * Functions
+ * Prototypes
  * ========================================================================= */
 
-/* -- android -- */
+/* ------------------------------------------------------------------------- *
+ * ANDROID
+ * ------------------------------------------------------------------------- */
 
+static bool  android_write_file       (const char *path, const char *text);
 bool         android_in_use           (void);
 static bool  android_probe            (void);
 gchar       *android_get_serial       (void);

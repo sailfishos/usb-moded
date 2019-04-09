@@ -2,7 +2,7 @@
  * @file usb_moded-appsync.c
  *
  * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2013-2018 Jolla Ltd.
+ * Copyright (C) 2013-2019 Jolla Ltd.
  *
  * @author: Philippe De Swert <philippe.de-swert@nokia.com>
  * @author: Philippe De Swert <phdeswer@lumi.maa>
@@ -40,27 +40,27 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- appsync -- */
+/* ------------------------------------------------------------------------- *
+ * APPSYNC
+ * ------------------------------------------------------------------------- */
 
-static void              appsync_free_elem                 (list_elem_t *elem);
-static void              appsync_free_elem_cb              (gpointer elem, gpointer user_data);
-void                     appsync_free_appsync_list         (void);
-static gint              appsync_list_sort_func            (gconstpointer a, gconstpointer b);
-void                     appsync_read_list                 (int diag);
-static list_elem_t      *appsync_read_file                 (const gchar *filename, int diag);
-int                      appsync_activate_sync             (const char *mode);
-int                      appsync_activate_sync_post        (const char *mode);
-int                      appsync_mark_active               (const gchar *name, int post);
-
+static void         appsync_free_elem                 (list_elem_t *elem);
+static void         appsync_free_elem_cb              (gpointer elem, gpointer user_data);
+void                appsync_free_appsync_list         (void);
+static gint         appsync_list_sort_func            (gconstpointer a, gconstpointer b);
+void                appsync_read_list                 (int diag);
+static list_elem_t *appsync_read_file                 (const gchar *filename, int diag);
+int                 appsync_activate_sync             (const char *mode);
+int                 appsync_activate_sync_post        (const char *mode);
+int                 appsync_mark_active               (const gchar *name, int post);
 #ifdef APP_SYNC_DBUS
-static gboolean          appsync_enumerate_usb_cb          (gpointer data);
-static void              appsync_start_enumerate_usb_timer (void);
-static void              appsync_cancel_enumerate_usb_timer(void);
-static void              appsync_enumerate_usb             (void);
-#endif
-
-void                     appsync_stop_apps                 (int post);
-int                      appsync_stop                      (gboolean force);
+static gboolean     appsync_enumerate_usb_cb          (gpointer data);
+static void         appsync_start_enumerate_usb_timer (void);
+static void         appsync_cancel_enumerate_usb_timer(void);
+static void         appsync_enumerate_usb             (void);
+#endif // APP_SYNC_DBUS
+void                appsync_stop_apps                 (int post);
+int                 appsync_stop                      (gboolean force);
 
 /* ========================================================================= *
  * Data

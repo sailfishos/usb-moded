@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2016-2018 Jolla Ltd.
+ * Copyright (C) 2016-2019 Jolla Ltd.
  *
  * Author: Philippe De Swert <philippe.de-swert@nokia.com>
  * Author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
@@ -70,7 +70,9 @@ void        context_leave(void *aptr);
  * Prototypes
  * ========================================================================= */
 
-/* -- log -- */
+/* ------------------------------------------------------------------------- *
+ * LOG
+ * ------------------------------------------------------------------------- */
 
 void        log_emit_va     (const char *file, const char *func, int line, int lev, const char *fmt, va_list va);
 void        log_emit_real   (const char *file, const char *func, int line, int lev, const char *fmt, ...);

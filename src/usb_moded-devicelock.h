@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2013-2018 Jolla Ltd.
+ * Copyright (C) 2013-2019 Jolla Ltd.
  *
  * Author: Philippe De Swert <philippe.de-swert@nokia.com>
  * Author: Vesa Halttunen <vesa.halttunen@jollamobile.com>
@@ -57,10 +57,12 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- devicelock -- */
+/* ------------------------------------------------------------------------- *
+ * DEVICELOCK
+ * ------------------------------------------------------------------------- */
 
-bool     devicelock_have_export_permission(void);
-bool     devicelock_start_listener        (void);
-void     devicelock_stop_listener         (void);
+bool devicelock_have_export_permission(void);
+bool devicelock_start_listener        (void);
+void devicelock_stop_listener         (void);
 
 #endif /* USB_MODED_DEVICELOCK_H_ */

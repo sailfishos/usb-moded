@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2013-2018 Jolla Ltd.
+ * Copyright (C) 2013-2019 Jolla Ltd.
  *
  * Author: Philippe De Swert <philippe.de-swert@nokia.com>
  * Author: Philippe De Swert <philippedeswert@gmail.com>
@@ -32,12 +32,57 @@
  * Constants
  * ========================================================================= */
 
-/* possible values for the mode
- *  the first two are internal only.
- */
+/* ------------------------------------------------------------------------- *
+ * Internal modes
+ *
+ * These modes are defined internally within usb-moded and are thus
+ * always available.
+ *
+ * Generally speaking these are also activated automatically and thus
+ * not really selectable - except:
+ * - MODE_ASK which can be set as default mode
+ * - MODE_CHARGING which can be acticated on request too
+ * ------------------------------------------------------------------------- */
 
+/** No cable connected */
 # define MODE_UNDEFINED          "undefined"
+
+/** Pending mode activation
+ *
+ * Used for signaling "in between modes" state.
+ */
+# define MODE_BUSY               "busy"
+
+/** Connected to a dedicated charger */
+# define MODE_CHARGER            "dedicated_charger"
+
+/** Blocked mode selection
+ *
+ * While prerequisites for dynamic mode activation are not met e.g.
+ * device is locked, pc connection is used for charging.
+ */
+# define MODE_CHARGING_FALLBACK  "charging_only_fallback"
+
+/** Pending mode selection
+ *
+ * While mode selection dialog is shown to user, pc connection
+ * is used for charging.
+ */
 # define MODE_ASK                "ask"
+
+/** Charging only selected */
+# define MODE_CHARGING           "charging_only"
+
+/* ------------------------------------------------------------------------- *
+ * Dynamic modes
+ *
+ * These modes are defined in usb-moded configuration files.
+ *
+ * From usb-moded point of view mode names have no special meaning,
+ * but a set of known values is still defined (and are likely to
+ * have localized name presentation in UI context).
+ * ------------------------------------------------------------------------- */
+
 # define MODE_MASS_STORAGE       "mass_storage"
 # define MODE_DEVELOPER          "developer_mode"
 # define MODE_MTP                "mtp_mode"
@@ -46,18 +91,5 @@
 # define MODE_DIAG               "diag_mode"
 # define MODE_ADB                "adb_mode"
 # define MODE_PC_SUITE           "pc_suite"
-# define MODE_CHARGING           "charging_only"
-# define MODE_BUSY               "busy"
-
-/**
- *
- * MODE_CHARGING : user manually selected charging mode
- * MODE_CHARGING_FALLBACK : mode selection is not done by the user so we fallback to a charging mode to get some power
- * MODE_CHARGER : there is a dedicated charger connected to the USB port
- *
- * the two last ones cannot be set and are not full modes
- **/
-# define MODE_CHARGING_FALLBACK  "charging_only_fallback"
-# define MODE_CHARGER            "dedicated_charger"
 
 #endif /* USB_MODED_MODES_H_ */

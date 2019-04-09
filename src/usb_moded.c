@@ -53,6 +53,7 @@
 #include "usb_moded-trigger.h"
 #include "usb_moded-udev.h"
 #include "usb_moded-worker.h"
+#include "usb_moded-modes.h"
 
 #ifdef MEEGOLOCK
 # include "usb_moded-dsme.h"
@@ -102,30 +103,40 @@
  * Prototypes
  * ========================================================================= */
 
-/* -- usbmoded -- */
+/* ------------------------------------------------------------------------- *
+ * USBMODED
+ * ------------------------------------------------------------------------- */
 
-GList           *usbmoded_get_modelist              (void);
-void             usbmoded_load_modelist             (void);
-void             usbmoded_free_modelist             (void);
-bool             usbmoded_get_rescue_mode           (void);
-void             usbmoded_set_rescue_mode           (bool rescue_mode);
-bool             usbmoded_get_diag_mode             (void);
-void             usbmoded_set_diag_mode             (bool diag_mode);
-void             usbmoded_set_cable_connection_delay(int delay_ms);
-int              usbmoded_get_cable_connection_delay(void);
-static gboolean  usbmoded_allow_suspend_timer_cb    (gpointer aptr);
-void             usbmoded_allow_suspend             (void);
-void             usbmoded_delay_suspend             (void);
-bool             usbmoded_init_done_p               (void);
-void             usbmoded_set_init_done             (bool reached);
-void             usbmoded_probe_init_done           (void);
-bool             usbmoded_can_export                (void);
-void             usbmoded_exit_mainloop             (int exitcode);
-void             usbmoded_handle_signal             (int signum);
-static bool      usbmoded_init                      (void);
-static void      usbmoded_cleanup                   (void);
-static void      usbmoded_usage                     (void);
-static void      usbmoded_parse_options             (int argc, char *argv[]);
+GList            *usbmoded_get_modelist              (void);
+void              usbmoded_load_modelist             (void);
+void              usbmoded_free_modelist             (void);
+const modedata_t *usbmoded_get_modedata              (const char *modename);
+modedata_t       *usbmoded_dup_modedata              (const char *modename);
+bool              usbmoded_get_rescue_mode           (void);
+void              usbmoded_set_rescue_mode           (bool rescue_mode);
+bool              usbmoded_get_diag_mode             (void);
+void              usbmoded_set_diag_mode             (bool diag_mode);
+void              usbmoded_set_cable_connection_delay(int delay_ms);
+int               usbmoded_get_cable_connection_delay(void);
+static gboolean   usbmoded_allow_suspend_timer_cb    (gpointer aptr);
+void              usbmoded_allow_suspend             (void);
+void              usbmoded_delay_suspend             (void);
+bool              usbmoded_can_export                (void);
+bool              usbmoded_init_done_p               (void);
+void              usbmoded_set_init_done             (bool reached);
+void              usbmoded_probe_init_done           (void);
+void              usbmoded_exit_mainloop             (int exitcode);
+void              usbmoded_handle_signal             (int signum);
+static bool       usbmoded_init                      (void);
+static void       usbmoded_cleanup                   (void);
+static void       usbmoded_usage                     (void);
+static void       usbmoded_parse_options             (int argc, char *argv[]);
+
+/* ------------------------------------------------------------------------- *
+ * MAIN
+ * ------------------------------------------------------------------------- */
+
+int main(int argc, char *argv[]);
 
 /* ========================================================================= *
  * Data
@@ -140,6 +151,22 @@ static bool       usbmoded_systemd_notify = false;
 #endif
 static bool       usbmoded_auto_exit      = false;
 
+static pthread_mutex_t  usbmoded_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+#define USBMODED_LOCKED_ENTER do {\
+    if( pthread_mutex_lock(&usbmoded_mutex) != 0 ) { \
+        log_crit("USBMODED LOCK FAILED");\
+        _exit(EXIT_FAILURE);\
+    }\
+}while(0)
+
+#define USBMODED_LOCKED_LEAVE do {\
+    if( pthread_mutex_unlock(&usbmoded_mutex) != 0 ) { \
+        log_crit("USBMODED UNLOCK FAILED");\
+        _exit(EXIT_FAILURE);\
+    }\
+}while(0)
+
 /* ========================================================================= *
  * Functions
  * ========================================================================= */
@@ -148,8 +175,18 @@ static bool       usbmoded_auto_exit      = false;
  * MODELIST
  * ------------------------------------------------------------------------- */
 
+/** List of mode data items read from configuration files
+ *
+ * Note: Worker thread should access this only via #usbmoded_dup_modedata().
+ */
 static GList *usbmoded_modelist = 0;
 
+/** Get list of dynamic mode data items
+ *
+ * Note: This function should be called only from the main thread.
+ *
+ * @returns List of mode data objects, or NULL
+ */
 GList *
 usbmoded_get_modelist(void)
 {
@@ -158,27 +195,92 @@ usbmoded_get_modelist(void)
     return usbmoded_modelist;
 }
 
+/** Load dynamic mode data items
+ *
+ * Note: This function should be called only from the main thread.
+ */
 void
 usbmoded_load_modelist(void)
 {
     LOG_REGISTER_CONTEXT;
 
+    USBMODED_LOCKED_ENTER;
+
     if( !usbmoded_modelist ) {
         log_notice("load modelist");
-        usbmoded_modelist = dynconfig_read_mode_list(usbmoded_get_diag_mode());
+        usbmoded_modelist = modelist_load(usbmoded_get_diag_mode());
     }
+
+    USBMODED_LOCKED_LEAVE;
 }
 
+/** Free dynamic mode data items
+ *
+ * Note: This function should be called only from the main thread.
+ */
 void
 usbmoded_free_modelist(void)
 {
     LOG_REGISTER_CONTEXT;
 
+    USBMODED_LOCKED_ENTER;
+
     if( usbmoded_modelist ) {
         log_notice("free modelist");
-        dynconfig_free_mode_list(usbmoded_modelist),
+        modelist_free(usbmoded_modelist),
             usbmoded_modelist = 0;
     }
+
+    USBMODED_LOCKED_LEAVE;
+}
+
+/** Lookup dynamic mode data by name
+ *
+ * Note: This function should be called only from the main thread.
+ *
+ * @param modename  Name of mode to lookup
+ *
+ * @return Mode data object, or NULL
+ */
+const modedata_t *
+usbmoded_get_modedata(const char *modename)
+{
+    LOG_REGISTER_CONTEXT;
+
+    modedata_t *modedata = 0;
+
+    for( GList *iter = usbmoded_get_modelist(); iter; iter = g_list_next(iter) ) {
+        modedata_t *data = iter->data;
+        if( !g_strcmp0(data->mode_name, modename) ) {
+            modedata = data;
+            break;
+        }
+    }
+    return modedata;
+}
+
+/** Lookup and clone dynamic mode data by name
+ *
+ * Note: This function is safe to call from worker thread too.
+ *
+ * Caller must release the returned object via #modedata_free().
+ *
+ * @param modename  Name of mode to lookup
+ *
+ * @return Mode data object, or NULL
+ */
+modedata_t *
+usbmoded_dup_modedata(const char *modename)
+{
+    LOG_REGISTER_CONTEXT;
+
+    USBMODED_LOCKED_ENTER;
+
+    modedata_t *modedata = modedata_copy(usbmoded_get_modedata(modename));
+
+    USBMODED_LOCKED_LEAVE;
+
+    return modedata;
 }
 
 /* ------------------------------------------------------------------------- *
@@ -467,14 +569,57 @@ void usbmoded_handle_signal(int signum)
     }
     else if( signum == SIGHUP )
     {
-        /* free and read in modelist again */
+        /* Reload mode list */
+        log_debug("reloading dynamic mode configuration");
         usbmoded_free_modelist();
         usbmoded_load_modelist();
 
+        /* If default mode selection became invalid,
+         * revert setting to "ask" */
+        gchar *config = config_get_mode_setting();
+        if( g_strcmp0(config, MODE_ASK) &&
+            common_valid_mode(config) ) {
+            log_warning("default mode '%s' is not valid, reset to '%s'",
+                        config, MODE_ASK);
+            config_set_mode_setting(MODE_ASK);
+        }
+        else {
+            log_debug("default mode '%s' is still valid", config);
+        }
+        g_free(config);
+
+        /* If current mode became invalid, select appropriate mode.
+         *
+         * Use target mode so that we catch also situations where
+         * we are making transition to invalid state.
+         */
+        const char *current = control_get_target_mode();
+        if( common_modename_is_internal(current) ) {
+            /* Internal modes are not affected by configuration
+             * file changes - no changes required. */
+            log_debug("current mode '%s' is internal", current);
+        }
+        else if( common_valid_mode(current) ) {
+            /* Dynamic mode that is no longer valid - choose
+             * something else. */
+            log_warning("current mode '%s' is not valid, re-evaluating",
+                        current);
+            control_select_usb_mode();
+        }
+        else {
+            /* Dynamic mode that is still valid - do nothing.
+             *
+             * Note: While the mode details /might/ have changed,
+             * skipping immediate usb reprogramming is assumed to
+             * be less harmful than potentially cutting developer
+             * mode connection during upgrade, etc. */
+            log_debug("current mode '%s' is still valid", current);
+        }
+
+        /* Signal availability */
+        log_debug("broadcast mode availability lists");
         common_send_supported_modes_signal();
         common_send_available_modes_signal();
-
-        // FIXME invalidate current mode
     }
     else
     {
@@ -520,7 +665,7 @@ static bool usbmoded_init(void)
     /* DSME listener maintains in-user-mode state and is relevant
      * only when MEEGOLOCK configure option has been chosen. */
 #ifdef MEEGOLOCK
-    if( !dsme_listener_start() ) {
+    if( !dsme_start_listener() ) {
         log_crit("dsme tracking could not be started");
         goto EXIT;
     }
@@ -674,7 +819,7 @@ static void usbmoded_cleanup(void)
 
     /* Stop tracking device state */
 #ifdef MEEGOLOCK
-    dsme_listener_stop();
+    dsme_stop_listener();
 #endif
 
     /* Stop udev listener */
