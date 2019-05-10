@@ -132,7 +132,7 @@ rndis_down() {
 
 rndis_up() {
   log_debug "Enable rndis interface"
-  ifconfig rndis0 192.168.2.15 255.255.255.0  2> /dev/null || :
+  ifconfig rndis0 192.168.2.15 netmask 255.255.255.0  2> /dev/null || :
 }
 
 udhcpd_configure() {
