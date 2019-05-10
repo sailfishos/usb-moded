@@ -1192,7 +1192,7 @@ int network_up(const modedata_t *data)
     }
     else
     {
-        sprintf(command, "ifconfig %s %s %s\n", interface, ip, netmask);
+        sprintf(command, "ifconfig %s %s netmask %s\n", interface, ip, netmask);
         common_system(command);
     }
 
