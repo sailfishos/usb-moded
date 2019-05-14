@@ -834,6 +834,23 @@ static bool config_load_legacy_config(GKeyFile *ini)
     bool ack = false;
     if( access(USB_MODED_STATIC_CONFIG_FILE, F_OK) != -1 )
         ack = config_merge_from_file(ini, USB_MODED_STATIC_CONFIG_FILE);
+
+    /* A mode=ask setting in legacy config can be either
+     * something user has selected, or merely configured
+     * default. As the latter case interferes with evaluation
+     * of priority ordered static configuration files, ignore
+     * such settings.
+     */
+    gchar *val = g_key_file_get_value(ini, MODE_SETTING_ENTRY,
+                                      MODE_SETTING_KEY, 0);
+    if( val ) {
+        if( !g_strcmp0(val, MODE_ASK) ) {
+            g_key_file_remove_key(ini, MODE_SETTING_ENTRY,
+                                  MODE_SETTING_KEY, 0);
+        }
+        g_free(val);
+    }
+
     return ack;
 }
 
