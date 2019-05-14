@@ -77,7 +77,6 @@ static char         *config_get_network_interface    (void);
 static char         *config_get_network_gateway      (void);
 static char         *config_get_network_netmask      (void);
 static char         *config_get_network_nat_interface(void);
-static void          config_setup_default_values     (GKeyFile *settingsfile);
 static int           config_get_conf_int             (const gchar *entry, const gchar *key);
 char                *config_get_conf_string          (const gchar *entry, const gchar *key);
 static char         *config_get_kcmdline_string      (const char *entry);
@@ -261,13 +260,6 @@ static char * config_get_network_nat_interface(void)
     return config_get_conf_string(NETWORK_ENTRY, NETWORK_NAT_INTERFACE_KEY);
 }
 
-static void config_setup_default_values(GKeyFile *settingsfile)
-{
-    LOG_REGISTER_CONTEXT;
-
-    g_key_file_set_string(settingsfile, MODE_SETTING_ENTRY, MODE_SETTING_KEY, MODE_DEVELOPER );
-}
-
 static int config_get_conf_int(const gchar *entry, const gchar *key)
 {
     LOG_REGISTER_CONTEXT;
@@ -407,7 +399,6 @@ set_config_result_t config_set_config_setting(const char *entry, const char *key
     config_load_static_config(static_ini);
 
     /* Merge static and dynamic settings */
-    config_setup_default_values(active_ini);
     config_merge_data(active_ini, static_ini);
     config_load_dynamic_config(active_ini);
 
@@ -823,6 +814,10 @@ static void config_load_static_config(GKeyFile *ini)
     if( glob(pattern, 0, config_glob_error_cb, &gb) != 0 )
         log_debug("no configuration ini-files found");
 
+    /* Seed with default values */
+    g_key_file_set_string(ini, MODE_SETTING_ENTRY, MODE_SETTING_KEY, MODE_DEVELOPER);
+
+    /* Override with content from config files */
     for( size_t i = 0; i < gb.gl_pathc; ++i ) {
         const char *path = gb.gl_pathv[i];
         if( strcmp(path, USB_MODED_STATIC_CONFIG_FILE) )
@@ -909,9 +904,6 @@ bool config_init(void)
     GKeyFile *static_ini = g_key_file_new();
     GKeyFile *active_ini = g_key_file_new();
 
-    /* Setup built-in defaults */
-    config_setup_default_values(active_ini);
-
     /* Load static configuration */
     config_load_static_config(static_ini);
 
@@ -942,7 +934,6 @@ static GKeyFile *config_get_settings(void)
     LOG_REGISTER_CONTEXT;
 
     GKeyFile *ini = g_key_file_new();
-    config_setup_default_values(ini);
     config_load_static_config(ini);
     config_load_dynamic_config(ini);
     return ini;
