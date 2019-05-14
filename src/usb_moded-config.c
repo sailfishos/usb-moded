@@ -815,7 +815,7 @@ static void config_load_static_config(GKeyFile *ini)
         log_debug("no configuration ini-files found");
 
     /* Seed with default values */
-    g_key_file_set_string(ini, MODE_SETTING_ENTRY, MODE_SETTING_KEY, MODE_DEVELOPER);
+    g_key_file_set_string(ini, MODE_SETTING_ENTRY, MODE_SETTING_KEY, MODE_ASK);
 
     /* Override with content from config files */
     for( size_t i = 0; i < gb.gl_pathc; ++i ) {
