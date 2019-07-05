@@ -222,7 +222,7 @@ it loads unloads the relevant usb gadget modules, keeps track
 of the filesystem(s) and notifies about changes on the DBUS
 system bus.
 
-This package contains the config to switch the first Jolla phone 
+This package contains the config to switch the first Jolla phone
 in host mode.
 
 %package defaults
@@ -318,7 +318,7 @@ it loads unloads the relevant usb gadget modules, keeps track
 of the filesystem(s) and notifies about changes on the DBUS
 system bus.
 
-This package contains the configuration files for systemd to 
+This package contains the configuration files for systemd to
 provide the rescue mode, so device does not get locked down
 when the UI fails.
 
@@ -359,17 +359,17 @@ install -d %{buildroot}/%{_sharedstatedir}/usb-moded
 touch %{buildroot}/%{_sysconfdir}/modprobe.d/g_ether.conf
 touch %{buildroot}/%{_sysconfdir}/udhcpd.conf
 #systemd stuff
-install -d $RPM_BUILD_ROOT/lib/systemd/system/basic.target.wants/
-install -m 644 -D systemd/%{name}.service %{buildroot}/lib/systemd/system/%{name}.service
-ln -s ../%{name}.service $RPM_BUILD_ROOT/lib/systemd/system/basic.target.wants/%{name}.service
+install -d $RPM_BUILD_ROOT%{_libdir}/systemd/system/basic.target.wants/
+install -m 644 -D systemd/%{name}.service %{buildroot}%{_libdir}/systemd/system/%{name}.service
+ln -s ../%{name}.service $RPM_BUILD_ROOT%{_libdir}/systemd/system/basic.target.wants/%{name}.service
 install -d %{buildroot}/usr/lib/systemd/user
 install -m 644 -D systemd/usb-moded-args.conf %{buildroot}/var/lib/environment/usb-moded/usb-moded-args.conf
 install -m 755 -D systemd/turn-usb-rescue-mode-off %{buildroot}/%{_bindir}/turn-usb-rescue-mode-off
-install -m 644 -D systemd/usb-rescue-mode-off.service %{buildroot}/lib/systemd/system/usb-rescue-mode-off.service
-install -m 644 -D systemd/usb-rescue-mode-off.service %{buildroot}/lib/systemd/system/graphical.target.wants/usb-rescue-mode-off.service
+install -m 644 -D systemd/usb-rescue-mode-off.service %{buildroot}%{_libdir}/systemd/system/usb-rescue-mode-off.service
+install -m 644 -D systemd/usb-rescue-mode-off.service %{buildroot}%{_libdir}/systemd/system/graphical.target.wants/usb-rescue-mode-off.service
 install -m 644 -D systemd/usb-moded.conf %{buildroot}/%{_sysconfdir}/tmpfiles.d/usb-moded.conf
-install -m 644 -D systemd/adbd-prepare.service %{buildroot}/lib/systemd/system/adbd-prepare.service
-install -m 644 -D systemd/adbd-prepare.service %{buildroot}/lib/systemd/system/graphical.target.wants/adbd-prepare.service
+install -m 644 -D systemd/adbd-prepare.service %{buildroot}%{_libdir}/systemd/system/adbd-prepare.service
+install -m 644 -D systemd/adbd-prepare.service %{buildroot}%{_libdir}/systemd/system/graphical.target.wants/adbd-prepare.service
 install -m 744 -D systemd/adbd-functionfs.sh %{buildroot}/usr/sbin/adbd-functionfs.sh
 
 %preun
@@ -391,8 +391,8 @@ systemctl daemon-reload || :
 %ghost %{_sysconfdir}/usb-moded/usb-moded.ini
 %{_sbindir}/usb_moded
 %{_sbindir}/usb_moded_util
-/lib/systemd/system/%{name}.service
-/lib/systemd/system/basic.target.wants/%{name}.service
+%{_libdir}/systemd/system/%{name}.service
+%{_libdir}/systemd/system/basic.target.wants/%{name}.service
 %config %{_sysconfdir}/tmpfiles.d/usb-moded.conf
 %dir %{_sharedstatedir}/usb-moded
 %ghost %{_sharedstatedir}/usb-moded/usb-moded.ini
@@ -446,8 +446,8 @@ systemctl daemon-reload || :
 %{_sysconfdir}/usb-moded/run/adb-startserver.ini
 %{_sysconfdir}/usb-moded/run/adb-prepare.ini
 %{_sysconfdir}/usb-moded/run/udhcpd-adb-mode.ini
-/lib/systemd/system/adbd-prepare.service
-/lib/systemd/system/graphical.target.wants/adbd-prepare.service
+%{_libdir}/systemd/system/adbd-prepare.service
+%{_libdir}/systemd/system/graphical.target.wants/adbd-prepare.service
 /usr/sbin/adbd-functionfs.sh
 
 %files mtp-mode-android
@@ -506,5 +506,5 @@ systemctl daemon-reload || :
 %defattr(-,root,root,-)
 /var/lib/environment/usb-moded/usb-moded-args.conf
 %{_bindir}/turn-usb-rescue-mode-off
-/lib/systemd/system/usb-rescue-mode-off.service
-/lib/systemd/system/graphical.target.wants/usb-rescue-mode-off.service
+%{_libdir}/systemd/system/usb-rescue-mode-off.service
+%{_libdir}/systemd/system/graphical.target.wants/usb-rescue-mode-off.service
