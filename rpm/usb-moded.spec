@@ -384,9 +384,9 @@ systemctl daemon-reload || :
 %dir %{_sysconfdir}/usb-moded
 %dir %{_sysconfdir}/usb-moded/dyn-modes
 %dir %{_sysconfdir}/usb-moded/run
-%config(noreplace) %{_sysconfdir}/dbus-1/system.d/usb_moded.conf
-%config(noreplace) %{_sysconfdir}/modprobe.d/usb_moded.conf
-%ghost %config(noreplace) %{_sysconfdir}/modprobe.d/g_ether.conf
+%config %{_sysconfdir}/dbus-1/system.d/usb_moded.conf
+%config %{_sysconfdir}/modprobe.d/usb_moded.conf
+%ghost %config %{_sysconfdir}/modprobe.d/g_ether.conf
 %ghost %{_sysconfdir}/udhcpd.conf
 %ghost %{_sysconfdir}/usb-moded/usb-moded.ini
 %{_sbindir}/usb_moded
