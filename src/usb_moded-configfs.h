@@ -40,7 +40,7 @@ void configfs_quit                   (void);
 bool configfs_set_charging_mode      (void);
 bool configfs_set_productid          (const char *id);
 bool configfs_set_vendorid           (const char *id);
-bool configfs_set_function           (const char *func);
+bool configfs_set_function           (const char *functions);
 bool configfs_add_mass_storage_lun   (int lun);
 bool configfs_remove_mass_storage_lun(int lun);
 bool configfs_set_mass_storage_attr  (int lun, const char *attr, const char *value);
