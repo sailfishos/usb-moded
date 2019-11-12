@@ -102,7 +102,7 @@ bool               configfs_set_charging_mode      (void);
 bool               configfs_set_productid          (const char *id);
 bool               configfs_set_vendorid           (const char *id);
 static const char *configfs_map_function           (const char *func);
-bool               configfs_set_function           (const char *func);
+bool               configfs_set_function           (const char *functions);
 bool               configfs_add_mass_storage_lun   (int lun);
 bool               configfs_remove_mass_storage_lun(int lun);
 bool               configfs_set_mass_storage_attr  (int lun, const char *attr, const char *value);
@@ -956,26 +956,24 @@ configfs_map_function(const char *func)
     return func;
 }
 
-/* Set a function
+/* Set active functions
  *
- * @param func Mame of function to enable, or NULL to disable all
+ * @param function Comma separated list of function names to
+ *                 enable, or NULL to disable all
  *
  * @return true if successful, false on failure
  */
 bool
-configfs_set_function(const char *func)
+configfs_set_function(const char *functions)
 {
     LOG_REGISTER_CONTEXT;
 
     bool ack = false;
 
+    gchar **vec = 0;
+
     if( !configfs_in_use() )
         goto EXIT;
-
-    /* Normalize names used by usb-moded itself and already
-     * existing configuration files etc.
-     */
-    func = configfs_map_function(func);
 
     if( !configfs_set_udc(false) )
         goto EXIT;
@@ -983,8 +981,19 @@ configfs_set_function(const char *func)
     if( !configfs_disable_all_functions() )
         goto EXIT;
 
-    if( func && !configfs_enable_function(func) )
-        goto EXIT;
+    if( functions ) {
+        vec = g_strsplit(functions, ",", 0);
+        for( size_t i = 0; vec[i]; ++i ) {
+            /* Normalize names used by usb-moded itself and already
+             * existing configuration files etc.
+             */
+            const char *use = configfs_map_function(vec[i]);
+            if( !use || !*use )
+                continue;
+            if( !configfs_enable_function(use) )
+                goto EXIT;
+        }
+    }
 
     /* Leave disabled, so that caller can adjust attributes
      * etc before enabling */
@@ -992,7 +1001,8 @@ configfs_set_function(const char *func)
     ack = true;
 
 EXIT:
-    log_debug("CONFIGFS %s(%s) -> %d", __func__, func, ack);
+    log_debug("CONFIGFS %s(%s) -> %d", __func__, functions, ack);
+    g_strfreev(vec);
     return ack;
 }
 
