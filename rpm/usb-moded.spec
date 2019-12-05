@@ -321,6 +321,7 @@ install -m 644 docs/usb_moded-doc.txt %{buildroot}/%{_docdir}/%{name}-%{version}
 install -m 644 -D debian/manpage.1 %{buildroot}/%{_mandir}/man1/usb-moded.1
 install -m 644 -D debian/usb_moded.conf %{buildroot}/%{_sysconfdir}/dbus-1/system.d/usb_moded.conf
 install -m 644 -D %{SOURCE1} %{buildroot}/%{_sysconfdir}/modprobe.d/usb_moded.conf
+install -d %{buildroot}/%{_sysconfdir}
 install -d %{buildroot}/%{_sysconfdir}/usb-moded
 install -d %{buildroot}/%{_sysconfdir}/usb-moded/run
 install -d %{buildroot}/%{_sysconfdir}/usb-moded/run-diag
@@ -333,9 +334,9 @@ install -m 644 -D config/run-diag/* %{buildroot}/%{_sysconfdir}/usb-moded/run-di
 install -m 644 -D config/mass-storage-jolla.ini %{buildroot}/%{_sysconfdir}/usb-moded/
 install -d %{buildroot}/%{_sharedstatedir}/usb-moded
 
+ln -sf /run/usb-moded/udhcpd.conf %{buildroot}/%{_sysconfdir}/udhcpd.conf
 
 touch %{buildroot}/%{_sysconfdir}/modprobe.d/g_ether.conf
-touch %{buildroot}/%{_sysconfdir}/udhcpd.conf
 #systemd stuff
 install -d $RPM_BUILD_ROOT/lib/systemd/system/basic.target.wants/
 install -m 644 -D systemd/%{name}.service %{buildroot}/lib/systemd/system/%{name}.service
@@ -362,16 +363,16 @@ systemctl daemon-reload || :
 %dir %{_sysconfdir}/usb-moded
 %dir %{_sysconfdir}/usb-moded/dyn-modes
 %dir %{_sysconfdir}/usb-moded/run
-%config %{_sysconfdir}/dbus-1/system.d/usb_moded.conf
-%config %{_sysconfdir}/modprobe.d/usb_moded.conf
+%{_sysconfdir}/udhcpd.conf
+%{_sysconfdir}/dbus-1/system.d/usb_moded.conf
+%{_sysconfdir}/modprobe.d/usb_moded.conf
 %ghost %config %{_sysconfdir}/modprobe.d/g_ether.conf
-%ghost %{_sysconfdir}/udhcpd.conf
 %ghost %{_sysconfdir}/usb-moded/usb-moded.ini
 %{_sbindir}/usb_moded
 %{_sbindir}/usb_moded_util
 /lib/systemd/system/%{name}.service
 /lib/systemd/system/basic.target.wants/%{name}.service
-%config %{_sysconfdir}/tmpfiles.d/usb-moded.conf
+%{_sysconfdir}/tmpfiles.d/usb-moded.conf
 %dir %{_sharedstatedir}/usb-moded
 %ghost %{_sharedstatedir}/usb-moded/usb-moded.ini
 
