@@ -1,17 +1,18 @@
 /**
- * @file: usb_moded-devicelock.c
+ * @file usb_moded-devicelock.c
  *
- * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2013-2019 Jolla Ltd.
+ * Copyright (c) 2010 Nokia Corporation. All rights reserved.
+ * Copyright (c) 2013 - 2020 Jolla Ltd.
+ * Copyright (c) 2020 Open Mobile Platform LLC.
  *
- * @author: Philippe De Swert <philippe.de-swert@nokia.com>
- * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
- * @author: Jonni Rainisto <jonni.rainisto@jollamobile.com>
- * @author: Philippe De Swert <philippedeswert@gmail.com>
- * @author: Vesa Halttunen <vesa.halttunen@jollamobile.com>
- * @author: Jonni Rainisto <jonni.rainisto@jollamobile.com>
- * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
- * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
+ * @author Philippe De Swert <philippe.de-swert@nokia.com>
+ * @author Philippe De Swert <philippe.deswert@jollamobile.com>
+ * @author Jonni Rainisto <jonni.rainisto@jollamobile.com>
+ * @author Philippe De Swert <philippedeswert@gmail.com>
+ * @author Vesa Halttunen <vesa.halttunen@jollamobile.com>
+ * @author Jonni Rainisto <jonni.rainisto@jollamobile.com>
+ * @author Philippe De Swert <philippe.deswert@jollamobile.com>
+ * @author Simo Piiroinen <simo.piiroinen@jollamobile.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the Lesser GNU General Public License

@@ -1,15 +1,18 @@
-/*
- * @file usb-moded_network.c : (De)activates network depending on the network setting system.
+/**
+ * @file usb_moded-network.c
  *
- * Copyright (C) 2011 Nokia Corporation. All rights reserved.
- * Copyright (C) 2012-2019 Jolla. All rights reserved.
+ * (De)activates network depending on the network setting system.
  *
- * @author: Philippe De Swert <philippe.de-swert@nokia.com>
- * @author: Philippe De Swert <philippedeswert@gmail.com>
- * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
- * @author: Marko Saukko <marko.saukko@jollamobile.com>
- * @author: Slava Monich <slava.monich@jolla.com>
- * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
+ * Copyright (c) 2011 Nokia Corporation. All rights reserved.
+ * Copyright (c) 2012 - 2020 Jolla Ltd.
+ * Copyright (c) 2020 Open Mobile Platform LLC.
+ *
+ * @author Philippe De Swert <philippe.de-swert@nokia.com>
+ * @author Philippe De Swert <philippedeswert@gmail.com>
+ * @author Philippe De Swert <philippe.deswert@jollamobile.com>
+ * @author Marko Saukko <marko.saukko@jollamobile.com>
+ * @author Slava Monich <slava.monich@jolla.com>
+ * @author Simo Piiroinen <simo.piiroinen@jollamobile.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the Lesser GNU General Public License

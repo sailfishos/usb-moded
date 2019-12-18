@@ -1,23 +1,24 @@
 /**
  * @file usb_moded.c
  *
- * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2012-2019 Jolla. All rights reserved.
+ * Copyright (c) 2010 Nokia Corporation. All rights reserved.
+ * Copyright (c) 2012 - 2020 Jolla Ltd.
+ * Copyright (c) 2020 Open Mobile Platform LLC.
  *
- * @author: Philippe De Swert <philippe.de-swert@nokia.com>
- * @author: Philippe De Swert <phdeswer@lumi.maa>
- * @author: Philippe De Swert <philippedeswert@gmail.com>
- * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
- * @author: Jonni Rainisto <jonni.rainisto@jollamobile.com>
- * @author: Pekka Lundstrom <pekka.lundstrom@jollamobile.com>
- * @author: Vesa Halttunen <vesa.halttunen@jollamobile.com>
- * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
- * @author: Thomas Perl <thomas.perl@jolla.com>
- * @author: Matti Lehtimaki <matti.lehtimaki@gmail.com>
- * @author: Thomas Perl <m@thp.io>
- * @author: Martin Jones <martin.jones@jollamobile.com>
- * @author: Andrew den Exter <andrew.den.exter@jolla.com>
- * @author: Andrew den Exter <andrew.den.exter@jollamobile.com>
+ * @author Philippe De Swert <philippe.de-swert@nokia.com>
+ * @author Philippe De Swert <phdeswer@lumi.maa>
+ * @author Philippe De Swert <philippedeswert@gmail.com>
+ * @author Philippe De Swert <philippe.deswert@jollamobile.com>
+ * @author Jonni Rainisto <jonni.rainisto@jollamobile.com>
+ * @author Pekka Lundstrom <pekka.lundstrom@jollamobile.com>
+ * @author Vesa Halttunen <vesa.halttunen@jollamobile.com>
+ * @author Simo Piiroinen <simo.piiroinen@jollamobile.com>
+ * @author Thomas Perl <thomas.perl@jolla.com>
+ * @author Matti Lehtimaki <matti.lehtimaki@gmail.com>
+ * @author Thomas Perl <m@thp.io>
+ * @author Martin Jones <martin.jones@jollamobile.com>
+ * @author Andrew den Exter <andrew.den.exter@jolla.com>
+ * @author Andrew den Exter <andrew.den.exter@jollamobile.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the Lesser GNU General Public License
@@ -395,7 +396,7 @@ static int usbmoded_cable_connection_delay = CABLE_CONNECTION_DELAY_DEFAULT;
 
 /** Helper for setting allowed cable detection delay
  *
- * Used for implementing --max-cable-delay=<ms> option.
+ * Used for implementing --max-cable-delay=delay_ms option.
  */
 void
 usbmoded_set_cable_connection_delay(int delay_ms)

@@ -1,11 +1,14 @@
-/*
- * Copyright (C) 2011 Nokia Corporation. All rights reserved.
- * Copyright (C) 2013-2019 Jolla Ltd.
+/**
+ * @file usb_moded-network.h
  *
- * Author: Philippe De Swert <philippe.de-swert@nokia.com>
- * Author: Philippe De Swert <philippe.deswert@jollamobile.com>
- * Author: Slava Monich <slava.monich@jolla.com>
- * Author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
+ * Copyright (c) 2011 Nokia Corporation. All rights reserved.
+ * Copyright (c) 2013 - 2020 Jolla Ltd.
+ * Copyright (c) 2020 Open Mobile Platform LLC.
+ *
+ * @author Philippe De Swert <philippe.de-swert@nokia.com>
+ * @author Philippe De Swert <philippe.deswert@jollamobile.com>
+ * @author Slava Monich <slava.monich@jolla.com>
+ * @author Simo Piiroinen <simo.piiroinen@jollamobile.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the Lesser GNU General Public License

@@ -1,17 +1,18 @@
 /**
  * @file usb_moded-modesetting.c
  *
- * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2013-2019 Jolla Ltd.
+ * Copyright (c) 2010 Nokia Corporation. All rights reserved.
+ * Copyright (c) 2013 - 2020 Jolla Ltd.
+ * Copyright (c) 2020 Open Mobile Platform LLC.
  *
- * @author: Philippe De Swert <philippe.de-swert@nokia.com>
- * @author: Philippe De Swert <phdeswer@lumi.maa>
- * @author: Philippe De Swert <philippedeswert@gmail.com>
- * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
- * @author: Bernd Wachter <bernd.wachter@jollamobile.com>
- * @author: Slava Monich <slava.monich@jolla.com>
- * @author: Thomas Perl <m@thp.io>
- * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
+ * @author Philippe De Swert <philippe.de-swert@nokia.com>
+ * @author Philippe De Swert <phdeswer@lumi.maa>
+ * @author Philippe De Swert <philippedeswert@gmail.com>
+ * @author Philippe De Swert <philippe.deswert@jollamobile.com>
+ * @author Bernd Wachter <bernd.wachter@jollamobile.com>
+ * @author Slava Monich <slava.monich@jolla.com>
+ * @author Thomas Perl <m@thp.io>
+ * @author Simo Piiroinen <simo.piiroinen@jollamobile.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the Lesser GNU General Public License
@@ -54,9 +55,14 @@
  * Types
  * ========================================================================= */
 
+/** Mount point info
+ */
 typedef struct storage_info_t
 {
+    /** Directory path */
     gchar *si_mountpoint;
+
+    /** Device path */
     gchar *si_mountdevice;;
 } storage_info_t;
 
