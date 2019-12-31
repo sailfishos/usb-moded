@@ -59,23 +59,24 @@
 # define USB_MODE_TARGET_CONFIG_SIGNAL_NAME     "sig_usb_taget_mode_config_ind"
 
 /* supported methods */
-# define USB_MODE_STATE_REQUEST         "mode_request"  /* returns the current mode */
-# define USB_MODE_TARGET_STATE_GET      "get_target_state"  /* returns the target mode */
-# define USB_MODE_RESCUE_OFF            "rescue_off"    /* turns rescue mode off so normal mode selection is restored */
-# define USB_MODE_CONFIG_GET            "get_config"    /* returns the mode set in the config */
-# define USB_MODE_LIST                  "get_modes"     /* returns a comma-separated list of supported modes for ui's */
-# define USB_MODE_HIDE                  "hide_mode"     /* hide a mode */
-# define USB_MODE_UNHIDE                "unhide_mode"   /* unhide a mode */
-# define USB_MODE_HIDDEN_GET            "get_hidden"    /* return the hidden modes */
-# define USB_MODE_STATE_SET             "set_mode"      /* set a mode (only works when connected) */
-# define USB_MODE_CONFIG_SET            "set_config"    /* set the mode that needs to be activated in the config file */
-# define USB_MODE_NETWORK_SET           "net_config"    /* set the network config in the config file */
-# define USB_MODE_NETWORK_GET           "get_net_config"    /* get the network config from the config file */
-# define USB_MODE_WHITELISTED_MODES_GET "get_whitelisted_modes" /* get the list of whitelisted modes */
-# define USB_MODE_WHITELISTED_MODES_SET "set_whitelisted_modes" /* set the list of whitelisted modes */
-# define USB_MODE_WHITELISTED_SET       "set_whitelisted" /* sets whether an specific mode is in the whitelist */
-# define USB_MODE_AVAILABLE_MODES_GET   "get_available_modes" /* returns a comma separated list of modes which are currently available for selection */
-# define USB_MODE_TARGET_CONFIG_GET     "get_target_mode_config" /* returns current target mode configuration */
+# define USB_MODE_STATE_REQUEST              "mode_request"  /* returns the current mode */
+# define USB_MODE_TARGET_STATE_GET           "get_target_state"  /* returns the target mode */
+# define USB_MODE_RESCUE_OFF                 "rescue_off"    /* turns rescue mode off so normal mode selection is restored */
+# define USB_MODE_CONFIG_GET                 "get_config"    /* returns the mode set in the config */
+# define USB_MODE_LIST                       "get_modes"     /* returns a comma-separated list of supported modes for ui's */
+# define USB_MODE_HIDE                       "hide_mode"     /* hide a mode */
+# define USB_MODE_UNHIDE                     "unhide_mode"   /* unhide a mode */
+# define USB_MODE_HIDDEN_GET                 "get_hidden"    /* return the hidden modes */
+# define USB_MODE_STATE_SET                  "set_mode"      /* set a mode (only works when connected) */
+# define USB_MODE_CONFIG_SET                 "set_config"    /* set the mode that needs to be activated in the config file */
+# define USB_MODE_NETWORK_SET                "net_config"    /* set the network config in the config file */
+# define USB_MODE_NETWORK_GET                "get_net_config"    /* get the network config from the config file */
+# define USB_MODE_WHITELISTED_MODES_GET      "get_whitelisted_modes" /* get the list of whitelisted modes */
+# define USB_MODE_WHITELISTED_MODES_SET      "set_whitelisted_modes" /* set the list of whitelisted modes */
+# define USB_MODE_WHITELISTED_SET            "set_whitelisted" /* sets whether an specific mode is in the whitelist */
+# define USB_MODE_AVAILABLE_MODES_GET        "get_available_modes" /* returns a comma separated list of modes which are currently available for selection */
+# define USB_MODE_AVAILABLE_MODES_FOR_USER   "get_available_modes_for_user" /* returns a comma separated list of modes which are currently available and permitted for user to select */
+# define USB_MODE_TARGET_CONFIG_GET          "get_target_mode_config" /* returns current target mode configuration */
 
 /**
  * (Transient) states reported by "sig_usb_state_ind" that are not modes.
