@@ -338,7 +338,7 @@ void control_select_usb_mode(void)
      * going through ask-mode */
     if( !strcmp(MODE_ASK, mode_to_set) ) {
         // FIXME free() vs g_free() conflict
-        gchar *available = common_get_mode_list(AVAILABLE_MODES_LIST);
+        gchar *available = common_get_mode_list(AVAILABLE_MODES_LIST, 0);
         if( *available && !strchr(available, ',') ) {
             free(mode_to_set), mode_to_set = available, available = 0;
         }

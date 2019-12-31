@@ -61,7 +61,7 @@ bool         common_msleep_                      (const char *file, int line, co
 static bool  common_mode_in_list                 (const char *mode, char *const *modes);
 bool         common_modename_is_internal         (const char *modename);
 int          common_valid_mode                   (const char *mode);
-gchar       *common_get_mode_list                (mode_list_type_t type);
+gchar       *common_get_mode_list                (mode_list_type_t type, uid_t uid);
 
 /* ========================================================================= *
  * Functions
@@ -205,7 +205,7 @@ void common_send_supported_modes_signal(void)
 {
     LOG_REGISTER_CONTEXT;
 
-    gchar *mode_list = common_get_mode_list(SUPPORTED_MODES_LIST);
+    gchar *mode_list = common_get_mode_list(SUPPORTED_MODES_LIST, 0);
     umdbus_send_supported_modes_signal(mode_list);
     g_free(mode_list);
 }
@@ -216,7 +216,7 @@ void common_send_available_modes_signal(void)
 {
     LOG_REGISTER_CONTEXT;
 
-    gchar *mode_list = common_get_mode_list(AVAILABLE_MODES_LIST);
+    gchar *mode_list = common_get_mode_list(AVAILABLE_MODES_LIST, 0);
     umdbus_send_available_modes_signal(mode_list);
     g_free(mode_list);
 }
@@ -503,10 +503,12 @@ int common_valid_mode(const char *mode)
 /** make a list of all available usb modes
  *
  * @param type The type of list to return. Supported or available.
+ * @param uid  Uid of the process requesting the information;
+ *             this is used to limit allowed modes, 0 returns all
  *
  * @return a comma-separated list of modes (MODE_ASK not included as it is not a real mode)
  */
-gchar *common_get_mode_list(mode_list_type_t type)
+gchar *common_get_mode_list(mode_list_type_t type, uid_t uid)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -543,6 +545,10 @@ gchar *common_get_mode_list(mode_list_type_t type)
     for( GList *iter = usbmoded_get_modelist(); iter; iter = g_list_next(iter) )
     {
         modedata_t *data = iter->data;
+
+        /* skip dynamic modes that are not allowed */
+        if (!usbmoded_is_mode_permitted(data->mode_name, uid))
+            continue;
 
         /* skip items in the hidden list */
         if (common_mode_in_list(data->mode_name, hidden_modes_array))

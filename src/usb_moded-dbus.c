@@ -500,7 +500,7 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
         }
         else if(!strcmp(member, USB_MODE_LIST))
         {
-            gchar *mode_list = common_get_mode_list(SUPPORTED_MODES_LIST);
+            gchar *mode_list = common_get_mode_list(SUPPORTED_MODES_LIST, 0);
 
             if((reply = dbus_message_new_method_return(msg)))
                 dbus_message_append_args (reply, DBUS_TYPE_STRING, (const char *) &mode_list, DBUS_TYPE_INVALID);
@@ -508,7 +508,7 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
         }
         else if(!strcmp(member, USB_MODE_AVAILABLE_MODES_GET))
         {
-            gchar *mode_list = common_get_mode_list(AVAILABLE_MODES_LIST);
+            gchar *mode_list = common_get_mode_list(AVAILABLE_MODES_LIST, 0);
 
             if((reply = dbus_message_new_method_return(msg)))
                 dbus_message_append_args (reply, DBUS_TYPE_STRING, (const char *) &mode_list, DBUS_TYPE_INVALID);
