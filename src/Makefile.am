@@ -80,6 +80,11 @@ usb_moded_SOURCES += \
 	usb_moded-appsync-dbus-private.h 
 endif
 
+if SAILFISH_ACCESS_CONTROL
+usb_moded_CPPFLAGS += `pkg-config --cflags sailfishaccesscontrol`
+usb_moded_LDFLAGS  += `pkg-config --libs sailfishaccesscontrol`
+endif
+
 usb_moded_util_CPPFLAGS = \
         $(USB_MODED_CFLAGS)
 
