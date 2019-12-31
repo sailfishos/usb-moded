@@ -65,6 +65,10 @@
 #include <errno.h>
 #include <string.h>
 
+#ifdef SAILFISH_ACCESS_CONTROL
+# include <sailfishaccesscontrol.h>
+#endif
+
 #ifdef SYSTEMD
 # include <systemd/sd-daemon.h>
 #endif
@@ -116,6 +120,7 @@ bool              usbmoded_get_rescue_mode           (void);
 void              usbmoded_set_rescue_mode           (bool rescue_mode);
 bool              usbmoded_get_diag_mode             (void);
 void              usbmoded_set_diag_mode             (bool diag_mode);
+bool              usbmoded_is_mode_permitted         (const char *modename, uid_t uid);
 void              usbmoded_set_cable_connection_delay(int delay_ms);
 int               usbmoded_get_cable_connection_delay(void);
 static gboolean   usbmoded_allow_suspend_timer_cb    (gpointer aptr);
@@ -338,6 +343,41 @@ void usbmoded_set_diag_mode(bool diag_mode)
         log_info("diag_mode: %d -> %d",  usbmoded_diag_mode, diag_mode);
         usbmoded_diag_mode = diag_mode;
     }
+}
+
+/* ------------------------------------------------------------------------- *
+ * ACCESS_CHECKS
+ * ------------------------------------------------------------------------- */
+
+bool usbmoded_is_mode_permitted(const char *modename, uid_t uid)
+{
+#ifdef SAILFISH_ACCESS_CONTROL
+    LOG_REGISTER_CONTEXT;
+
+    bool        allowed = true;
+    modedata_t *data = 0;
+
+    /* all modes are allowed for root */
+    if( uid == 0 )
+        goto EXIT;
+
+    /* non-dynamic modes are allowed for all */
+    if( !(data = usbmoded_dup_modedata(modename)) )
+        goto EXIT;
+
+    /* dynamic modes are allowed for device owner and denied for others */
+    allowed = sailfish_access_control_hasgroup(uid, "sailfish-system");
+
+EXIT:
+
+    modedata_free(data);
+
+    return allowed;
+
+#else
+    return true;
+
+#endif
 }
 
 /* ------------------------------------------------------------------------- *
