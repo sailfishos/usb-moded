@@ -40,6 +40,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include <dbus/dbus-glib-lowlevel.h>
 
@@ -84,6 +85,7 @@ int                       umdbus_send_hidden_modes_signal     (const char *hidde
 int                       umdbus_send_whitelisted_modes_signal(const char *whitelist);
 static void               umdbus_get_name_owner_cb            (DBusPendingCall *pc, void *aptr);
 gboolean                  umdbus_get_name_owner_async         (const char *name, usb_moded_get_name_owner_fn cb, DBusPendingCall **ppc);
+uid_t                     umdbus_get_sender_uid               (const char *sender);
 
 /* ========================================================================= *
  * Data
@@ -1322,4 +1324,72 @@ EXIT:
     if( req ) dbus_message_unref(req);
 
     return ack;
+}
+
+/**
+ * Get uid of sender from D-Bus. This makes a synchronous D-Bus call
+ *
+ * @param name   Name of sender from DBusMessage
+ * @return Uid of the sender
+ */
+uid_t umdbus_get_sender_uid(const char *name)
+{
+    LOG_REGISTER_CONTEXT;
+
+    pid_t        pid = (pid_t)-1;
+    uid_t        uid = (uid_t)-1;
+    DBusMessage *req = 0;
+    DBusMessage *rsp = 0;
+    DBusError    err = DBUS_ERROR_INIT;
+    char         path[256];
+    struct stat  st;
+
+    if(!umdbus_connection)
+        goto EXIT;
+
+    req = dbus_message_new_method_call(DBUS_INTERFACE_DBUS,
+                                       DBUS_PATH_DBUS,
+                                       DBUS_INTERFACE_DBUS,
+                                       DBUS_GET_CONNECTION_PID_REQ);
+    if( !req ) {
+        log_err("could not create method call message");
+        goto EXIT;
+    }
+
+    if( !dbus_message_append_args(req,
+                                  DBUS_TYPE_STRING, &name,
+                                  DBUS_TYPE_INVALID) ) {
+        log_err("could not add method call parameters");
+        goto EXIT;
+    }
+
+    /* Synchronous D-Bus call */
+    rsp = dbus_connection_send_with_reply_and_block(umdbus_connection, req, -1, &err);
+
+    if( rsp == NULL && dbus_error_is_set(&err) ) {
+        log_err("could not get sender pid for %s: %s: %s", name, err.name, err.message);
+        goto EXIT;
+    }
+
+    if( !dbus_message_get_args(rsp, &err,
+                               DBUS_TYPE_UINT32, &pid,
+                               DBUS_TYPE_INVALID) ) {
+        log_err("parse error: %s: %s", err.name, err.message);
+        goto EXIT;
+    }
+
+    snprintf(path, sizeof path, "/proc/%d", (int)pid);
+    memset(&st, 0, sizeof st);
+    if( stat(path, &st) == 0 ) {
+        uid = st.st_uid;
+    }
+
+EXIT:
+
+    if( req ) dbus_message_unref(req);
+    if( rsp ) dbus_message_unref(rsp);
+
+    dbus_error_free(&err);
+
+    return uid;
 }
