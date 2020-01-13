@@ -61,7 +61,7 @@ This package contains the documentation.
 
 %package developer-mode
 Summary:  USB mode controller - developer mode config
-Group:  Config
+Group:    Config
 
 %description developer-mode
 Usb_moded is a daemon to control the USB states. For this
@@ -74,7 +74,7 @@ usb networking.
 
 %package mtp-mode
 Summary:  USB mode controller - mtp mode config
-Group:  Config
+Group:    Config
 Requires: buteo-mtp-qt5
 
 %description mtp-mode
@@ -87,7 +87,7 @@ This package contains the mtp mode config.
 
 %package mass-storage-mode
 Summary:  USB mode controller - mass-storage mode config
-Group:  Config
+Group:    Config
 
 %description mass-storage-mode
 Usb_moded is a daemon to control the USB states. For this
@@ -99,7 +99,7 @@ This package contains the mass-storage mode config.
 
 %package adb-mode
 Summary:  USB mode controller - android adb mode config
-Group:  Config
+Group:    Config
 
 %description adb-mode
 Usb_moded is a daemon to control the USB states. For this
@@ -112,7 +112,7 @@ gadget driver.
 
 %package diag-mode-android
 Summary:  USB mode controller - android diag mode config
-Group:  Config
+Group:    Config
 
 %description diag-mode-android
 Usb_moded is a daemon to control the USB states. For this
@@ -125,7 +125,7 @@ gadget driver.
 
 %package diag-mode-androidv5-qcom
 Summary:  USB mode controller - android v5 or newer diag mode config for qcom
-Group:  Config
+Group:    Config
 
 %description diag-mode-androidv5-qcom
 Usb_moded is a daemon to control the USB states. For this
@@ -136,10 +136,9 @@ system bus.
 This package contains the diag config for use with the android
 gadget driver.
 
-
 %package acm-mode-android
 Summary:  USB mode controller - android acm mode config
-Group:  Config
+Group:    Config
 
 %description acm-mode-android
 Usb_moded is a daemon to control the USB states. For this
@@ -152,7 +151,7 @@ gadget driver.
 
 %package developer-mode-android
 Summary:  USB mode controller - android developer mode config
-Group:  Config
+Group:    Config
 
 %description developer-mode-android
 Usb_moded is a daemon to control the USB states. For this
@@ -165,7 +164,7 @@ the android gadget. This will provide usb networking.
 
 %package mtp-mode-android
 Summary:  USB mode controller - android mtp mode config
-Group:  Config
+Group:    Config
 
 %description mtp-mode-android
 Usb_moded is a daemon to control the USB states. For this
@@ -177,7 +176,7 @@ This package contains the mtp mode config.
 
 %package mtp-mode-android-ffs
 Summary:  USB mode controller - droid mtp mode config
-Group:  Config
+Group:    Config
 
 %description mtp-mode-android-ffs
 Usb_moded is a daemon to control the USB states. For this
@@ -191,7 +190,7 @@ via ffs.
 
 %package pc-suite-mode-android
 Summary:  USB mode controller - android pc suite  mode config
-Group:  Config
+Group:    Config
 
 %description pc-suite-mode-android
 Usb_moded is a daemon to control the USB states. For this
@@ -203,7 +202,7 @@ This package contains the android pc suite mode config.
 
 %package at-mode-android
 Summary:  USB mode controller - android at modem mode config
-Group:  Config
+Group:    Config
 
 %description at-mode-android
 Usb_moded is a daemon to control the USB states. For this
@@ -215,7 +214,7 @@ This package contains the android at modem port mode config.
 
 %package host-mode-jolla
 Summary:  USB mode controller - host mode switch for Jolla
-Group:  Config
+Group:    Config
 
 %description host-mode-jolla
 Usb_moded is a daemon to control the USB states. For this
@@ -223,12 +222,12 @@ it loads unloads the relevant usb gadget modules, keeps track
 of the filesystem(s) and notifies about changes on the DBUS
 system bus.
 
-This package contains the config to switch the first Jolla phone 
+This package contains the config to switch the first Jolla phone
 in host mode.
 
 %package defaults
-Summary: USB mode controller - default configuration
-Group: Config
+Summary:  USB mode controller - default configuration
+Group:    Config
 Provides: usb-moded-configs
 Requires: usb-moded-developer-mode
 
@@ -238,8 +237,8 @@ basic functionality is provided (i.e. usb networking, ask and charging
 modes)
 
 %package defaults-android
-Summary: USB mode controller - default configuration
-Group: Config
+Summary:  USB mode controller - default configuration
+Group:    Config
 Provides: usb-moded-configs
 Requires: usb-moded-developer-mode-android
 
@@ -250,7 +249,7 @@ modes with the android gadget driver)
 
 %package diagnostics-config
 Summary: USB mode controller - config data for diagnostics mode
-Group: Config
+Group:   Config
 
 %description diagnostics-config
 This package contains the diagnostics info needed to configure a
@@ -258,7 +257,7 @@ diagnotic mode
 
 %package connection-sharing-android-config
 Summary:  USB mode controller - USB/cellular data connection sharing config
-Group:  Config
+Group:    Config
 
 %description connection-sharing-android-config
 Usb_moded is a daemon to control the USB states. For this
@@ -271,7 +270,7 @@ connection over the USB with the android gadget driver.
 
 %package connection-sharing-android-connman-config
 Summary:  USB mode controller - USB/cellular data connection sharing config
-Group:  Config
+Group:    Config
 
 %description connection-sharing-android-connman-config
 Usb_moded is a daemon to control the USB states. For this
@@ -284,7 +283,7 @@ connection over the USB with the connman gadget driver.
 
 %package mass-storage-android-config
 Summary:  USB mode controller - mass-storage config with android gadget
-Group:  Config
+Group:    Config
 
 %description mass-storage-android-config
 Usb_moded is a daemon to control the USB states. For this
@@ -297,7 +296,7 @@ with the android gadget driver.
 
 %package vfat-android-config
 Summary:  USB mode controller - vfat config with tojblockd
-Group:  Config
+Group:    Config
 Requires: tojblockd
 
 %description vfat-android-config
@@ -311,7 +310,7 @@ emulation with tojblockd and nbd.
 
 %package systemd-rescue-mode
 Summary: USB mode controller - systemd rescue mode support
-Group:	Config
+Group:   Config
 
 %Description systemd-rescue-mode
 Usb_moded is a daemon to control the USB states. For this
@@ -319,7 +318,7 @@ it loads unloads the relevant usb gadget modules, keeps track
 of the filesystem(s) and notifies about changes on the DBUS
 system bus.
 
-This package contains the configuration files for systemd to 
+This package contains the configuration files for systemd to
 provide the rescue mode, so device does not get locked down
 when the UI fails.
 
