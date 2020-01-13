@@ -37,6 +37,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <limits.h>
 
 /* ========================================================================= *
  * Constants
@@ -364,7 +365,7 @@ configfs_register_function(const char *function)
 
     const char *res = 0;
 
-    static char fpath[256];
+    static char fpath[PATH_MAX];
     configfs_function_path(fpath, sizeof fpath, function, NULL);
 
     if( !configfs_mkdir(fpath) )
@@ -386,7 +387,7 @@ configfs_unregister_function(const char *function)
 
     bool ack = false;
 
-    char fpath[256];
+    char fpath[PATH_MAX];
     configfs_function_path(fpath, sizeof fpath, function, NULL);
 
     if( !configfs_rmdir(fpath) )
@@ -407,7 +408,7 @@ configfs_add_unit(const char *function, const char *unit)
 
     const char *res = 0;
 
-    static char upath[256];
+    static char upath[PATH_MAX];
     configfs_unit_path(upath, sizeof upath, function, unit);
 
     if( !configfs_mkdir(upath) )
@@ -428,7 +429,7 @@ configfs_remove_unit(const char *function, const char *unit)
 
     bool ack = false;
 
-    static char upath[256];
+    static char upath[PATH_MAX];
     configfs_unit_path(upath, sizeof upath, function, unit);
 
     if( !configfs_rmdir(upath) )
@@ -455,7 +456,7 @@ configfs_enable_function(const char *function)
         goto EXIT;
     }
 
-    char cpath[256];
+    char cpath[PATH_MAX];
     configfs_config_path(cpath, sizeof cpath, function);
 
     switch( configfs_file_type(cpath) ) {
@@ -490,7 +491,7 @@ configfs_disable_function(const char *function)
 
     bool ack = false;
 
-    char cpath[256];
+    char cpath[PATH_MAX];
     configfs_config_path(cpath, sizeof cpath, function);
 
     if( configfs_file_type(cpath) != S_IFLNK ) {
@@ -1055,7 +1056,7 @@ configfs_set_mass_storage_attr(int lun, const char *attr, const char *value)
 
     char unit[32];
     snprintf(unit, sizeof unit, "lun.%d", lun);
-    char path[256];
+    char path[PATH_MAX];
     configfs_function_path(path, sizeof path, FUNCTION_MASS_STORAGE,
                            unit, attr, NULL);
     ack = configfs_write_file(path, value);
