@@ -78,7 +78,7 @@ void        context_leave(void *aptr);
  * ------------------------------------------------------------------------- */
 
 void        log_emit_va     (const char *file, const char *func, int line, int lev, const char *fmt, va_list va);
-void        log_emit_real   (const char *file, const char *func, int line, int lev, const char *fmt, ...);
+void        log_emit_real   (const char *file, const char *func, int line, int lev, const char *fmt, ...) __attribute__((format(printf, 5, 6)));
 void        log_debugf      (const char *fmt, ...);
 int         log_get_level   (void);
 void        log_set_level   (int lev);
