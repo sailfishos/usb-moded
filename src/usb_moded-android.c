@@ -247,7 +247,7 @@ android_set_enabled(bool enable)
     bool ack = false;
     if( android_in_use() ) {
         const char *val = enable ? "1" : "0";
-        ack = android_write_file(ANDROID0_ENABLE, val) != -1;
+        ack = android_write_file(ANDROID0_ENABLE, val);
     }
     log_debug("ANDROID %s(%d) -> %d", __func__, enable, ack);
     return ack;
@@ -304,7 +304,7 @@ android_set_function(const char *function)
     if( !android_set_enabled(false) )
         goto EXIT;
 
-    if( android_write_file(ANDROID0_FUNCTIONS, function) == -1 )
+    if( !android_write_file(ANDROID0_FUNCTIONS, function) )
         goto EXIT;
 
     /* Leave disabled, so that caller can adjust attributes
@@ -336,7 +336,7 @@ android_set_productid(const char *id)
             snprintf(str, sizeof str, "%04x", num);
             id = str;
         }
-        ack = android_write_file(ANDROID0_ID_PRODUCT, id) != -1;
+        ack = android_write_file(ANDROID0_ID_PRODUCT, id);
     }
     log_debug("ANDROID %s(%s) -> %d", __func__, id, ack);
     return ack;
@@ -360,7 +360,7 @@ android_set_vendorid(const char *id)
             snprintf(str, sizeof str, "%04x", num);
             id = str;
         }
-        ack = android_write_file(ANDROID0_ID_VENDOR, id) != -1;
+        ack = android_write_file(ANDROID0_ID_VENDOR, id);
     }
     log_debug("ANDROID %s(%s) -> %d", __func__, id, ack);
     return ack;
