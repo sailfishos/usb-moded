@@ -145,7 +145,7 @@ char *config_find_mounts(void)
     if(ret == NULL)
     {
         ret = g_strdup(FS_MOUNT_DEFAULT);
-        log_debug("Default mount = %s\n", ret);
+        //log_debug("Default mount = %s\n", ret);
     }
     return ret;
 }
@@ -270,7 +270,7 @@ static int config_get_conf_int(const gchar *entry, const gchar *key)
     // Note: zero value is returned if key does not exist
     gint val = g_key_file_get_integer(ini, entry, key, 0);
     g_key_file_free(ini);
-    log_debug("key [%s] %s value is: %d\n", entry, key, val);
+    //log_debug("key [%s] %s value is: %d\n", entry, key, val);
     return val;
 }
 
@@ -283,7 +283,7 @@ char *config_get_conf_string(const gchar *entry, const gchar *key)
     // Note: null value is returned if key does not exist
     gchar *val = g_key_file_get_string(ini, entry, key, 0);
     g_key_file_free(ini);
-    log_debug("key [%s] %s value is: %s\n", entry, key, val ?: "<null>");
+    //log_debug("key [%s] %s value is: %s\n", entry, key, val ?: "<null>");
     return val;
 }
 
@@ -676,7 +676,7 @@ static void config_merge_key(GKeyFile *dest, GKeyFile *srce,
 
     gchar *val = g_key_file_get_value(srce, grp, key, 0);
     if( val ) {
-        log_debug("[%s] %s = %s", grp, key, val);
+        //log_debug("[%s] %s = %s", grp, key, val);
         g_key_file_set_value(dest, grp, key, val);
         g_free(val);
     }
@@ -795,7 +795,7 @@ static bool config_merge_from_file(GKeyFile *ini, const char *path)
     if( !g_key_file_load_from_file(tmp, path, 0, &err) ) {
         log_debug("%s: can't load: %s", path, err->message);
     } else {
-        log_debug("processing %s ...", path);
+        //log_debug("processing %s ...", path);
         config_merge_data(ini, tmp);
         ack = true;
     }
