@@ -723,10 +723,16 @@ bool modesetting_enter_dynamic_mode(void)
         goto EXIT;
     }
 
+    log_debug("data->mode_name = %s", data->mode_name);
     log_debug("data->mass_storage = %d", data->mass_storage);
     log_debug("data->connman_tethering = %s", data->connman_tethering ?: "n/a");
     log_debug("data->appsync = %d", data->appsync);
     log_debug("data->network = %d", data->network);
+    log_debug("data->network_interface = %s", data->network_interface ?: "n/a");
+    log_debug("data->idProduct = %s", data->idProduct ?: "n/a");
+    log_debug("data->idVendorOverride = %s", data->idVendorOverride ?: "n/a");
+    log_debug("data->nat = %d", data->nat);
+    log_debug("data->dhcp_server = %d", data->dhcp_server);
 
     /* - - - - - - - - - - - - - - - - - - - *
      * Is a mass storage dynamic mode?
@@ -814,15 +820,23 @@ bool modesetting_enter_dynamic_mode(void)
             if( !(error = network_up(data)) )
                 log_warning("Setting up the network succeeded");
         }
-        if( error )
+        if( error ) {
             log_err("Setting up the network failed");
+            goto EXIT;
+        }
 #endif /* DEBIAN */
     }
 
     /* Needs to be called before application post synching so
      * that the dhcp server has the right config */
-    if(data->nat || data->dhcp_server)
-        network_set_up_dhcpd(data);
+    if(data->nat || data->dhcp_server) {
+        /* FIXME: The used condition is a bit questionable as dhcpd
+         * service is started based on appsync config - i.e. NOT
+         * based on either nat or setting in modedata ...
+         */
+        if( network_update_udhcpd_config(data) != 0 )
+            goto EXIT;
+    }
 
     /* - - - - - - - - - - - - - - - - - - - *
      * Start post-enum app sync
@@ -844,7 +858,8 @@ bool modesetting_enter_dynamic_mode(void)
 #ifdef CONNMAN
     if( data->connman_tethering ) {
         log_debug("Dynamic mode is tethering");
-        connman_set_tethering(data->connman_tethering, TRUE);
+        if( !connman_set_tethering(data->connman_tethering, true) )
+            goto EXIT;
     }
 #endif
 
@@ -894,7 +909,7 @@ void modesetting_leave_dynamic_mode(void)
 #ifdef CONNMAN
     if( data->connman_tethering ) {
         log_debug("Dynamic mode was tethering");
-        connman_set_tethering(data->connman_tethering, FALSE);
+        connman_set_tethering(data->connman_tethering, false);
     }
 #endif
 

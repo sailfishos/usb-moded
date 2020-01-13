@@ -40,17 +40,15 @@
  * CONNMAN
  * ------------------------------------------------------------------------- */
 
-# ifdef CONNMAN
-gboolean connman_set_tethering(const char *path, gboolean on);
-# endif
+bool connman_set_tethering(const char *technology, bool on);
 
 /* ------------------------------------------------------------------------- *
  * NETWORK
  * ------------------------------------------------------------------------- */
 
-int network_set_up_dhcpd(const modedata_t *data);
-int network_up          (const modedata_t *data);
-int network_down        (const modedata_t *data);
-int network_update      (void);
+int  network_update_udhcpd_config(const modedata_t *data);
+int  network_up                  (const modedata_t *data);
+void network_down                (const modedata_t *data);
+void network_update              (void);
 
 #endif /* USB_MODED_NETWORK_H_ */
