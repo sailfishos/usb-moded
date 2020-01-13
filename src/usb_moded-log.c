@@ -279,6 +279,7 @@ void log_emit_va(const char *file, const char *func, int line, int lev, const ch
                         lineinfo, timeinfo, levelinfo, msg);
 #endif
             }
+            fflush(stderr);
             break;
 
         default:
