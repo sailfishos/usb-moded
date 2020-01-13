@@ -859,7 +859,15 @@ static void config_remove_legacy_config(void)
 {
     LOG_REGISTER_CONTEXT;
 
-    if( unlink(USB_MODED_STATIC_CONFIG_FILE) == -1 && errno != ENOENT ) {
+    /* Note: In case of read-only /tmp, unlink attempt leads to
+     *       EROFS regardless of whether the file exists or not
+     *       -> do a separate existance check 1st.
+     */
+
+    if( access(USB_MODED_STATIC_CONFIG_FILE, F_OK) == -1 && errno == ENOENT ) {
+        /* nop */
+    }
+    else if( unlink(USB_MODED_STATIC_CONFIG_FILE) == -1 && errno != ENOENT ) {
         log_warning("%s: can't remove stale config file: %m",
                     USB_MODED_STATIC_CONFIG_FILE);
     }
