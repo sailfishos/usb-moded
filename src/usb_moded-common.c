@@ -34,6 +34,8 @@
 #include "usb_moded-modes.h"
 #include "usb_moded-worker.h"
 
+#include <sys/wait.h>
+
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -359,19 +361,43 @@ void common_release_wakelock(const char *wakelock_name)
  */
 int
 common_system_(const char *file, int line, const char *func,
-                 const char *command)
+               const char *command)
 {
     LOG_REGISTER_CONTEXT;
 
-    log_debug("EXEC %s; from %s:%d: %s()",
-              command, file, line, func);
+    int         result      = -1;
+    int         status      = -1;
+    char        exited[32]  = "";
+    char        trapped[32] = "";
+    const char *dumped      = "";
 
-    int rc = system(command);
+    log_debug("EXEC %s; from %s:%d: %s()", command, file, line, func);
 
-    if( rc != 0 )
-        log_warning("EXEC %s; exit code is %d", command, rc);
+    if( (status = system(command)) == -1 ) {
+        snprintf(exited, sizeof exited, " exec=failed");
+    }
+    else {
+        if( WIFSIGNALED(status) ) {
+            snprintf(trapped, sizeof trapped, " signal=%s",
+                     strsignal(WTERMSIG(status)));
+        }
 
-    return rc;
+        if( WCOREDUMP(status) )
+            dumped = " core=dumped";
+
+        if( WIFEXITED(status) ) {
+            result = WEXITSTATUS(status);
+            snprintf(exited, sizeof exited, " exit_code=%d", result);
+        }
+    }
+
+    if( result != 0 ) {
+        log_warning("EXEC %s; from %s:%d: %s();%s%s%s result=%d",
+                    command, file, line, func,
+                    exited, trapped, dumped, result);
+    }
+
+    return result;
 }
 
 /** Wrapper to give visibility subprocesses usb-moded is invoking via popen()
