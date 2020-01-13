@@ -526,7 +526,7 @@ static bool modesetting_enter_mass_storage_mode(const modedata_t *data)
         {
             log_debug("%s does not exist, unloading and reloading mass_storage\n", tmp);
             modules_unload_module(MODULE_MASS_STORAGE);
-            snprintf(tmp, sizeof tmp, "modprobe %s luns=%zd \n", MODULE_MASS_STORAGE, count);
+            snprintf(tmp, sizeof tmp, "modprobe %s luns=%zd", MODULE_MASS_STORAGE, count);
             log_debug("usb-load command = %s \n", tmp);
             if( common_system(tmp) != 0 )
                 goto EXIT;
@@ -724,7 +724,7 @@ bool modesetting_enter_dynamic_mode(void)
     }
 
     log_debug("data->mass_storage = %d", data->mass_storage);
-    log_debug("data->connman_tethering = %d", data->connman_tethering);
+    log_debug("data->connman_tethering = %s", data->connman_tethering ?: "n/a");
     log_debug("data->appsync = %d", data->appsync);
     log_debug("data->network = %d", data->network);
 
@@ -800,7 +800,7 @@ bool modesetting_enter_dynamic_mode(void)
 #ifdef DEBIAN
         char command[256];
 
-        g_snprintf(command, 256, "ifdown %s ; ifup %s", data->network_interface, data->network_interface);
+        g_snprintf(command, sizeof command, "ifdown %s ; ifup %s", data->network_interface, data->network_interface);
         common_system(command);
 #else
         network_down(data);
@@ -873,7 +873,7 @@ void modesetting_leave_dynamic_mode(void)
     }
 
     log_debug("data->mass_storage = %d", data->mass_storage);
-    log_debug("data->connman_tethering = %d", data->connman_tethering);
+    log_debug("data->connman_tethering = %s", data->connman_tethering ?: "n/a");
     log_debug("data->appsync = %d", data->appsync);
     log_debug("data->network = %d", data->network);
 
