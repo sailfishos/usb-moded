@@ -944,7 +944,7 @@ static const char usbmoded_usage_info[] =
 "      cable connect.\n"
 "\n";
 
-static const struct option const usbmoded_long_options[] =
+static const struct option usbmoded_long_options[] =
 {
     { "android_usb_broken",             no_argument,       0, 'a' },
     { "android_usb_broken_udev_events", no_argument,       0, 'i' },
