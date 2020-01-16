@@ -3,8 +3,8 @@ all: doc
  
 doc:
 	rm -rf html/
-	doxygen usb_moded-doxygen.conf
+	doxygen usb_moded-doxygen.conf 1>doxygen.out # stdout=noise
  
 clean-local:
-	-rm -rf html/
+	-rm -rf html/ doxygen.out
  
