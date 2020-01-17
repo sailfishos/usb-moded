@@ -314,7 +314,9 @@ install -m 644 -D src/usb_moded-appsync-dbus.h %{buildroot}/%{_includedir}/%{nam
 install -m 644 -D src/com.meego.usb_moded.xml %{buildroot}/%{_includedir}/%{name}/com.meego.usb_moded.xml
 install -m 644 -D usb_moded.pc %{buildroot}/%{_libdir}/pkgconfig/usb_moded.pc
 install -d %{buildroot}/%{_docdir}/%{name}-%{version}/html/
-install -m 644 docs/html/* %{buildroot}/%{_docdir}/%{name}-%{version}/html/
+if [ -f docs/html/index.html ]; then
+  install -m 644 docs/html/* %{buildroot}/%{_docdir}/%{name}-%{version}/html/
+fi
 install -m 644 docs/usb_moded-doc.txt %{buildroot}/%{_docdir}/%{name}-%{version}/
 install -m 644 -D debian/manpage.1 %{buildroot}/%{_mandir}/man1/usb-moded.1
 install -m 644 -D debian/usb_moded.conf %{buildroot}/%{_sysconfdir}/dbus-1/system.d/usb_moded.conf
