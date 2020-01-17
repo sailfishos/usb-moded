@@ -58,6 +58,7 @@ void           control_set_cable_state              (cable_state_t cable_state);
 cable_state_t  control_get_cable_state              (void);
 void           control_clear_cable_state            (void);
 bool           control_get_connection_state         (void);
+void           control_set_last_seen_user           (uid_t uid);
 
 /* ========================================================================= *
  * Data
@@ -88,6 +89,12 @@ static char *control_internal_mode = NULL;
  * - control_get_connection_state()
  */
 static cable_state_t control_cable_state = CABLE_STATE_UNKNOWN;
+
+/** Last user seen
+ *
+ * Defaults to invalid user which has no rights.
+ */
+static uid_t control_last_seen_user = (uid_t)-1;
 
 /* ========================================================================= *
  * Functions
@@ -337,12 +344,17 @@ void control_select_usb_mode(void)
     /* If there is only one allowed mode, use it without
      * going through ask-mode */
     if( !strcmp(MODE_ASK, mode_to_set) ) {
-        // FIXME free() vs g_free() conflict
-        gchar *available = common_get_mode_list(AVAILABLE_MODES_LIST);
-        if( *available && !strchr(available, ',') ) {
-            free(mode_to_set), mode_to_set = available, available = 0;
+        if( control_last_seen_user == (uid_t)-1 ) {
+            /* Use charging only if no user has been seen */
+            free(mode_to_set), mode_to_set = 0;
+        } else {
+            // FIXME free() vs g_free() conflict
+            gchar *available = common_get_mode_list(AVAILABLE_MODES_LIST, control_last_seen_user);
+            if( *available && !strchr(available, ',') ) {
+                free(mode_to_set), mode_to_set = available, available = 0;
+            }
+            g_free(available);
         }
-        g_free(available);
     }
 
     if( mode_to_set && usbmoded_can_export() ) {
@@ -430,4 +442,13 @@ bool control_get_connection_state(void)
         break;
     }
     return connected;
+}
+
+/** Set the last seen user
+ *
+ * @param uid of last seen user, controls implicitly set modes
+ */
+void control_set_last_seen_user(uid_t uid)
+{
+    control_last_seen_user = uid;
 }

@@ -42,6 +42,9 @@
 /** Logical name for org.freedesktop.DBus.NameOwnerChanged signal */
 # define DBUS_NAME_OWNER_CHANGED_SIG     "NameOwnerChanged"
 
+/** Logical name for org.freedesktop.DBus.GetNameOwner method */
+# define DBUS_GET_CONNECTION_PID_REQ     "GetConnectionUnixProcessID"
+
 /* ========================================================================= *
  * Types
  * ========================================================================= */

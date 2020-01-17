@@ -36,6 +36,9 @@
     <method name="get_available_modes">
       <arg name="modes" type="s" direction="out"/>
     </method>
+    <method name="get_available_modes_for_user">
+      <arg name="modes" type="s" direction="out"/>
+    </method>
     <method name="hide_mode">
       <arg name="mode" type="s" direction="in"/>
       <arg name="mode" type="s" direction="out"/>

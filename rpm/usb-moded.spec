@@ -17,6 +17,7 @@ BuildRequires: doxygen
 BuildRequires: pkgconfig(libsystemd)
 BuildRequires: pkgconfig(ssu-sysinfo)
 BuildRequires: pkgconfig(dsme) >= 0.65.0
+BuildRequires: pkgconfig(sailfishaccesscontrol)
 
 Requires: lsof
 Requires: usb-moded-configs
@@ -327,7 +328,7 @@ when the UI fails.
 
 %build
 test -e Makefile || (%autogen)
-test -e Makefile || (%configure --enable-app-sync --enable-meegodevlock --enable-debug --enable-connman --enable-systemd --enable-mer-ssu)
+test -e Makefile || (%configure --enable-app-sync --enable-meegodevlock --enable-debug --enable-connman --enable-systemd --enable-mer-ssu --enable-sailfish-access-control)
 make all doc %{?_smp_mflags}
 
 %install

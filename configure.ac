@@ -49,6 +49,14 @@ AC_ARG_ENABLE([mer_ssu], AS_HELP_STRING([--enable-mer-ssu], [Enable MER SSU @<:@
    esac],[mer_ssu=false])
 AM_CONDITIONAL([USE_MER_SSU], [test x$mer_ssu = xtrue])
 
+AC_ARG_ENABLE([sailfish_access_control], AS_HELP_STRING([--enable-sailfish-access-control], [Enable Sailfish Access Control @<:@default=false@:>@]),
+  [case "${enableval}" in
+   yes) sailfish_access_control=true ; CFLAGS="-DSAILFISH_ACCESS_CONTROL $CFLAGS" ;;
+   no)  sailfish_access_control=false ;;
+   *) AC_MSG_ERROR([bad value ${enableval} for --enable-sailfish-access-control]) ;;
+   esac],[sailfish_access_control=false])
+AM_CONDITIONAL([SAILFISH_ACCESS_CONTROL], [test x$sailfish_access_control = xtrue])
+
 AC_ARG_ENABLE([app_sync], AS_HELP_STRING([--enable-app-sync], [Enable application syncing @<:@default=true@:>@]),
   [case "${enableval}" in
    yes) app_sync=true ; CFLAGS="-DAPP_SYNC $CFLAGS" ;;
@@ -100,6 +108,7 @@ PKG_CHECK_MODULES([USB_MODED], [
  ssu-sysinfo
  libsystemd
  dsme
+ sailfishaccesscontrol
 ])
 
 AC_SUBST(USB_MODED_LIBS)

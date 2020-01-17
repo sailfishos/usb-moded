@@ -75,6 +75,7 @@ bool              usbmoded_get_rescue_mode           (void);
 void              usbmoded_set_rescue_mode           (bool rescue_mode);
 bool              usbmoded_get_diag_mode             (void);
 void              usbmoded_set_diag_mode             (bool diag_mode);
+bool              usbmoded_is_mode_permitted         (const char *modename, uid_t uid);
 void              usbmoded_set_cable_connection_delay(int delay_ms);
 int               usbmoded_get_cable_connection_delay(void);
 void              usbmoded_allow_suspend             (void);

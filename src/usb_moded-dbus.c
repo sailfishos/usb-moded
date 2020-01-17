@@ -40,6 +40,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include <dbus/dbus-glib-lowlevel.h>
 
@@ -84,6 +85,7 @@ int                       umdbus_send_hidden_modes_signal     (const char *hidde
 int                       umdbus_send_whitelisted_modes_signal(const char *whitelist);
 static void               umdbus_get_name_owner_cb            (DBusPendingCall *pc, void *aptr);
 gboolean                  umdbus_get_name_owner_async         (const char *name, usb_moded_get_name_owner_fn cb, DBusPendingCall **ppc);
+uid_t                     umdbus_get_sender_uid               (const char *sender);
 
 /* ========================================================================= *
  * Data
@@ -159,6 +161,9 @@ static const char umdbus_introspect_usbmoded[] =
 "      <arg name=\"modes\" type=\"s\" direction=\"out\"/>\n"
 "    </method>\n"
 "    <method name=\"" USB_MODE_AVAILABLE_MODES_GET "\">\n"
+"      <arg name=\"modes\" type=\"s\" direction=\"out\"/>\n"
+"    </method>\n"
+"    <method name=\"" USB_MODE_AVAILABLE_MODES_FOR_USER "\">\n"
 "      <arg name=\"modes\" type=\"s\" direction=\"out\"/>\n"
 "    </method>\n"
 "    <method name=\"" USB_MODE_HIDE "\">\n"
@@ -284,6 +289,7 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
     const char         *member    = dbus_message_get_member(msg);
     const char         *object    = dbus_message_get_path(msg);
     int                 type      = dbus_message_get_type(msg);
+    const char         *sender    = dbus_message_get_sender(msg);
 
     (void)user_data;
 
@@ -340,10 +346,16 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
             const char *mode = control_get_external_mode();
             char       *use  = 0;
             DBusError   err  = DBUS_ERROR_INIT;
+            uid_t       uid  = umdbus_get_sender_uid(sender);
 
             if(!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &use, DBUS_TYPE_INVALID)) {
                 log_err("parse error: %s: %s", err.name, err.message);
                 reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
+            }
+            else if( !usbmoded_is_mode_permitted(use, uid) ) {
+                /* Insufficient permissions */
+                log_warning("Mode '%s' is not allowed for uid %d", use, uid);
+                reply = dbus_message_new_error(msg, DBUS_ERROR_ACCESS_DENIED, member);
             }
             else if( control_get_cable_state() != CABLE_STATE_PC_CONNECTED ) {
                 /* Mode change makes no sence unless we have a PC connection */
@@ -401,6 +413,11 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
 
             if(!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID))
                 reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
+#ifdef SAILFISH_ACCESS_CONTROL
+            /* do not let non-owner user hide modes */
+            else if (!sailfish_access_control_hasgroup(umdbus_get_sender_uid(sender), "sailfish-system"))
+                reply = dbus_message_new_error(msg, DBUS_ERROR_ACCESS_DENIED, member);
+#endif
             else
             {
                 /* error checking is done when setting configuration */
@@ -422,6 +439,11 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
 
             if(!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID))
                 reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
+#ifdef SAILFISH_ACCESS_CONTROL
+            /* do not let non-owner user unhide modes */
+            else if (!sailfish_access_control_hasgroup(umdbus_get_sender_uid(sender), "sailfish-system"))
+                reply = dbus_message_new_error(msg, DBUS_ERROR_ACCESS_DENIED, member);
+#endif
             else
             {
                 /* error checking is done when setting configuration */
@@ -500,7 +522,7 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
         }
         else if(!strcmp(member, USB_MODE_LIST))
         {
-            gchar *mode_list = common_get_mode_list(SUPPORTED_MODES_LIST);
+            gchar *mode_list = common_get_mode_list(SUPPORTED_MODES_LIST, 0);
 
             if((reply = dbus_message_new_method_return(msg)))
                 dbus_message_append_args (reply, DBUS_TYPE_STRING, (const char *) &mode_list, DBUS_TYPE_INVALID);
@@ -508,11 +530,22 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
         }
         else if(!strcmp(member, USB_MODE_AVAILABLE_MODES_GET))
         {
-            gchar *mode_list = common_get_mode_list(AVAILABLE_MODES_LIST);
+            gchar *mode_list = common_get_mode_list(AVAILABLE_MODES_LIST, 0);
 
             if((reply = dbus_message_new_method_return(msg)))
                 dbus_message_append_args (reply, DBUS_TYPE_STRING, (const char *) &mode_list, DBUS_TYPE_INVALID);
             g_free(mode_list);
+        }
+        else if(!strcmp(member, USB_MODE_AVAILABLE_MODES_FOR_USER))
+        {
+            uid_t uid = umdbus_get_sender_uid(sender);
+            gchar *mode_list = common_get_mode_list(AVAILABLE_MODES_LIST, uid);
+
+            if((reply = dbus_message_new_method_return(msg)))
+                dbus_message_append_args (reply, DBUS_TYPE_STRING, (const char *) &mode_list, DBUS_TYPE_INVALID);
+            g_free(mode_list);
+
+            control_set_last_seen_user(uid);
         }
         else if(!strcmp(member, USB_MODE_RESCUE_OFF))
         {
@@ -1322,4 +1355,72 @@ EXIT:
     if( req ) dbus_message_unref(req);
 
     return ack;
+}
+
+/**
+ * Get uid of sender from D-Bus. This makes a synchronous D-Bus call
+ *
+ * @param name   Name of sender from DBusMessage
+ * @return Uid of the sender
+ */
+uid_t umdbus_get_sender_uid(const char *name)
+{
+    LOG_REGISTER_CONTEXT;
+
+    pid_t        pid = (pid_t)-1;
+    uid_t        uid = (uid_t)-1;
+    DBusMessage *req = 0;
+    DBusMessage *rsp = 0;
+    DBusError    err = DBUS_ERROR_INIT;
+    char         path[256];
+    struct stat  st;
+
+    if(!umdbus_connection)
+        goto EXIT;
+
+    req = dbus_message_new_method_call(DBUS_INTERFACE_DBUS,
+                                       DBUS_PATH_DBUS,
+                                       DBUS_INTERFACE_DBUS,
+                                       DBUS_GET_CONNECTION_PID_REQ);
+    if( !req ) {
+        log_err("could not create method call message");
+        goto EXIT;
+    }
+
+    if( !dbus_message_append_args(req,
+                                  DBUS_TYPE_STRING, &name,
+                                  DBUS_TYPE_INVALID) ) {
+        log_err("could not add method call parameters");
+        goto EXIT;
+    }
+
+    /* Synchronous D-Bus call */
+    rsp = dbus_connection_send_with_reply_and_block(umdbus_connection, req, -1, &err);
+
+    if( !rsp && dbus_error_is_set(&err) ) {
+        log_err("could not get sender pid for %s: %s: %s", name, err.name, err.message);
+        goto EXIT;
+    }
+
+    if( !dbus_message_get_args(rsp, &err,
+                               DBUS_TYPE_UINT32, &pid,
+                               DBUS_TYPE_INVALID) ) {
+        log_err("parse error: %s: %s", err.name, err.message);
+        goto EXIT;
+    }
+
+    snprintf(path, sizeof path, "/proc/%d", (int)pid);
+    memset(&st, 0, sizeof st);
+    if( stat(path, &st) != -1 ) {
+        uid = st.st_uid;
+    }
+
+EXIT:
+
+    if( req ) dbus_message_unref(req);
+    if( rsp ) dbus_message_unref(rsp);
+
+    dbus_error_free(&err);
+
+    return uid;
 }
