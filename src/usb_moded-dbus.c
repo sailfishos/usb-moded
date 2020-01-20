@@ -45,6 +45,10 @@
 
 #include <dbus/dbus-glib-lowlevel.h>
 
+#ifdef SAILFISH_ACCESS_CONTROL
+# include <sailfishaccesscontrol.h>
+#endif
+
 /* ========================================================================= *
  * Constants
  * ========================================================================= */
