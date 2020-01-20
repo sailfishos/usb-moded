@@ -238,7 +238,7 @@ static const char umdbus_introspect_usbmoded[] =
 
 /**
  * Issues "sig_usb_config_ind" signal.
-*/
+ */
 void umdbus_send_config_signal(const char *section, const char *key, const char *value)
 {
     LOG_REGISTER_CONTEXT;
@@ -952,7 +952,7 @@ void umdbus_send_current_state_signal(const char *state_ind)
  */
 static bool
 umdbus_append_basic_entry(DBusMessageIter *iter, const char *key,
-                           int type, const void *val)
+                          int type, const void *val)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -1029,7 +1029,7 @@ umdbus_append_int32_entry(DBusMessageIter *iter, const char *key, int val)
  */
 static bool
 umdbus_append_string_entry(DBusMessageIter *iter, const char *key,
-                            const char *val)
+                           const char *val)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -1190,7 +1190,7 @@ void umdbus_send_event_signal(const char *state_ind)
  * @return 0 on success, 1 on failure
  * @param error the error to be signalled
  *
-*/
+ */
 int umdbus_send_error_signal(const char *error)
 {
     LOG_REGISTER_CONTEXT;
@@ -1204,7 +1204,7 @@ int umdbus_send_error_signal(const char *error)
  * @return 0 on success, 1 on failure
  * @param supported_modes list of supported modes
  *
-*/
+ */
 int umdbus_send_supported_modes_signal(const char *supported_modes)
 {
     LOG_REGISTER_CONTEXT;
@@ -1218,7 +1218,7 @@ int umdbus_send_supported_modes_signal(const char *supported_modes)
  * @return 0 on success, 1 on failure
  * @param available_modes list of available modes
  *
-*/
+ */
 int umdbus_send_available_modes_signal(const char *available_modes)
 {
     LOG_REGISTER_CONTEXT;
@@ -1232,7 +1232,7 @@ int umdbus_send_available_modes_signal(const char *available_modes)
  * @return 0 on success, 1 on failure
  * @param hidden_modes list of supported modes
  *
-*/
+ */
 int umdbus_send_hidden_modes_signal(const char *hidden_modes)
 {
     LOG_REGISTER_CONTEXT;
@@ -1308,8 +1308,8 @@ EXIT:
  * @return TRUE if method call was sent, FALSE otherwise
  */
 gboolean umdbus_get_name_owner_async(const char *name,
-                                        usb_moded_get_name_owner_fn cb,
-                                        DBusPendingCall **ppc)
+                                     usb_moded_get_name_owner_fn cb,
+                                     DBusPendingCall **ppc)
 {
     LOG_REGISTER_CONTEXT;
 
