@@ -1,17 +1,18 @@
 /**
  * @file usb_moded-modesetting.c
  *
- * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2013-2019 Jolla Ltd.
+ * Copyright (c) 2010 Nokia Corporation. All rights reserved.
+ * Copyright (c) 2013 - 2020 Jolla Ltd.
+ * Copyright (c) 2020 Open Mobile Platform LLC.
  *
- * @author: Philippe De Swert <philippe.de-swert@nokia.com>
- * @author: Philippe De Swert <phdeswer@lumi.maa>
- * @author: Philippe De Swert <philippedeswert@gmail.com>
- * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
- * @author: Bernd Wachter <bernd.wachter@jollamobile.com>
- * @author: Slava Monich <slava.monich@jolla.com>
- * @author: Thomas Perl <m@thp.io>
- * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
+ * @author Philippe De Swert <philippe.de-swert@nokia.com>
+ * @author Philippe De Swert <phdeswer@lumi.maa>
+ * @author Philippe De Swert <philippedeswert@gmail.com>
+ * @author Philippe De Swert <philippe.deswert@jollamobile.com>
+ * @author Bernd Wachter <bernd.wachter@jollamobile.com>
+ * @author Slava Monich <slava.monich@jolla.com>
+ * @author Thomas Perl <m@thp.io>
+ * @author Simo Piiroinen <simo.piiroinen@jollamobile.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the Lesser GNU General Public License
@@ -54,9 +55,14 @@
  * Types
  * ========================================================================= */
 
+/** Mount point info
+ */
 typedef struct storage_info_t
 {
+    /** Directory path */
     gchar *si_mountpoint;
+
+    /** Device path */
     gchar *si_mountdevice;;
 } storage_info_t;
 
@@ -520,7 +526,7 @@ static bool modesetting_enter_mass_storage_mode(const modedata_t *data)
         {
             log_debug("%s does not exist, unloading and reloading mass_storage\n", tmp);
             modules_unload_module(MODULE_MASS_STORAGE);
-            snprintf(tmp, sizeof tmp, "modprobe %s luns=%zd \n", MODULE_MASS_STORAGE, count);
+            snprintf(tmp, sizeof tmp, "modprobe %s luns=%zd", MODULE_MASS_STORAGE, count);
             log_debug("usb-load command = %s \n", tmp);
             if( common_system(tmp) != 0 )
                 goto EXIT;
@@ -717,10 +723,16 @@ bool modesetting_enter_dynamic_mode(void)
         goto EXIT;
     }
 
+    log_debug("data->mode_name = %s", data->mode_name);
     log_debug("data->mass_storage = %d", data->mass_storage);
-    log_debug("data->connman_tethering = %d", data->connman_tethering);
+    log_debug("data->connman_tethering = %s", data->connman_tethering ?: "n/a");
     log_debug("data->appsync = %d", data->appsync);
     log_debug("data->network = %d", data->network);
+    log_debug("data->network_interface = %s", data->network_interface ?: "n/a");
+    log_debug("data->idProduct = %s", data->idProduct ?: "n/a");
+    log_debug("data->idVendorOverride = %s", data->idVendorOverride ?: "n/a");
+    log_debug("data->nat = %d", data->nat);
+    log_debug("data->dhcp_server = %d", data->dhcp_server);
 
     /* - - - - - - - - - - - - - - - - - - - *
      * Is a mass storage dynamic mode?
@@ -794,7 +806,7 @@ bool modesetting_enter_dynamic_mode(void)
 #ifdef DEBIAN
         char command[256];
 
-        g_snprintf(command, 256, "ifdown %s ; ifup %s", data->network_interface, data->network_interface);
+        g_snprintf(command, sizeof command, "ifdown %s ; ifup %s", data->network_interface, data->network_interface);
         common_system(command);
 #else
         network_down(data);
@@ -808,15 +820,23 @@ bool modesetting_enter_dynamic_mode(void)
             if( !(error = network_up(data)) )
                 log_warning("Setting up the network succeeded");
         }
-        if( error )
+        if( error ) {
             log_err("Setting up the network failed");
+            goto EXIT;
+        }
 #endif /* DEBIAN */
     }
 
     /* Needs to be called before application post synching so
      * that the dhcp server has the right config */
-    if(data->nat || data->dhcp_server)
-        network_set_up_dhcpd(data);
+    if(data->nat || data->dhcp_server) {
+        /* FIXME: The used condition is a bit questionable as dhcpd
+         * service is started based on appsync config - i.e. NOT
+         * based on either nat or setting in modedata ...
+         */
+        if( network_update_udhcpd_config(data) != 0 )
+            goto EXIT;
+    }
 
     /* - - - - - - - - - - - - - - - - - - - *
      * Start post-enum app sync
@@ -838,7 +858,8 @@ bool modesetting_enter_dynamic_mode(void)
 #ifdef CONNMAN
     if( data->connman_tethering ) {
         log_debug("Dynamic mode is tethering");
-        connman_set_tethering(data->connman_tethering, TRUE);
+        if( !connman_set_tethering(data->connman_tethering, true) )
+            goto EXIT;
     }
 #endif
 
@@ -867,7 +888,7 @@ void modesetting_leave_dynamic_mode(void)
     }
 
     log_debug("data->mass_storage = %d", data->mass_storage);
-    log_debug("data->connman_tethering = %d", data->connman_tethering);
+    log_debug("data->connman_tethering = %s", data->connman_tethering ?: "n/a");
     log_debug("data->appsync = %d", data->appsync);
     log_debug("data->network = %d", data->network);
 
@@ -888,7 +909,7 @@ void modesetting_leave_dynamic_mode(void)
 #ifdef CONNMAN
     if( data->connman_tethering ) {
         log_debug("Dynamic mode was tethering");
-        connman_set_tethering(data->connman_tethering, FALSE);
+        connman_set_tethering(data->connman_tethering, false);
     }
 #endif
 

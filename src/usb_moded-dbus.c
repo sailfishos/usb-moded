@@ -1,19 +1,20 @@
 /**
- * @file        usb_moded-dbus.c
+ * @file usb_moded-dbus.c
  *
- * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2012-2019 Jolla. All rights reserved.
+ * Copyright (c) 2010 Nokia Corporation. All rights reserved.
+ * Copyright (c) 2012 - 2020 Jolla Ltd.
+ * Copyright (c) 2020 Open Mobile Platform LLC.
  *
- * @author: Philippe De Swert <philippe.de-swert@nokia.com>
- * @author: Philippe De Swert <phdeswer@lumi.maa>
- * @author: Philippe De Swert <philippedeswert@gmail.com>
- * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
- * @author: Vesa Halttunen <vesa.halttunen@jollamobile.com>
- * @author: Slava Monich <slava.monich@jolla.com>
- * @author: Martin Jones <martin.jones@jollamobile.com>
- * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
- * @author: Andrew den Exter <andrew.den.exter@jolla.com>
- * @author: Andrew den Exter <andrew.den.exter@jollamobile.com>
+ * @author Philippe De Swert <philippe.de-swert@nokia.com>
+ * @author Philippe De Swert <phdeswer@lumi.maa>
+ * @author Philippe De Swert <philippedeswert@gmail.com>
+ * @author Philippe De Swert <philippe.deswert@jollamobile.com>
+ * @author Vesa Halttunen <vesa.halttunen@jollamobile.com>
+ * @author Slava Monich <slava.monich@jolla.com>
+ * @author Martin Jones <martin.jones@jollamobile.com>
+ * @author Simo Piiroinen <simo.piiroinen@jollamobile.com>
+ * @author Andrew den Exter <andrew.den.exter@jolla.com>
+ * @author Andrew den Exter <andrew.den.exter@jollamobile.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the Lesser GNU General Public License
@@ -43,6 +44,10 @@
 #include <sys/stat.h>
 
 #include <dbus/dbus-glib-lowlevel.h>
+
+#ifdef SAILFISH_ACCESS_CONTROL
+# include <sailfishaccesscontrol.h>
+#endif
 
 /* ========================================================================= *
  * Constants
@@ -86,6 +91,36 @@ int                       umdbus_send_whitelisted_modes_signal(const char *white
 static void               umdbus_get_name_owner_cb            (DBusPendingCall *pc, void *aptr);
 gboolean                  umdbus_get_name_owner_async         (const char *name, usb_moded_get_name_owner_fn cb, DBusPendingCall **ppc);
 uid_t                     umdbus_get_sender_uid               (const char *sender);
+const char               *umdbus_arg_type_repr                (int type);
+const char               *umdbus_arg_type_signature           (int type);
+const char               *umdbus_msg_type_repr                (int type);
+bool                      umdbus_parser_init                  (DBusMessageIter *iter, DBusMessage *msg);
+int                       umdbus_parser_at_type               (DBusMessageIter *iter);
+bool                      umdbus_parser_at_end                (DBusMessageIter *iter);
+bool                      umdbus_parser_require_type          (DBusMessageIter *iter, int type, bool strict);
+bool                      umdbus_parser_get_bool              (DBusMessageIter *iter, bool *pval);
+bool                      umdbus_parser_get_int               (DBusMessageIter *iter, int *pval);
+bool                      umdbus_parser_get_string            (DBusMessageIter *iter, const char **pval);
+bool                      umdbus_parser_get_object            (DBusMessageIter *iter, const char **pval);
+bool                      umdbus_parser_get_variant           (DBusMessageIter *iter, DBusMessageIter *val);
+bool                      umdbus_parser_get_array             (DBusMessageIter *iter, DBusMessageIter *val);
+bool                      umdbus_parser_get_struct            (DBusMessageIter *iter, DBusMessageIter *val);
+bool                      umdbus_parser_get_entry             (DBusMessageIter *iter, DBusMessageIter *val);
+bool                      umdbus_append_init                  (DBusMessageIter *iter, DBusMessage *msg);
+bool                      umdbus_open_container               (DBusMessageIter *iter, DBusMessageIter *sub, int type, const char *sign);
+bool                      umdbus_close_container              (DBusMessageIter *iter, DBusMessageIter *sub, bool success);
+bool                      umdbus_append_basic_value           (DBusMessageIter *iter, int type, const DBusBasicValue *val);
+bool                      umdbus_append_basic_variant         (DBusMessageIter *iter, int type, const DBusBasicValue *val);
+bool                      umdbus_append_bool                  (DBusMessageIter *iter, bool val);
+bool                      umdbus_append_int                   (DBusMessageIter *iter, int val);
+bool                      umdbus_append_string                (DBusMessageIter *iter, const char *val);
+bool                      umdbus_append_bool_variant          (DBusMessageIter *iter, bool val);
+bool                      umdbus_append_int_variant           (DBusMessageIter *iter, int val);
+bool                      umdbus_append_string_variant        (DBusMessageIter *iter, const char *val);
+bool                      umdbus_append_args_va               (DBusMessageIter *iter, int type, va_list va);
+bool                      umdbus_append_args                  (DBusMessageIter *iter, int arg_type, ...);
+DBusMessage              *umdbus_blocking_call                (DBusConnection *con, const char *dst, const char *obj, const char *iface, const char *meth, DBusError *err, int arg_type, ...);
+bool                      umdbus_parse_reply                  (DBusMessage *rsp, int arg_type, ...);
 
 /* ========================================================================= *
  * Data
@@ -237,7 +272,7 @@ static const char umdbus_introspect_usbmoded[] =
 
 /**
  * Issues "sig_usb_config_ind" signal.
-*/
+ */
 void umdbus_send_config_signal(const char *section, const char *key, const char *value)
 {
     LOG_REGISTER_CONTEXT;
@@ -951,7 +986,7 @@ void umdbus_send_current_state_signal(const char *state_ind)
  */
 static bool
 umdbus_append_basic_entry(DBusMessageIter *iter, const char *key,
-                           int type, const void *val)
+                          int type, const void *val)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -1028,7 +1063,7 @@ umdbus_append_int32_entry(DBusMessageIter *iter, const char *key, int val)
  */
 static bool
 umdbus_append_string_entry(DBusMessageIter *iter, const char *key,
-                            const char *val)
+                           const char *val)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -1189,7 +1224,7 @@ void umdbus_send_event_signal(const char *state_ind)
  * @return 0 on success, 1 on failure
  * @param error the error to be signalled
  *
-*/
+ */
 int umdbus_send_error_signal(const char *error)
 {
     LOG_REGISTER_CONTEXT;
@@ -1203,7 +1238,7 @@ int umdbus_send_error_signal(const char *error)
  * @return 0 on success, 1 on failure
  * @param supported_modes list of supported modes
  *
-*/
+ */
 int umdbus_send_supported_modes_signal(const char *supported_modes)
 {
     LOG_REGISTER_CONTEXT;
@@ -1217,7 +1252,7 @@ int umdbus_send_supported_modes_signal(const char *supported_modes)
  * @return 0 on success, 1 on failure
  * @param available_modes list of available modes
  *
-*/
+ */
 int umdbus_send_available_modes_signal(const char *available_modes)
 {
     LOG_REGISTER_CONTEXT;
@@ -1231,7 +1266,7 @@ int umdbus_send_available_modes_signal(const char *available_modes)
  * @return 0 on success, 1 on failure
  * @param hidden_modes list of supported modes
  *
-*/
+ */
 int umdbus_send_hidden_modes_signal(const char *hidden_modes)
 {
     LOG_REGISTER_CONTEXT;
@@ -1307,8 +1342,8 @@ EXIT:
  * @return TRUE if method call was sent, FALSE otherwise
  */
 gboolean umdbus_get_name_owner_async(const char *name,
-                                        usb_moded_get_name_owner_fn cb,
-                                        DBusPendingCall **ppc)
+                                     usb_moded_get_name_owner_fn cb,
+                                     DBusPendingCall **ppc)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -1423,4 +1458,497 @@ EXIT:
     dbus_error_free(&err);
 
     return uid;
+}
+
+const char *
+umdbus_arg_type_repr(int type)
+{
+    const char *repr = "UNKNOWN";
+    switch( type ) {
+    case DBUS_TYPE_INVALID:     repr = "INVALID";     break;
+    case DBUS_TYPE_BYTE:        repr = "BYTE";        break;
+    case DBUS_TYPE_BOOLEAN:     repr = "BOOLEAN";     break;
+    case DBUS_TYPE_INT16:       repr = "INT16";       break;
+    case DBUS_TYPE_UINT16:      repr = "UINT16";      break;
+    case DBUS_TYPE_INT32:       repr = "INT32";       break;
+    case DBUS_TYPE_UINT32:      repr = "UINT32";      break;
+    case DBUS_TYPE_INT64:       repr = "INT64";       break;
+    case DBUS_TYPE_UINT64:      repr = "UINT64";      break;
+    case DBUS_TYPE_DOUBLE:      repr = "DOUBLE";      break;
+    case DBUS_TYPE_STRING:      repr = "STRING";      break;
+    case DBUS_TYPE_OBJECT_PATH: repr = "OBJECT_PATH"; break;
+    case DBUS_TYPE_SIGNATURE:   repr = "SIGNATURE";   break;
+    case DBUS_TYPE_UNIX_FD:     repr = "UNIX_FD";     break;
+    case DBUS_TYPE_ARRAY:       repr = "ARRAY";       break;
+    case DBUS_TYPE_VARIANT:     repr = "VARIANT";     break;
+    case DBUS_TYPE_STRUCT:      repr = "STRUCT";      break;
+    case DBUS_TYPE_DICT_ENTRY:  repr = "DICT_ENTRY";  break;
+    default: break;
+    }
+    return repr;
+}
+
+const char *
+umdbus_arg_type_signature(int type)
+{
+    const char *sign = 0;
+    switch( type ) {
+    case DBUS_TYPE_INVALID:      sign = DBUS_TYPE_INVALID_AS_STRING;      break;
+    case DBUS_TYPE_BYTE:         sign = DBUS_TYPE_BYTE_AS_STRING;         break;
+    case DBUS_TYPE_BOOLEAN:      sign = DBUS_TYPE_BOOLEAN_AS_STRING;      break;
+    case DBUS_TYPE_INT16:        sign = DBUS_TYPE_INT16_AS_STRING;        break;
+    case DBUS_TYPE_UINT16:       sign = DBUS_TYPE_UINT16_AS_STRING;       break;
+    case DBUS_TYPE_INT32:        sign = DBUS_TYPE_INT32_AS_STRING;        break;
+    case DBUS_TYPE_UINT32:       sign = DBUS_TYPE_UINT32_AS_STRING;       break;
+    case DBUS_TYPE_INT64:        sign = DBUS_TYPE_INT64_AS_STRING;        break;
+    case DBUS_TYPE_UINT64:       sign = DBUS_TYPE_UINT64_AS_STRING;       break;
+    case DBUS_TYPE_DOUBLE:       sign = DBUS_TYPE_DOUBLE_AS_STRING;       break;
+    case DBUS_TYPE_STRING:       sign = DBUS_TYPE_STRING_AS_STRING;       break;
+    case DBUS_TYPE_OBJECT_PATH:  sign = DBUS_TYPE_OBJECT_PATH_AS_STRING;  break;
+    case DBUS_TYPE_SIGNATURE:    sign = DBUS_TYPE_SIGNATURE_AS_STRING;    break;
+    case DBUS_TYPE_UNIX_FD:      sign = DBUS_TYPE_UNIX_FD_AS_STRING;      break;
+    case DBUS_TYPE_ARRAY:        sign = DBUS_TYPE_ARRAY_AS_STRING;        break;
+    case DBUS_TYPE_VARIANT:      sign = DBUS_TYPE_VARIANT_AS_STRING;      break;
+    case DBUS_TYPE_STRUCT:       sign = DBUS_TYPE_STRUCT_AS_STRING;       break;
+    case DBUS_TYPE_DICT_ENTRY:   sign = DBUS_TYPE_DICT_ENTRY_AS_STRING;   break;
+    default: break;
+    }
+    return sign;
+}
+
+const char *
+umdbus_msg_type_repr(int type)
+{
+    return dbus_message_type_to_string(type);
+}
+
+bool
+umdbus_parser_init(DBusMessageIter *iter, DBusMessage *msg)
+{
+    return iter && msg && dbus_message_iter_init(msg, iter);
+}
+
+int
+umdbus_parser_at_type(DBusMessageIter *iter)
+{
+    return iter ? dbus_message_iter_get_arg_type(iter) : DBUS_TYPE_INVALID;
+}
+
+bool
+umdbus_parser_at_end(DBusMessageIter *iter)
+{
+    return umdbus_parser_at_type(iter) == DBUS_TYPE_INVALID;
+}
+
+bool
+umdbus_parser_require_type(DBusMessageIter *iter, int type, bool strict)
+{
+    int have = umdbus_parser_at_type(iter);
+
+    if( have == type )
+        return true;
+
+    if( strict || have != DBUS_TYPE_INVALID )
+        log_warning("expected %s, got %s",
+                    umdbus_arg_type_repr(type),
+                    umdbus_arg_type_repr(have));
+    return false;
+}
+
+bool
+umdbus_parser_get_bool(DBusMessageIter *iter, bool *pval)
+{
+    dbus_bool_t val = 0;
+    bool ack = umdbus_parser_require_type(iter, DBUS_TYPE_BOOLEAN, true);
+    if( ack ) {
+        dbus_message_iter_get_basic(iter, &val);
+        dbus_message_iter_next(iter);
+    }
+    return *pval = val, ack;
+}
+
+bool
+umdbus_parser_get_int(DBusMessageIter *iter, int *pval)
+{
+    dbus_int32_t val = 0;
+    bool ack = umdbus_parser_require_type(iter, DBUS_TYPE_INT32, true);
+    if( ack ) {
+        dbus_message_iter_get_basic(iter, &val);
+        dbus_message_iter_next(iter);
+    }
+    return *pval = (int)val, ack;
+}
+
+bool
+umdbus_parser_get_string(DBusMessageIter *iter, const char **pval)
+{
+    const char *val = 0;
+    bool ack = umdbus_parser_require_type(iter, DBUS_TYPE_STRING, true);
+    if( ack ) {
+        dbus_message_iter_get_basic(iter, &val);
+        dbus_message_iter_next(iter);
+    }
+    return *pval = val, ack;
+}
+
+bool
+umdbus_parser_get_object(DBusMessageIter *iter, const char **pval)
+{
+    const char *val = 0;
+    bool ack = umdbus_parser_require_type(iter, DBUS_TYPE_OBJECT_PATH, true);
+    if( ack ) {
+        dbus_message_iter_get_basic(iter, &val);
+        dbus_message_iter_next(iter);
+    }
+    return *pval = val, ack;
+}
+
+bool
+umdbus_parser_get_variant(DBusMessageIter *iter, DBusMessageIter *val)
+{
+    bool ack = umdbus_parser_require_type(iter, DBUS_TYPE_VARIANT, true);
+    if( ack ) {
+        dbus_message_iter_recurse(iter, val);
+        dbus_message_iter_next(iter);
+    }
+    return ack;
+}
+
+bool
+umdbus_parser_get_array(DBusMessageIter *iter, DBusMessageIter *val)
+{
+    bool ack = umdbus_parser_require_type(iter, DBUS_TYPE_ARRAY, true);
+    if( ack ) {
+        dbus_message_iter_recurse(iter, val);
+        dbus_message_iter_next(iter);
+    }
+    return ack;
+}
+
+bool
+umdbus_parser_get_struct(DBusMessageIter *iter, DBusMessageIter *val)
+{
+    bool ack = umdbus_parser_require_type(iter, DBUS_TYPE_STRUCT, false);
+    if( ack ) {
+        dbus_message_iter_recurse(iter, val);
+        dbus_message_iter_next(iter);
+    }
+    return ack;
+}
+
+bool
+umdbus_parser_get_entry(DBusMessageIter *iter, DBusMessageIter *val)
+{
+    bool ack = umdbus_parser_require_type(iter, DBUS_TYPE_DICT_ENTRY, false);
+    if( ack ) {
+        dbus_message_iter_recurse(iter, val);
+        dbus_message_iter_next(iter);
+    }
+    return ack;
+}
+
+bool
+umdbus_append_init(DBusMessageIter *iter, DBusMessage *msg)
+{
+    bool ack = iter && msg && (dbus_message_iter_init_append(msg, iter), true);
+    return ack;
+}
+
+bool
+umdbus_open_container(DBusMessageIter *iter, DBusMessageIter *sub, int type, const char *sign)
+{
+    bool ack = dbus_message_iter_open_container(iter, type, sign, sub);
+    if( ack ) {
+        /* Caller must make call umdbus_close_container() */
+    }
+    else {
+        /* Caller must not call umdbus_close_container() */
+        log_warning("failed to open %s container with signature: %s",
+                    umdbus_arg_type_repr(type), sign ?: "");
+    }
+    return ack;
+}
+
+bool
+umdbus_close_container(DBusMessageIter *iter, DBusMessageIter *sub, bool success)
+{
+    if( success ) {
+        if( !(success = dbus_message_iter_close_container(iter, sub)) ) {
+            log_warning("failed to close container");
+        }
+    }
+    else {
+        log_warning("abandoning container");
+        dbus_message_iter_abandon_container(iter, sub);
+    }
+    return success;
+}
+
+bool
+umdbus_append_basic_value(DBusMessageIter *iter, int type, const DBusBasicValue *val)
+{
+    if( log_p(LOG_DEBUG) ) {
+        char buff[64] = "";
+        const char *repr = buff;
+        switch( type ) {
+        case DBUS_TYPE_BYTE:
+            snprintf(buff, sizeof buff, "%u", val->byt);
+            break;
+        case DBUS_TYPE_BOOLEAN:
+            repr = val->bool_val ? "true" : "false";
+            break;
+        case DBUS_TYPE_INT16:
+            snprintf(buff, sizeof buff, "%d", val->i16);
+            break;
+        case DBUS_TYPE_UINT16:
+            snprintf(buff, sizeof buff, "%u", val->u16);
+            break;
+        case DBUS_TYPE_INT32:
+            snprintf(buff, sizeof buff, "%d", val->i32);
+            break;
+        case DBUS_TYPE_UINT32:
+            snprintf(buff, sizeof buff, "%u", val->u32);
+            break;
+        case DBUS_TYPE_INT64:
+            snprintf(buff, sizeof buff, "%lld", (long long)val->i64);
+            break;
+        case DBUS_TYPE_UINT64:
+            snprintf(buff, sizeof buff, "%llu", (unsigned long long)val->u64);
+            break;
+        case DBUS_TYPE_DOUBLE:
+            snprintf(buff, sizeof buff, "%g", val->dbl);
+            break;
+        case DBUS_TYPE_STRING:
+        case DBUS_TYPE_OBJECT_PATH:
+        case DBUS_TYPE_SIGNATURE:
+            repr = (const char *)val->str;
+            break;
+        case DBUS_TYPE_UNIX_FD:
+            snprintf(buff, sizeof buff, "%d", val->fd);
+            break;
+        default:
+        case DBUS_TYPE_INVALID:
+        case DBUS_TYPE_ARRAY:
+        case DBUS_TYPE_VARIANT:
+        case DBUS_TYPE_STRUCT:
+        case DBUS_TYPE_DICT_ENTRY:
+          // not expected
+          break;
+        }
+        log_debug("append %s value %s", umdbus_arg_type_repr(type), repr);
+    }
+
+    if (dbus_message_iter_append_basic(iter, type, val))
+        return true;
+
+    log_warning("failed to append %s argument", umdbus_arg_type_repr(type));
+    return false;
+}
+
+bool
+umdbus_append_basic_variant(DBusMessageIter *iter, int type, const DBusBasicValue *val)
+{
+    bool ack = false;
+    const char *sign = 0;
+
+    log_debug("append %s variant", umdbus_arg_type_repr(type));
+
+    if( !dbus_type_is_basic(type) )
+        goto EXIT;
+
+    if( !(sign = umdbus_arg_type_signature(type)) )
+        goto EXIT;
+
+    DBusMessageIter var;
+
+    if( umdbus_open_container(iter, &var, DBUS_TYPE_VARIANT, sign) ) {
+        ack = umdbus_append_basic_value(&var, DBUS_TYPE_BOOLEAN, val);
+        ack = umdbus_close_container(iter, &var, ack);
+    }
+
+EXIT:
+
+    if( !ack )
+        log_warning("failed to append %s variant", umdbus_arg_type_repr(type));
+
+    return ack;
+}
+
+bool
+umdbus_append_bool(DBusMessageIter *iter, bool val)
+{
+    DBusBasicValue dta = { .bool_val = (dbus_bool_t)val };
+    return umdbus_append_basic_value(iter, DBUS_TYPE_BOOLEAN, &dta);
+}
+
+bool
+umdbus_append_int(DBusMessageIter *iter, int val)
+{
+    DBusBasicValue dta = { .i32 = (dbus_int32_t)val };
+    return umdbus_append_basic_value(iter, DBUS_TYPE_INT32, &dta);
+}
+
+bool
+umdbus_append_string(DBusMessageIter *iter, const char *val)
+{
+    DBusBasicValue dta = { .str = (char *)val };
+    return umdbus_append_basic_value(iter, DBUS_TYPE_STRING, &dta);
+}
+
+bool
+umdbus_append_bool_variant(DBusMessageIter *iter, bool val)
+{
+    DBusBasicValue dta = { .bool_val = val };
+    return umdbus_append_basic_variant(iter, DBUS_TYPE_BOOLEAN, &dta);
+}
+
+bool
+umdbus_append_int_variant(DBusMessageIter *iter, int val)
+{
+    DBusBasicValue dta = { .i32 = val };
+    return umdbus_append_basic_variant(iter, DBUS_TYPE_INT32, &dta);
+}
+
+bool
+umdbus_append_string_variant(DBusMessageIter *iter, const char *val)
+{
+    DBusBasicValue dta = { .str = (char *)val };
+    return umdbus_append_basic_variant(iter, DBUS_TYPE_STRING, &dta);
+}
+
+bool
+umdbus_append_args_va(DBusMessageIter *iter, int type, va_list va)
+{
+    bool ack = false;
+
+    DBusBasicValue *arg;
+
+    while( type != DBUS_TYPE_INVALID ) {
+        switch( type ) {
+        case DBUS_TYPE_VARIANT:
+            type = va_arg(va, int);
+            if( !dbus_type_is_basic(type) ) {
+                log_err("variant type %s is not supported",
+                        umdbus_arg_type_repr(type));
+                goto EXIT;
+            }
+            arg = va_arg(va, DBusBasicValue *);
+            if( !umdbus_append_basic_variant(iter, type, arg) )
+                goto EXIT;
+
+            break;
+
+        case DBUS_TYPE_ARRAY:
+        case DBUS_TYPE_STRUCT:
+            /* Not supported yet - fall through */
+        default:
+            if( !dbus_type_is_basic(type) ) {
+                log_err("value type %s is not supported",
+                        umdbus_arg_type_repr(type));
+                goto EXIT;
+            }
+            arg = va_arg(va, DBusBasicValue *);
+            if( !umdbus_append_basic_value(iter, type, arg) )
+                goto EXIT;
+            break;
+        }
+        type = va_arg(va, int);
+    }
+    ack = true;
+EXIT:
+    return ack;
+}
+
+bool
+umdbus_append_args(DBusMessageIter *iter, int arg_type, ...)
+{
+    va_list va;
+    va_start(va, arg_type);
+    bool ack = umdbus_append_args_va(iter, arg_type, va);
+    va_end(va);
+    return ack;
+}
+
+DBusMessage *
+umdbus_blocking_call(DBusConnection *con,
+                     const char     *dst,
+                     const char     *obj,
+                     const char     *iface,
+                     const char     *meth,
+                     DBusError      *err,
+                     int            arg_type, ...)
+{
+    DBusMessage *rsp = 0;
+    DBusMessage *req = 0;
+    va_list      va;
+
+    va_start(va, arg_type);
+
+    if( !(req = dbus_message_new_method_call(dst, obj, iface, meth)) )
+        goto EXIT;
+
+    DBusMessageIter body;
+    if( !umdbus_append_init(&body, req) )
+        goto EXIT;
+
+    /* Note: Unlike dbus_message_append_args_valist():
+     * - simple variants are supported
+     * - arrays are not (yet)
+     */
+    if( !umdbus_append_args_va(&body, arg_type, va) )
+        goto EXIT;
+
+    if( !(rsp = dbus_connection_send_with_reply_and_block(con, req, -1, err)) ) {
+        log_warning("no reply to %s.%s(): %s: %s",
+                    iface, meth, err->name, err->message);
+        goto EXIT;
+    }
+
+    if( dbus_set_error_from_message(err, rsp) ) {
+        log_warning("error reply to %s.%s(): %s: %s",
+                    iface, meth, err->name, err->message);
+        dbus_message_unref(rsp), rsp = 0;
+        goto EXIT;
+    }
+
+    log_debug("blocking %s.%s() call succeeded", iface, meth);
+
+EXIT:
+    if( req )
+        dbus_message_unref(req);
+
+    va_end(va);
+
+    return rsp;
+}
+
+bool
+umdbus_parse_reply(DBusMessage *rsp, int arg_type, ...)
+{
+    bool      ack = false;
+    DBusError err = DBUS_ERROR_INIT;
+    va_list   va;
+
+    va_start(va, arg_type);
+
+    if( !rsp )
+        goto EXIT;
+
+    /* Note: It is assumed that differentiation between replies and
+     *       error replies is done elsewhere.
+     */
+
+    if( !dbus_message_get_args_valist(rsp, &err, arg_type, va) ) {
+        log_warning("parse error: %s: %s", err.name, err.message);
+        goto EXIT;
+    }
+
+    ack = true;
+
+EXIT:
+    dbus_error_free(&err);
+
+    va_end(va);
+
+    return ack;
 }

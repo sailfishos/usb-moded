@@ -1,3 +1,29 @@
+/**
+ * @file usb_moded-common.c
+ *
+ * Copyright (c) 2010 Nokia Corporation. All rights reserved.
+ * Copyright (c) 2012 - 2020 Jolla Ltd.
+ * Copyright (c) 2020 Open Mobile Platform LLC.
+ *
+ * @author Philippe De Swert <philippe.de-swert@nokia.com>
+ * @author Philippe De Swert <philippe.deswert@jollamobile.com>
+ * @author Simo Piiroinen <simo.piiroinen@jollamobile.com>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the Lesser GNU General Public License
+ * version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the Lesser GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA
+ */
+
 #include "usb_moded-common.h"
 
 #include "usb_moded.h"
@@ -7,6 +33,8 @@
 #include "usb_moded-log.h"
 #include "usb_moded-modes.h"
 #include "usb_moded-worker.h"
+
+#include <sys/wait.h>
 
 #include <stdlib.h>
 #include <string.h>
@@ -333,19 +361,43 @@ void common_release_wakelock(const char *wakelock_name)
  */
 int
 common_system_(const char *file, int line, const char *func,
-                 const char *command)
+               const char *command)
 {
     LOG_REGISTER_CONTEXT;
 
-    log_debug("EXEC %s; from %s:%d: %s()",
-              command, file, line, func);
+    int         result      = -1;
+    int         status      = -1;
+    char        exited[32]  = "";
+    char        trapped[32] = "";
+    const char *dumped      = "";
 
-    int rc = system(command);
+    log_debug("EXEC %s; from %s:%d: %s()", command, file, line, func);
 
-    if( rc != 0 )
-        log_warning("EXEC %s; exit code is %d", command, rc);
+    if( (status = system(command)) == -1 ) {
+        snprintf(exited, sizeof exited, " exec=failed");
+    }
+    else {
+        if( WIFSIGNALED(status) ) {
+            snprintf(trapped, sizeof trapped, " signal=%s",
+                     strsignal(WTERMSIG(status)));
+        }
 
-    return rc;
+        if( WCOREDUMP(status) )
+            dumped = " core=dumped";
+
+        if( WIFEXITED(status) ) {
+            result = WEXITSTATUS(status);
+            snprintf(exited, sizeof exited, " exit_code=%d", result);
+        }
+    }
+
+    if( result != 0 ) {
+        log_warning("EXEC %s; from %s:%d: %s();%s%s%s result=%d",
+                    command, file, line, func,
+                    exited, trapped, dumped, result);
+    }
+
+    return result;
 }
 
 /** Wrapper to give visibility subprocesses usb-moded is invoking via popen()

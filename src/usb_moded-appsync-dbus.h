@@ -1,9 +1,12 @@
-/*
- * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2018 Jolla Ltd.
+/**
+ * @file usb_moded-appsync-dbus.h
  *
- * Author: Philippe De Swert <philippe.de-swert@nokia.com>
- * Author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
+ * Copyright (c) 2010 Nokia Corporation. All rights reserved.
+ * Copyright (c) 2018 - 2020 Jolla Ltd.
+ * Copyright (c) 2020 Open Mobile Platform LLC.
+ *
+ * @author Philippe De Swert <philippe.de-swert@nokia.com>
+ * @author Simo Piiroinen <simo.piiroinen@jollamobile.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the Lesser GNU General Public License

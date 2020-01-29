@@ -1,9 +1,12 @@
-/*
- * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2016-2019 Jolla Ltd.
+/**
+ * @file usb_moded-log.h
  *
- * Author: Philippe De Swert <philippe.de-swert@nokia.com>
- * Author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
+ * Copyright (c) 2010 Nokia Corporation. All rights reserved.
+ * Copyright (c) 2016 - 2020 Jolla Ltd.
+ * Copyright (c) 2020 Open Mobile Platform LLC.
+ *
+ * @author Philippe De Swert <philippe.de-swert@nokia.com>
+ * @author Simo Piiroinen <simo.piiroinen@jollamobile.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the Lesser GNU General Public License
@@ -75,7 +78,7 @@ void        context_leave(void *aptr);
  * ------------------------------------------------------------------------- */
 
 void        log_emit_va     (const char *file, const char *func, int line, int lev, const char *fmt, va_list va);
-void        log_emit_real   (const char *file, const char *func, int line, int lev, const char *fmt, ...);
+void        log_emit_real   (const char *file, const char *func, int line, int lev, const char *fmt, ...) __attribute__((format(printf, 5, 6)));
 void        log_debugf      (const char *fmt, ...);
 int         log_get_level   (void);
 void        log_set_level   (int lev);

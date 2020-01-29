@@ -1,11 +1,12 @@
 /**
  * @file usb_moded-trigger.h
  *
- * Copyright (C) 2011 Nokia Corporation. All rights reserved.
- * Copyright (C) 2018-2019 Jolla Ltd.
+ * Copyright (c) 2011 Nokia Corporation. All rights reserved.
+ * Copyright (c) 2018 - 2020 Jolla Ltd.
+ * Copyright (c) 2020 Open Mobile Platform LLC.
  *
- * @author: Philippe De Swert <philippe.de-swert@nokia.com>
- * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
+ * @author Philippe De Swert <philippe.de-swert@nokia.com>
+ * @author Simo Piiroinen <simo.piiroinen@jollamobile.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the Lesser GNU General Public License

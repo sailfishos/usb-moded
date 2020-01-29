@@ -42,11 +42,17 @@ TARGETS_ALL  += $(TARGETS_PLUGIN) $(TARGETS_SBIN) $(TARGETS_BIN)
 
 TARGETS_ALL  += udev-search
 
+TARGETS_ALL  += usb_moded.pc
+
 # ----------------------------------------------------------------------------
 # Top level targets
 # ----------------------------------------------------------------------------
 
-.PHONY: build install clean distclean mostlyclean
+.PHONY: all doc build install clean distclean mostlyclean
+
+all:: build
+
+doc::
 
 build:: $(TARGETS_ALL)
 
@@ -106,6 +112,7 @@ CPPFLAGS += -DCONNMAN
 CPPFLAGS += -DAPP_SYNC
 CPPFLAGS += -DUSE_MER_SSU
 CPPFLAGS += -DMEEGOLOCK
+CPPFLAGS += -DSAILFISH_ACCESS_CONTROL
 CPPFLAGS += -DDEBUG
 
 # ----------------------------------------------------------------------------
@@ -143,6 +150,7 @@ PKG_NAMES += libkmod
 PKG_NAMES += libsystemd
 PKG_NAMES += ssu-sysinfo
 PKG_NAMES += dsme
+PKG_NAMES += sailfishaccesscontrol
 
 maintenance  = normalize clean distclean mostlyclean
 maintenance += protos-post
@@ -194,6 +202,13 @@ usb_moded-OBJS += src/usb_moded-worker.o
 
 usb_moded : $(usb_moded-OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS) $(LDLIBS)
+
+# ----------------------------------------------------------------------------
+# usb-moded-devel
+# ----------------------------------------------------------------------------
+
+usb_moded.pc: usb_moded.pc.in
+	sed -e 's:@VERSION@:$(VERSION):g' > $@  $<
 
 # ----------------------------------------------------------------------------
 # udev-search
@@ -327,7 +342,6 @@ PROTO_CPPFLAGS += -DMEEGOLOCK
 PROTO_CPPFLAGS += -DOFONO
 PROTO_CPPFLAGS += -DSYSTEMD
 PROTO_CPPFLAGS += -DUSE_MER_SSU
-PROTO_CPPFLAGS += -DCONNMAN_WORKS_BETTER=1
 PROTO_CPPFLAGS += -DVERBOSE_WAKELOCKING=1
 
 %.q : CPPFLAGS += $(PROTO_CPPFLAGS)
@@ -346,6 +360,25 @@ protos-post: $(patsubst %.c,%.p,$(ALL_SOURCES)) $(patsubst %.c,%.g,$(ALL_SOURCES
 
 clean::
 	$(RM) protos-pre protos-post
+
+# ----------------------------------------------------------------------------
+# AUTOMATIC CALL GRAPHS
+# ----------------------------------------------------------------------------
+
+%.png : %.dot
+	dot -Tpng $< -o $@
+
+CALLGRAPH_OPTIONS += -b modesetting_enter_dynamic_mode
+CALLGRAPH_OPTIONS += -b modesetting_leave_dynamic_mode
+
+flow.dot: $(wildcard src/*c)
+	callgraph.py > $@ $(CALLGRAPH_OPTIONS) $(CPPFLAGS) $^
+
+mostlyclean::
+	$(RM) flow.dot
+
+clean::
+	$(RM) flow.png
 
 # ----------------------------------------------------------------------------
 # REMOVE FLUFF LEFT BY MB2 BUILDS
@@ -369,3 +402,19 @@ include_trim_sources: $(patsubst %,%.trim,$(ALL_SOURCES))
 
 distclean::
 	$(RM) *.trim */*.trim
+
+# ----------------------------------------------------------------------------
+# BUILD DOXYGEN DOCS
+# ----------------------------------------------------------------------------
+
+doc:: doxygen-build
+
+doxygen-build: docs/usb_moded-doxygen.conf
+	cd docs && doxygen usb_moded-doxygen.conf 1>doxygen.out # stdout=noise
+
+docs/usb_moded-doxygen.conf : docs/usb_moded-doxygen.conf.in
+	# no change required, use .in as is
+	install -m444 $< $@
+
+clean::
+	rm -rf docs/html docs/usb_moded-doxygen.conf docs/doxygen.out

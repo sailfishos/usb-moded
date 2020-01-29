@@ -1,15 +1,18 @@
-/*
- * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2012-2018 Jolla. All rights reserved.
+/**
+ * @file usb_moded-config.h
  *
- * author: Philippe De Swert <philippe.de-swert@nokia.com>
- * author: Philippe De Swert <phdeswer@lumi.maa>
- * author: Philippe De Swert <philippedeswert@gmail.com>
- * author: Philippe De Swert <philippe.deswert@jollamobile.com>
- * author: Thomas Perl <m@thp.io>
- * author: Slava Monich <slava.monich@jolla.com>
- * author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
- * author: Andrew den Exter <andrew.den.exter@jolla.com>
+ * Copyright (c) 2010 Nokia Corporation. All rights reserved.
+ * Copyright (c) 2012 - 2020 Jolla Ltd.
+ * Copyright (c) 2020 Open Mobile Platform LLC.
+ *
+ * @author Philippe De Swert <philippe.de-swert@nokia.com>
+ * @author Philippe De Swert <phdeswer@lumi.maa>
+ * @author Philippe De Swert <philippedeswert@gmail.com>
+ * @author Philippe De Swert <philippe.deswert@jollamobile.com>
+ * @author Thomas Perl <m@thp.io>
+ * @author Slava Monich <slava.monich@jolla.com>
+ * @author Simo Piiroinen <simo.piiroinen@jollamobile.com>
+ * @author Andrew den Exter <andrew.den.exter@jolla.com>
  *
  *
  * This program is free software; you can redistribute it and/or

@@ -1,15 +1,16 @@
 /**
- * @file usb_moded-dyn-mode.c
+ * @file usb_moded-dyn-config.c
  *
- * Copyright (C) 2011 Nokia Corporation. All rights reserved.
- * Copyright (C) 2013-2019 Jolla. All rights reserved.
+ * Copyright (c) 2011 Nokia Corporation. All rights reserved.
+ * Copyright (c) 2013 - 2020 Jolla Ltd.
+ * Copyright (c) 2020 Open Mobile Platform LLC.
  *
- * @author: Philippe De Swert <philippe.de-swert@nokia.com>
- * @author: Philippe De Swert <philippedeswert@gmail.com>
- * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
- * @author: Thomas Perl <thomas.perl@jolla.com>
- * @author: Slava Monich <slava.monich@jolla.com>
- * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
+ * @author Philippe De Swert <philippe.de-swert@nokia.com>
+ * @author Philippe De Swert <philippedeswert@gmail.com>
+ * @author Philippe De Swert <philippe.deswert@jollamobile.com>
+ * @author Thomas Perl <thomas.perl@jolla.com>
+ * @author Slava Monich <slava.monich@jolla.com>
+ * @author Simo Piiroinen <simo.piiroinen@jollamobile.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the Lesser GNU General Public License

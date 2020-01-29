@@ -1,15 +1,18 @@
-/*
- * @file usb-moded_network.c : (De)activates network depending on the network setting system.
+/**
+ * @file usb_moded-network.c
  *
- * Copyright (C) 2011 Nokia Corporation. All rights reserved.
- * Copyright (C) 2012-2019 Jolla. All rights reserved.
+ * (De)activates network depending on the network setting system.
  *
- * @author: Philippe De Swert <philippe.de-swert@nokia.com>
- * @author: Philippe De Swert <philippedeswert@gmail.com>
- * @author: Philippe De Swert <philippe.deswert@jollamobile.com>
- * @author: Marko Saukko <marko.saukko@jollamobile.com>
- * @author: Slava Monich <slava.monich@jolla.com>
- * @author: Simo Piiroinen <simo.piiroinen@jollamobile.com>
+ * Copyright (c) 2011 Nokia Corporation. All rights reserved.
+ * Copyright (c) 2012 - 2020 Jolla Ltd.
+ * Copyright (c) 2020 Open Mobile Platform LLC.
+ *
+ * @author Philippe De Swert <philippe.de-swert@nokia.com>
+ * @author Philippe De Swert <philippedeswert@gmail.com>
+ * @author Philippe De Swert <philippe.deswert@jollamobile.com>
+ * @author Marko Saukko <marko.saukko@jollamobile.com>
+ * @author Slava Monich <slava.monich@jolla.com>
+ * @author Simo Piiroinen <simo.piiroinen@jollamobile.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the Lesser GNU General Public License
@@ -35,16 +38,14 @@
 #include "usb_moded-log.h"
 #include "usb_moded-modesetting.h"
 #include "usb_moded-worker.h"
+#include "usb_moded-dbus-private.h"
 
 #include <sys/stat.h>
 
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
-#if CONNMAN || OFONO
-# include <dbus/dbus.h>
-#endif
+#include <errno.h>
 
 /* ========================================================================= *
  * Constants
@@ -67,52 +68,67 @@ typedef struct ipforward_data_t
     char *dns2;
     /** Interface from which packets should be forwarded */
     char *nat_interface;
-}ipforward_data_t;
+} ipforward_data_t;
 
 /* ========================================================================= *
  * Prototypes
  * ========================================================================= */
 
 /* ------------------------------------------------------------------------- *
- * NETWORK
+ * IPFORWARD_DATA
  * ------------------------------------------------------------------------- */
 
-static void  network_free_ipforward_data (ipforward_data_t *ipforward);
-static int   network_check_interface     (char *interface);
-static char *network_get_interface       (const modedata_t *data);
-static int   network_set_usb_ip_forward  (const modedata_t *data, ipforward_data_t *ipforward);
-static void  network_clean_usb_ip_forward(void);
-static int   network_checklink           (void);
-static int   network_write_udhcpd_conf   (ipforward_data_t *ipforward, const modedata_t *data);
-int          network_set_up_dhcpd        (const modedata_t *data);
-int          network_up                  (const modedata_t *data);
-int          network_down                (const modedata_t *data);
-int          network_update              (void);
+static ipforward_data_t *ipforward_data_create           (void);
+static void              ipforward_data_delete           (ipforward_data_t *self);
+static void              ipforward_data_clear            (ipforward_data_t *self);
+static void              ipforward_data_set_dns1         (ipforward_data_t *self, const char *dns);
+static void              ipforward_data_set_dns2         (ipforward_data_t *self, const char *dns);
+static void              ipforward_data_set_nat_interface(ipforward_data_t *self, const char *interface);
 
 /* ------------------------------------------------------------------------- *
- * UTILITY
+ * OFONO
  * ------------------------------------------------------------------------- */
 
 #ifdef OFONO
-static int get_roaming   (void);
-#endif // OFONO
-
-#if CONNMAN_WORKS_BETTER
-static int append_variant(DBusMessageIter *iter, const char *property, int type, const char *value);
-#endif // CONNMAN_WORKS_BETTER
+static gchar *ofono_get_default_modem (void);
+static gchar *ofono_get_modem_status  (const char *modem);
+static bool   ofono_get_roaming_status(void);
+#endif
 
 /* ------------------------------------------------------------------------- *
  * CONNMAN
  * ------------------------------------------------------------------------- */
 
-static gboolean  connman_try_set_tethering   (DBusConnection *connection, const char *path, gboolean on);
-gboolean         connman_set_tethering       (const char *path, gboolean on);
-static char     *connman_parse_manager_reply (DBusMessage *reply, const char *req_service);
-static int       connman_fill_connection_data(DBusMessage *reply, ipforward_data_t *ipforward);
-static int       connman_set_cellular_online (DBusConnection *dbus_conn_connman, const char *service, int retry);
-static int       connman_wifi_power_control  (DBusConnection *dbus_conn_connman, int on);
-static int       connman_get_connection_data (ipforward_data_t *ipforward);
-static int       connman_reset_state         (void);
+#ifdef CONNMAN
+static bool   connman_technology_set_tethering   (DBusConnection *con, const char *technology, bool on, DBusError *err);
+static gchar *connman_manager_get_service_path   (DBusConnection *con, const char *type);
+static bool   connman_service_get_connection_data(DBusConnection *con, const char *service, ipforward_data_t *ipforward);
+static bool   connman_get_connection_data        (ipforward_data_t *ipforward);
+bool          connman_set_tethering              (const char *technology, bool on);
+#endif
+
+/* ------------------------------------------------------------------------- *
+ * LEGACY
+ * ------------------------------------------------------------------------- */
+
+#ifndef CONNMAN
+static bool legacy_get_connection_data(ipforward_data_t *ipforward);
+#endif
+
+/* ------------------------------------------------------------------------- *
+ * NETWORK
+ * ------------------------------------------------------------------------- */
+
+static bool  network_interface_exists     (char *interface);
+static char *network_get_interface        (const modedata_t *data);
+static int   network_setup_ip_forwarding  (const modedata_t *data, ipforward_data_t *ipforward);
+static void  network_cleanup_ip_forwarding(void);
+static int   network_check_udhcpd_symlink (void);
+static int   network_write_udhcpd_config  (const modedata_t *data, ipforward_data_t *ipforward);
+int          network_update_udhcpd_config (const modedata_t *data);
+int          network_up                   (const modedata_t *data);
+void         network_down                 (const modedata_t *data);
+void         network_update               (void);
 
 /* ========================================================================= *
  * Data
@@ -121,43 +137,695 @@ static int       connman_reset_state         (void);
 static const char default_interface[] = "usb0";
 
 /* ========================================================================= *
- * Functions
+ * IPFORWARD_DATA
  * ========================================================================= */
 
-static void network_free_ipforward_data (ipforward_data_t *ipforward)
+static ipforward_data_t *
+ipforward_data_create(void)
 {
     LOG_REGISTER_CONTEXT;
 
-    if(ipforward)
+    ipforward_data_t *self = g_malloc0(sizeof *self);
+
+    self->dns1 = 0;
+    self->dns2 = 0;
+    self->nat_interface = 0;
+
+    return self;
+}
+
+static void
+ipforward_data_delete(ipforward_data_t *self)
+{
+    LOG_REGISTER_CONTEXT;
+
+    if( self )
     {
-        if(ipforward->dns1)
-            free(ipforward->dns1);
-        if(ipforward->dns2)
-            free(ipforward->dns2);
-        if(ipforward->nat_interface)
-            free(ipforward->nat_interface);
-        free(ipforward);
+        ipforward_data_clear(self);
+        g_free(self);
     }
 }
 
-/* This function checks if the configured interface exists */
-static int network_check_interface(char *interface)
+static void
+ipforward_data_clear(ipforward_data_t *self)
 {
     LOG_REGISTER_CONTEXT;
 
-    int ret = -1;
+    ipforward_data_set_dns1(self, 0);
+    ipforward_data_set_dns2(self, 0);
+    ipforward_data_set_nat_interface(self, 0);
+}
+
+static void
+ipforward_data_set_dns1(ipforward_data_t *self, const char *dns)
+{
+    LOG_REGISTER_CONTEXT;
+
+    g_free(self->dns1),
+        self->dns1 = dns ? g_strdup(dns) : 0;
+}
+
+static void
+ipforward_data_set_dns2(ipforward_data_t *self, const char *dns)
+{
+    LOG_REGISTER_CONTEXT;
+
+    g_free(self->dns2),
+        self->dns2 = dns ? g_strdup(dns) : 0;
+}
+
+static void
+ipforward_data_set_nat_interface(ipforward_data_t *self, const char *interface)
+{
+    LOG_REGISTER_CONTEXT;
+
+    g_free(self->nat_interface),
+        self->nat_interface = interface ? g_strdup(interface) : 0;
+}
+
+/* ========================================================================= *
+ * OFONO
+ * ========================================================================= */
+
+#ifdef OFONO
+
+/** Get object path of the 1st modem known to ofono
+ *
+ * Caller must release the returned string with g_free().
+ *
+ * @return object path, or NULL
+ */
+
+static gchar *
+ofono_get_default_modem(void)
+{
+    gchar          *modem = 0;
+    DBusConnection *con   = 0;
+    DBusError       err   = DBUS_ERROR_INIT;
+    DBusMessage    *rsp   = 0;
+
+    if( !(con = umdbus_get_connection()) )
+        goto EXIT;
+
+    rsp = umdbus_blocking_call(con,
+                               "org.ofono",
+                               "/",
+                               "org.ofono.Manager",
+                               "GetModems",
+                               &err,
+                               DBUS_TYPE_INVALID);
+    if( !rsp )
+        goto EXIT;
+
+    // a(oa{sv}) -> get object path in the first struct in the array
+    DBusMessageIter body;
+    if( umdbus_parser_init(&body, rsp) ) {
+        DBusMessageIter iter_array;
+        if( umdbus_parser_get_array(&body, &iter_array) ) {
+            DBusMessageIter astruct;
+            if( umdbus_parser_get_struct(&iter_array, &astruct) ) {
+                const char *object = 0;
+                if( umdbus_parser_get_object(&astruct, &object) ) {
+                    modem = g_strdup(object);
+                }
+            }
+        }
+    }
+
+EXIT:
+    if( rsp )
+        dbus_message_unref(rsp);
+
+    if( con )
+        dbus_connection_unref(con);
+
+    dbus_error_free(&err);
+
+    log_warning("default modem = %s", modem ?: "n/a");
+
+    return modem;
+}
+
+/** Query modem status from ofono
+ *
+ * Caller must release the returned string with g_free().
+ *
+ * @param modem  D-Bus object path
+ *
+ * @return modem status, or NULL
+ */
+static gchar *
+ofono_get_modem_status(const char *modem)
+{
+    gchar          *status = 0;
+    DBusConnection *con    = 0;
+    DBusError       err    = DBUS_ERROR_INIT;
+    DBusMessage    *rsp    = 0;
+
+    if( !(con = umdbus_get_connection()) )
+        goto EXIT;
+
+    rsp = umdbus_blocking_call(con,
+                               "org.ofono",
+                               modem,
+                               "org.ofono.NetworkRegistration",
+                               "GetProperties",
+                               &err,
+                               DBUS_TYPE_INVALID);
+    if( !rsp )
+        goto EXIT;
+
+    DBusMessageIter body;
+    if( umdbus_parser_init(&body, rsp) ) {
+        DBusMessageIter iter_array;
+        if( umdbus_parser_get_array(&body, &iter_array) ) {
+            DBusMessageIter entry;
+            while( umdbus_parser_get_entry(&iter_array, &entry) ) {
+                const char *key = 0;
+                if( !umdbus_parser_get_string(&entry, &key) )
+                    break;
+                if( strcmp(key, "Status") )
+                    continue;
+                DBusMessageIter var;
+                if( !umdbus_parser_get_variant(&entry, &var) )
+                    break;
+                const char *val = 0;
+                if( !umdbus_parser_get_string(&var, &val) )
+                    break;
+                status = g_strdup(val);
+                break;
+            }
+        }
+    }
+
+EXIT:
+    if( rsp )
+        dbus_message_unref(rsp);
+
+    if( con )
+        dbus_connection_unref(con);
+
+    dbus_error_free(&err);
+
+    log_warning("modem status = %s", status ?: "n/a");
+
+    return status;
+}
+
+/** Get roaming data from ofono
+ *
+ * @return true if roaming, false when not (or when ofono is unavailable)
+ */
+static bool
+ofono_get_roaming_status(void)
+{
+    LOG_REGISTER_CONTEXT;
+
+    bool roaming = false;
+    gchar *modem = 0;
+    gchar *status = 0;
+
+    if( !(modem = ofono_get_default_modem()) )
+        goto EXIT;
+
+    if( !(status = ofono_get_modem_status(modem)) )
+        goto EXIT;
+
+    if( !strcmp(status, "roaming") )
+        roaming = true;
+
+EXIT:
+    g_free(status);
+    g_free(modem);
+
+    log_warning("modem roaming = %d", roaming);
+
+    return roaming;
+}
+#endif /* OFONO */
+
+/* ========================================================================= *
+ * CONNMAN
+ * ========================================================================= */
+
+#ifdef CONNMAN
+# define CONNMAN_SERVICE                "net.connman"
+# define CONNMAN_TECH_INTERFACE         "net.connman.Technology"
+# define CONNMAN_ERROR_ALREADY_ENABLED  "net.connman.Error.AlreadyEnabled"
+# define CONNMAN_ERROR_ALREADY_DISABLED "net.connman.Error.AlreadyDisabled"
+
+/* ------------------------------------------------------------------------- *
+ * TECHNOLOGY interface
+ * ------------------------------------------------------------------------- */
+
+/** Configures tethering for the specified connman technology.
+ *
+ * @param con         D-Bus connection
+ * @param technology  D-Bus object path
+ * @param on          true to enable tethering, false to disable
+ * @param err         Where to store D-Bus ipc error
+ *
+ * @return true on success, false otherwise
+ */
+static bool
+connman_technology_set_tethering(DBusConnection *con, const char *technology, bool on,
+                                 DBusError *err)
+{
+    LOG_REGISTER_CONTEXT;
+
+    bool         res = FALSE;
+    DBusMessage *rsp = 0;
+    const char  *key = "Tethering";
+    dbus_bool_t  val = on;
+
+    rsp = umdbus_blocking_call(con,
+                               CONNMAN_SERVICE,
+                               technology,
+                               CONNMAN_TECH_INTERFACE,
+                               "SetProperty",
+                               err,
+                               DBUS_TYPE_STRING, &key,
+                               DBUS_TYPE_VARIANT,
+                               DBUS_TYPE_BOOLEAN, &val,
+                               DBUS_TYPE_INVALID);
+
+    if( !rsp ) {
+        if( on ) {
+            if( !g_strcmp0(err->name, CONNMAN_ERROR_ALREADY_ENABLED) )
+                goto SUCCESS;
+        }
+        else {
+            if( !g_strcmp0(err->name, CONNMAN_ERROR_ALREADY_DISABLED) )
+                goto SUCCESS;
+        }
+        log_err("%s.%s method call failed: %s: %s",
+                CONNMAN_TECH_INTERFACE, "SetProperty",
+                err->name, err->message);
+        goto FAILURE;
+    }
+
+SUCCESS:
+    log_debug("%s tethering %s", technology, on ? "on" : "off");
+    dbus_error_free(err);
+    res = TRUE;
+
+FAILURE:
+    if( rsp )
+        dbus_message_unref(rsp);
+
+    return res;
+}
+
+/* ------------------------------------------------------------------------- *
+ * MANAGER interface
+ * ------------------------------------------------------------------------- */
+
+/** Get object path for the 1st service matching given type
+ *
+ * Caller must release the returned string with g_free().
+ *
+ * @param type  Connman service type string
+ *
+ * @return D-Bus object path, or NULL
+ */
+static gchar *
+connman_manager_get_service_path(DBusConnection *con, const char *type)
+{
+    LOG_REGISTER_CONTEXT;
+
+    gchar          *service = 0;
+    DBusError       err   = DBUS_ERROR_INIT;
+    DBusMessage    *rsp   = 0;
+
+    rsp = umdbus_blocking_call(con,
+                               "net.connman",
+                               "/",
+                               "net.connman.Manager",
+                               "GetServices",
+                               &err,
+                               DBUS_TYPE_INVALID);
+    if( !rsp )
+        goto EXIT;
+
+    // a(oa{sv}) -> get object path in the first struct matching given type
+    DBusMessageIter body;
+    if( umdbus_parser_init(&body, rsp) ) {
+        // @ body
+        DBusMessageIter array_of_structs;
+        if( umdbus_parser_get_array(&body, &array_of_structs) ) {
+            // @ array of structs
+            DBusMessageIter astruct;
+            while( umdbus_parser_get_struct(&array_of_structs, &astruct) ) {
+                // @ struct
+                const char *object = 0;
+                if( !umdbus_parser_get_object(&astruct, &object) )
+                    break;
+                DBusMessageIter array_of_entries;
+                if( !umdbus_parser_get_array(&astruct, &array_of_entries) )
+                    break;
+                // @ array of dict entries
+                DBusMessageIter entry;
+                while( umdbus_parser_get_entry(&array_of_entries, &entry) ) {
+                    // @ dict entry
+                    const char *key = 0;
+                    if( !umdbus_parser_get_string(&entry, &key) )
+                        break;
+                    if( strcmp(key, "Type") )
+                        continue;
+                    DBusMessageIter var;
+                    if( !umdbus_parser_get_variant(&entry, &var) )
+                        break;
+                    const char *value = 0;
+                    if( !umdbus_parser_get_string(&var, &value) )
+                        break;
+                    if( strcmp(value, type) )
+                        continue;
+                    service = g_strdup(object);
+                    goto EXIT;
+                }
+            }
+        }
+    }
+
+EXIT:
+    if( rsp )
+        dbus_message_unref(rsp);
+
+    dbus_error_free(&err);
+
+    log_warning("%s service = %s", type, service ?: "n/a");
+
+    return service;
+}
+
+/** Query ipforwarding parameters from connman
+ *
+ * @param con         D-Bus connection
+ * @param service     D-Bus object path
+ * @param ipforward   ipforward object to fill in
+ *
+ * @return true on success, false otherwise
+ */
+static bool
+connman_service_get_connection_data(DBusConnection *con,
+                                    const char *service,
+                                    ipforward_data_t *ipforward)
+{
+    LOG_REGISTER_CONTEXT;
+
+    bool            ack   = false;
+    DBusMessage    *rsp   = NULL;
+    DBusError       err   = DBUS_ERROR_INIT;
+
+    log_debug("Filling in dns data");
+
+    rsp = umdbus_blocking_call(con,
+                               "net.connman",
+                               service,
+                               "net.connman.Service",
+                               "GetProperties",
+                               &err,
+                               DBUS_TYPE_INVALID);
+    if( !rsp )
+        goto EXIT;
+
+    const char *dns1 = 0;
+    const char *dns2 = 0;
+    const char *state = 0;
+    const char *interface = 0;
+
+    DBusMessageIter body;
+    if( umdbus_parser_init(&body, rsp) ) {
+        // @ body
+        DBusMessageIter array_of_entries;
+        if( umdbus_parser_get_array(&body, &array_of_entries) ) {
+            // @ array of entries
+            DBusMessageIter entry;
+            while( umdbus_parser_get_entry(&array_of_entries, &entry) ) {
+                // @ dict entry
+                const char *key = 0;
+                if( !umdbus_parser_get_string(&entry, &key) )
+                    break;
+                DBusMessageIter var;
+                if( !umdbus_parser_get_variant(&entry, &var) )
+                    break;
+
+                if( !strcmp(key, "Nameservers"))
+                {
+                    DBusMessageIter array_of_strings;
+                    if( umdbus_parser_get_array(&var, &array_of_strings) ) {
+                        // expect 0, 1, or 2 entries
+                        if( !umdbus_parser_at_end(&array_of_strings) )
+                            umdbus_parser_get_string(&array_of_strings, &dns1);
+                        if( !umdbus_parser_at_end(&array_of_strings) )
+                            umdbus_parser_get_string(&array_of_strings, &dns2);
+                    }
+                }
+                else if( !strcmp(key, "State"))
+                {
+                    umdbus_parser_get_string(&var, &state);
+                }
+                else if( !strcmp(key, "Ethernet"))
+                {
+                    DBusMessageIter array_of_en_entries;
+                    if( umdbus_parser_get_array(&var, &array_of_en_entries) ) {
+                        DBusMessageIter en_entry;
+                        while( umdbus_parser_get_entry(&array_of_en_entries, &en_entry) ) {
+                            const char *en_key = 0;
+                            if( !umdbus_parser_get_string(&en_entry, &en_key) )
+                                break;
+                            if( strcmp(en_key, "Interface") )
+                                continue;
+                            DBusMessageIter en_var;
+                            if( umdbus_parser_get_variant(&en_entry, &en_var) )
+                                umdbus_parser_get_string(&en_var, &interface);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    bool connected = (!g_strcmp0(state, "ready") ||
+                      !g_strcmp0(state, "online"));
+
+    log_debug("state = %s", state ?: "n/a");
+    log_debug("connected = %s", connected ? "true" : "false");
+    log_debug("interface = %s", interface ?: "n/a");
+    log_debug("dns1 = %s", dns1 ?: "n/a");
+    log_debug("dns2 = %s", dns2 ?: "n/a");
+
+    if( !dns1 || !interface || !connected )
+        goto EXIT;
+
+    ipforward_data_set_dns1(ipforward, dns1);
+    ipforward_data_set_dns2(ipforward, dns2 ?: dns1);
+    ipforward_data_set_nat_interface(ipforward, interface);
+
+    ack = true;
+
+EXIT:
+    if( rsp )
+        dbus_message_unref(rsp);
+
+    dbus_error_free(&err);
+
+    return ack;
+}
+
+/* ------------------------------------------------------------------------- *
+ * USB-MODED interface
+ * ------------------------------------------------------------------------- */
+
+/** Query ipforwarding parameters from connman
+ *
+ * @param ipforward   ipforward object to fill in
+ *
+ * @return true on success, false otherwise
+ */
+static bool
+connman_get_connection_data(ipforward_data_t *ipforward)
+{
+    LOG_REGISTER_CONTEXT;
+
+    bool            ack      = false;
+    DBusConnection *con      = 0;
+    gchar          *cellular = 0;
+    gchar          *wifi     = 0;
+
+    if( !(con = umdbus_get_connection()) )
+        goto FAILURE;
+
+    /* Try to get connection data from cellular service */
+    if( !(cellular = connman_manager_get_service_path(con, "cellular")) )
+        log_warning("no sellular service");
+    else if( connman_service_get_connection_data(con, cellular, ipforward) )
+        goto SUCCESS;
+
+    /* Try to get connection data from wifi service */
+    if( !(wifi = connman_manager_get_service_path(con, "wifi")) )
+        log_warning("no wifi service");
+    else if( connman_service_get_connection_data(con, wifi, ipforward) )
+        goto SUCCESS;
+
+    /* Abandon hope */
+    goto FAILURE;
+
+SUCCESS:
+    ack = true;
+
+FAILURE:
+    if( !ack )
+        log_warning("no connection data");
+    else
+        log_debug("got connection data");
+
+    g_free(wifi);
+    g_free(cellular);
+
+    if( con )
+        dbus_connection_unref(con);
+
+    return ack;
+}
+
+/** Configures tethering for the specified connman technology.
+ *
+ * @param technology  D-Bus object path
+ * @param on          true to enable tethering, false to disable
+ *
+ * @return true on success, false otherwise
+ */
+bool
+connman_set_tethering(const char *technology, bool on)
+{
+    LOG_REGISTER_CONTEXT;
+
+    bool            res = false;
+    DBusError       err = DBUS_ERROR_INIT;
+    DBusConnection *con = 0;
+
+    if( !(con = umdbus_get_connection()) )
+        goto EXIT;
+
+    res = connman_technology_set_tethering(con, technology, on, &err);
+
+EXIT:
+    dbus_error_free(&err);
+
+    if( con )
+        dbus_connection_unref(con);
+
+    log_debug("set tethering(%s) = %s -> %s", technology,
+              on ? "on" : "off", res ? "ack" : "nak");
+
+    return res;
+}
+#endif /* CONNMAN */
+
+/* ========================================================================= *
+ * LEGACY
+ * ========================================================================= */
+
+#ifndef CONNMAN
+/** Read dns settings from /etc/resolv.conf
+ *
+ * @return true on success, false on failure
+ */
+static bool
+legacy_get_connection_data(ipforward_data_t *ipforward)
+{
+    LOG_REGISTER_CONTEXT;
+
+    static const char path[] = "/etc/resolv.conf";
+
+    bool    ack  = false;
+    FILE   *file = 0;
+    char   *buff = 0;
+    size_t  size = 0;
+
+    if( !(file = fopen(path, "r")) ) {
+        log_warning("%s: can't open for reading: %m", path);
+        goto EXIT;
+    }
+
+    int count = 0;
+    while( count < 2 && getline(&buff, &size, file) >= 0 ) {
+        /* skip comment and empty lines */
+        if( strchr("#\n", *buff) )
+            continue;
+
+        gchar **tokens = g_strsplit(buff, " ", 3);
+        if( !tokens || !tokens[0] || !tokens[1] ) {
+            // ignore
+        }
+        else if( !g_strcmp0(tokens[0], "nameserver") ) {
+            // TODO: can have '\n' at eol?
+            g_strstrip(tokens[1]);
+            if( ++count == 1 )
+                ipforward_data_set_dns1(ipforward, tokens[1]);
+            else
+                ipforward_data_set_dns2(ipforward, tokens[1]);
+        }
+        g_strfreev(tokens);
+    }
+
+    if( count < 1 ) {
+        log_warning("%s: no nameserver lines found", path);
+        goto EXIT;
+    }
+
+    /* FIXME: connman_service_get_connection_data() duplicates
+     *        dns1 if dns2 is not set - is this necessary?
+     */
+    if( count == 1 )
+        ipforward_data_set_dns2(ipforward, ipforward->dns1);
+
+    ack = true;
+
+EXIT:
+    free(buff);
+
+    if( file )
+        fclose(file);
+
+    return ack;
+}
+#endif
+
+/* ========================================================================= *
+ * NETWORK
+ * ========================================================================= */
+
+/** This function checks if the configured interface exists
+ *
+ * @return true on success, false on failure
+ */
+static bool
+network_interface_exists(char *interface)
+{
+    LOG_REGISTER_CONTEXT;
+
+    bool ack = false;
 
     if(interface)
     {
-        char path[256];
+        char path[PATH_MAX];
         snprintf(path, sizeof path, "/sys/class/net/%s", interface);
-        ret = access(path, F_OK);
+        ack = (access(path, F_OK) == 0);
     }
 
-    return ret;
+    return ack;
 }
 
-static char *network_get_interface(const modedata_t *data)
+/** Get network interface to use
+ *
+ * @param data  Dynamic mode data (not used)
+ *
+ * @return interface name, or NULL
+ */
+static char *
+network_get_interface(const modedata_t *data)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -166,7 +834,7 @@ static char *network_get_interface(const modedata_t *data)
     char *interface = 0;
     char *setting   = config_get_network_setting(NETWORK_INTERFACE_KEY);
 
-    if(network_check_interface(setting) == 0)
+    if( network_interface_exists(setting) )
     {
         /* Use the configured value */
         interface = setting, setting = 0;
@@ -175,7 +843,7 @@ static char *network_get_interface(const modedata_t *data)
     {
         /* Fall back to default value */
         interface = strdup(default_interface);
-        if(network_check_interface(interface) != 0)
+        if( !network_interface_exists(interface) )
         {
             log_warning("Neither configured %s nor fallback %s interface exists."
                         " Check your config!",
@@ -185,264 +853,157 @@ static char *network_get_interface(const modedata_t *data)
         }
     }
 
-    log_debug("interface = %s\n", interface ?: "NULL");
+    log_debug("interface = %s", interface ?: "NULL");
     free(setting);
     return interface;
 }
 
-/**
- * Turn on ip forwarding on the usb interface
- * @return: 0 on success, 1 on failure
+/** Turn on ip forwarding on the usb interface
+ *
+ * To cleanup: #network_cleanup_ip_forwarding()
+ *
+ * @param data  Dynamic mode data (not used)
+ *
+ * @return 0 on success, 1 on failure
  */
-static int network_set_usb_ip_forward(const modedata_t *data, ipforward_data_t *ipforward)
+static int
+network_setup_ip_forwarding(const modedata_t *data, ipforward_data_t *ipforward)
 {
     LOG_REGISTER_CONTEXT;
 
-    char *interface, *nat_interface;
-    char command[128];
+    int   failed        = 1;
+    char *interface     = 0;
+    char *nat_interface = 0;
 
-    interface = network_get_interface(data);
-    if(interface == NULL)
-        return 1;
+    char command[256];
+
+    if( !(interface = network_get_interface(data)) )
+        goto EXIT;
+
     nat_interface = config_get_network_setting(NETWORK_NAT_INTERFACE_KEY);
-    if((nat_interface == NULL) && (ipforward->nat_interface != NULL))
+    if( !nat_interface ) {
+        if( !ipforward->nat_interface ) {
+            log_debug("No nat interface available!");
+            goto EXIT;
+        }
         nat_interface = strdup(ipforward->nat_interface);
-    else
-    {
-        log_debug("No nat interface available!\n");
-#ifdef CONNMAN
-        /* in case the cellular did not come up we want to make sure wifi gets restored */
-        connman_reset_state();
-#endif
-        free(interface);
-        free(nat_interface);
-        return 1;
     }
+
     write_to_file("/proc/sys/net/ipv4/ip_forward", "1");
-    snprintf(command, 128, "/sbin/iptables -t nat -A POSTROUTING -o %s -j MASQUERADE", nat_interface);
+
+    snprintf(command, sizeof command, "/sbin/iptables -t nat -A POSTROUTING -o %s -j MASQUERADE", nat_interface);
     common_system(command);
 
-    snprintf(command, 128, "/sbin/iptables -A FORWARD -i %s -o %s  -m state  --state RELATED,ESTABLISHED -j ACCEPT", nat_interface, interface);
+    snprintf(command, sizeof command, "/sbin/iptables -A FORWARD -i %s -o %s  -m state  --state RELATED,ESTABLISHED -j ACCEPT", nat_interface, interface);
     common_system(command);
 
-    snprintf(command, 128, "/sbin/iptables -A FORWARD -i %s -o %s -j ACCEPT", interface, nat_interface);
+    snprintf(command, sizeof command, "/sbin/iptables -A FORWARD -i %s -o %s -j ACCEPT", interface, nat_interface);
     common_system(command);
 
+    log_debug("ipforwarding success!");
+    failed = 0;
+
+EXIT:
     free(interface);
     free(nat_interface);
-    log_debug("ipforwarding success!\n");
-    return 0;
+
+    return failed;
 }
 
-/**
- * Remove ip forward
+/** Turn off ip forwarding on the usb interface
  */
-static void network_clean_usb_ip_forward(void)
+static void
+network_cleanup_ip_forwarding(void)
 {
     LOG_REGISTER_CONTEXT;
 
-#ifdef CONNMAN
-    connman_reset_state();
-#endif
     write_to_file("/proc/sys/net/ipv4/ip_forward", "0");
+
     common_system("/sbin/iptables -F FORWARD");
 }
 
-#ifdef OFONO
-/**
- * Get roaming data from ofono
+/** Validate udhcpd.conf symlink
  *
- * @return : 1 if roaming, 0 when not (or when ofono is unavailable)
+ * @return zero if symlink is valid, non-zero otherwise
  */
-static int get_roaming(void)
-{
-    LOG_REGISTER_CONTEXT;
-
-    int ret = 0, type;
-    DBusError error;
-    DBusMessage *msg = NULL, *reply;
-    DBusConnection *dbus_conn_ofono = NULL;
-    char *modem = NULL;
-    DBusMessageIter iter, subiter;
-
-    dbus_error_init(&error);
-
-    if( (dbus_conn_ofono = dbus_bus_get(DBUS_BUS_SYSTEM, &error)) == 0 )
-    {
-        log_err("Could not connect to dbus for ofono\n");
-    }
-
-    /* find the modem object path so can find out if it is roaming or not (one modem only is assumed) */
-    if ((msg = dbus_message_new_method_call("org.ofono", "/", "org.ofono.Manager", "GetModems")) != NULL)
-    {
-        if ((reply = dbus_connection_send_with_reply_and_block(dbus_conn_ofono, msg, -1, NULL)) != NULL)
-        {
-            dbus_message_iter_init(reply, &iter);
-            dbus_message_iter_recurse(&iter, &subiter);
-            iter = subiter;
-            dbus_message_iter_recurse(&iter, &subiter);
-            type = dbus_message_iter_get_arg_type(&subiter);
-            if(type == DBUS_TYPE_OBJECT_PATH)
-            {
-                dbus_message_iter_get_basic(&subiter, &modem);
-                log_debug("modem = %s\n", modem);
-            }
-            dbus_message_unref(reply);
-        }
-        dbus_message_unref(msg);
-    }
-    /* if modem found then we check roaming state */
-    if(modem != NULL)
-    {
-        if ((msg = dbus_message_new_method_call("org.ofono", modem, "org.ofono.NetworkRegistration", "GetProperties")) != NULL)
-        {
-            if ((reply = dbus_connection_send_with_reply_and_block(dbus_conn_ofono, msg, -1, NULL)) != NULL)
-            {
-                dbus_message_iter_init(reply, &iter);
-                dbus_message_iter_recurse(&iter, &subiter);
-                iter = subiter;
-                dbus_message_iter_recurse(&iter, &subiter);
-                type = dbus_message_iter_get_arg_type(&subiter);
-                if(type == DBUS_TYPE_STRING)
-                {
-                    dbus_message_iter_next (&subiter);
-                    iter = subiter;
-                    dbus_message_iter_recurse(&iter, &subiter);
-                    dbus_message_iter_get_basic(&subiter, &modem);
-                    log_debug("modem status = %s\n", modem);
-                }
-            }
-            dbus_message_unref(reply);
-        }
-        dbus_message_unref(msg);
-
-        if(!strcmp("roaming", modem))
-            ret = 1;
-    }
-
-    return ret;
-}
-#endif
-
-#ifndef CONNMAN
-/**
- * Read dns settings from /etc/resolv.conf
- */
-static int resolv_conf_dns(ipforward_data_t *ipforward)
-{
-    LOG_REGISTER_CONTEXT;
-
-    FILE *resolv;
-    int i = 0, count = 0;
-    char *line = NULL, **tokens;
-    size_t len = 0;
-    ssize_t read;
-
-    resolv = fopen("/etc/resolv.conf", "r");
-    if (resolv == NULL)
-        return 1;
-
-    /* we don't expect more than 10 lines in /etc/resolv.conf */
-    for (i=0; i < 10; i++)
-    {
-        read = getline(&line, &len, resolv);
-        if(read)
-        {
-            if(strstr(line, "nameserver") != NULL)
-            {
-                tokens = g_strsplit(line, " ", 2);
-                if(count == 0)
-                    ipforward->dns1 = strdup(tokens[1]);
-                else
-                    ipforward->dns2 = strdup(tokens[1]);
-                count++;
-                g_strfreev(tokens);
-            }
-        }
-        if(count == 2)
-            goto end;
-    }
-end:
-    free(line);
-    fclose(resolv);
-    return 0;
-}
-#endif
-
-static int network_checklink(void)
+static int
+network_check_udhcpd_symlink(void)
 {
     LOG_REGISTER_CONTEXT;
 
     int ret = -1;
     char dest[sizeof UDHCP_CONFIG_PATH + 1];
-    size_t len = readlink(UDHCP_CONFIG_LINK, dest, sizeof dest - 1);
+    ssize_t rc = readlink(UDHCP_CONFIG_LINK, dest, sizeof dest - 1);
 
-    if (len > 0)
-    {
-        dest[len] = 0;
-        ret = strcmp(dest, UDHCP_CONFIG_PATH);
+    if( rc < 0 ) {
+        if( errno != ENOENT )
+            log_err("%s: can't read symlink: %m", UDHCP_CONFIG_LINK);
+    }
+    else if( (size_t)rc < sizeof dest ) {
+        dest[rc] = 0;
+        if( strcmp(dest, UDHCP_CONFIG_PATH) )
+            log_warning("%s: symlink is invalid", UDHCP_CONFIG_LINK);
+        else
+            ret = 0;
     }
     return ret;
 }
 
-/**
- * Write udhcpd.conf
- * @ipforward : NULL if we want a simple config, otherwise include dns info etc...
+/** Write udhcpd.conf
+ *
+ * @param ipforward  NULL if we want a simple config, otherwise include dns info etc...
+ * @param data  Dynamic mode data (not used)
+ *
+ * @return zero on success, non-zero otherwise
  */
-static int network_write_udhcpd_conf(ipforward_data_t *ipforward, const modedata_t *data)
+static int
+network_write_udhcpd_config(const modedata_t *data, ipforward_data_t *ipforward)
 {
     LOG_REGISTER_CONTEXT;
 
-    FILE *conffile;
-    char *ip, *interface, *netmask;
-    char *ipstart, *ipend;
-    int dot = 0, i = 0, test;
-    struct stat st;
+    // assume failure
+    int err = -1;
+
+    FILE  *conffile = 0;
+    char  *interface = 0;
+    char  *ip = 0;
+    char  *netmask = 0;
+
+    if( !(interface = network_get_interface(data)) ) {
+        log_err("no network interface");
+        goto EXIT;
+    }
+
+    /* generate start and end ip based on the setting */
+    if( !(ip = config_get_network_setting(NETWORK_IP_KEY)) ) {
+        log_err("no network address");
+        goto EXIT;
+    }
+
+    int len = 0;
+    if( sscanf(ip, "%*d.%*d.%*d%n.%*d", &len) == EOF || ip[len] != '.') {
+        log_err("malformed network address: %s", ip);
+        goto EXIT;
+    }
+
+    if( !(netmask = config_get_network_setting(NETWORK_NETMASK_KEY)) ) {
+        log_err("no network address mask");
+        goto EXIT;
+    }
 
     /* /tmp and /run is often tmpfs, so we avoid writing to flash */
-    mkdir(UDHCP_CONFIG_DIR, 0664);
-    conffile = fopen(UDHCP_CONFIG_PATH, "w");
-    if(conffile == NULL)
-    {
-        log_debug("Error creating "UDHCP_CONFIG_PATH"!\n");
-        return 1;
+    if( mkdir(UDHCP_CONFIG_DIR, 0775) == -1 && errno != EEXIST ) {
+        log_warning("%s: can't create directory: %m", UDHCP_CONFIG_DIR);
     }
-
-    interface = network_get_interface(data);
-    if(interface == NULL)
-    {
-        fclose(conffile);
-        return 1;
-    }
-    /* generate start and end ip based on the setting */
-    ip = config_get_network_setting(NETWORK_IP_KEY);
-    ipstart = malloc(15);
-    ipend = malloc(15);
-    while(i < 15)
-    {
-        if(dot < 3)
-        {
-            if(ip[i] == '.')
-                dot ++;
-            ipstart[i] = ip[i];
-            ipend[i] = ip[i];
-        }
-        else
-        {
-            ipstart[i] = '\0';
-            ipend[i] = '\0';
-            break;
-        }
-        i++;
-    }
-    strcat(ipstart,"1");
-    strcat(ipend, "15");
-
-    netmask = config_get_network_setting(NETWORK_NETMASK_KEY);
 
     /* print all data in the file */
-    fprintf(conffile, "start\t%s\n", ipstart);
-    fprintf(conffile, "end\t%s\n", ipend);
+    if( !(conffile = fopen(UDHCP_CONFIG_PATH, "w")) ) {
+        log_err("%s: can't open for writing: %m", UDHCP_CONFIG_PATH);
+        goto EXIT;
+    }
+
+    fprintf(conffile, "start\t%.*s.1\n", len, ip);
+    fprintf(conffile, "end\t%.*s.15\n", len, ip);
     fprintf(conffile, "interface\t%s\n", interface);
     fprintf(conffile, "option\tsubnet\t%s\n", netmask);
     fprintf(conffile, "option\tlease\t3600\n");
@@ -450,521 +1011,55 @@ static int network_write_udhcpd_conf(ipforward_data_t *ipforward, const modedata
 
     if(ipforward != NULL)
     {
-        if(!ipforward->dns1 || !ipforward->dns2)
-        {
+        if( !ipforward->dns1 || !ipforward->dns2 )
             log_debug("No dns info!");
-        }
         else
             fprintf(conffile, "opt\tdns\t%s %s\n", ipforward->dns1, ipforward->dns2);
         fprintf(conffile, "opt\trouter\t%s\n", ip);
     }
 
-    free(ipstart);
-    free(ipend);
+    fclose(conffile), conffile = 0;
+
+    /* check that we have a valid symlink */
+    if( network_check_udhcpd_symlink() != 0 ) {
+        if( unlink(UDHCP_CONFIG_LINK) == -1 && errno != ENOENT )
+            log_warning("%s: can't remove invalid config: %m", UDHCP_CONFIG_LINK);
+
+        if( symlink(UDHCP_CONFIG_PATH, UDHCP_CONFIG_LINK) == -1 ) {
+            log_err("%s: can't create symlink to %s: %m",
+                    UDHCP_CONFIG_LINK, UDHCP_CONFIG_PATH);
+            goto EXIT;
+        }
+        log_debug("%s: symlink to %s created",
+                  UDHCP_CONFIG_LINK, UDHCP_CONFIG_PATH);
+    }
+
+    // success
+    err = 0;
+
+EXIT:
+    free(netmask);
     free(ip);
     free(interface);
-    free(netmask);
-    fclose(conffile);
+    if( conffile )
+        fclose(conffile);
 
-    /* check if it is a symlink, if not remove and link, create the link if missing */
-    test = lstat(UDHCP_CONFIG_LINK, &st);
-    /* if stat fails there is no file or link */
-    if(test == -1)
-        goto link;
-    /* if it is not a link, or points to the wrong place we remove it */
-    if(((st.st_mode & S_IFMT) != S_IFLNK) || network_checklink())
-    {
-        unlink(UDHCP_CONFIG_LINK);
-    }
-    else
-        goto end;
-
-link:
-    if (symlink(UDHCP_CONFIG_PATH, UDHCP_CONFIG_LINK) == -1)
-    {
-        log_debug("Error creating link "UDHCP_CONFIG_LINK" -> "UDHCP_CONFIG_PATH": %m\n");
-        unlink(UDHCP_CONFIG_PATH);
-        return 1;
-    }
-
-end:
-    log_debug(UDHCP_CONFIG_LINK" created\n");
-    return 0;
+    return err;
 }
 
-#ifdef CONNMAN
-
-# define CONNMAN_SERVICE                "net.connman"
-# define CONNMAN_TECH_INTERFACE         "net.connman.Technology"
-# define CONNMAN_ERROR_INTERFACE        CONNMAN_SERVICE ".Error"
-# define CONNMAN_ERROR_ALREADY_ENABLED  CONNMAN_ERROR_INTERFACE ".AlreadyEnabled"
-# define CONNMAN_ERROR_ALREADY_DISABLED CONNMAN_ERROR_INTERFACE ".AlreadyDisabled"
-
-/*
- * Configures tethering for the specified connman technology.
- */
-static gboolean connman_try_set_tethering(DBusConnection *connection, const char *path, gboolean on)
-{
-    LOG_REGISTER_CONTEXT;
-
-    gboolean ok = FALSE;
-    DBusMessage *message = dbus_message_new_method_call(CONNMAN_SERVICE, path, CONNMAN_TECH_INTERFACE, "SetProperty");
-    if (message)
-    {
-        DBusMessage *reply;
-        DBusMessageIter iter;
-        DBusMessageIter iter2;
-        DBusError error;
-
-        const char* key = "Tethering";
-        dbus_bool_t value = (on != FALSE);
-
-        dbus_message_iter_init_append(message, &iter);
-        dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &key);
-        dbus_message_iter_open_container(&iter, DBUS_TYPE_VARIANT, DBUS_TYPE_BOOLEAN_AS_STRING, &iter2);
-        dbus_message_iter_append_basic(&iter2, DBUS_TYPE_BOOLEAN, &value);
-        dbus_message_iter_close_container(&iter, &iter2);
-
-        dbus_error_init(&error);
-        reply = dbus_connection_send_with_reply_and_block(connection, message,  DBUS_TIMEOUT_USE_DEFAULT, &error);
-        dbus_message_unref(message);
-        if (reply)
-        {
-            log_debug("%s tethering %s", path, on ? "on" : "off");
-            dbus_message_unref(reply);
-            ok = TRUE;
-        }
-        else
-        {
-            if ((on && !g_strcmp0(error.name, CONNMAN_ERROR_ALREADY_ENABLED)) ||
-                (!on && (!g_strcmp0(error.name, CONNMAN_ERROR_ALREADY_DISABLED) ||
-                         !g_strcmp0(error.name, DBUS_ERROR_UNKNOWN_OBJECT))))
-            {
-                ok = TRUE;
-            }
-            else
-            {
-                log_err("%s\n", error.message);
-            }
-            dbus_error_free(&error);
-        }
-    }
-    return ok;
-}
-
-gboolean connman_set_tethering(const char *path, gboolean on)
-{
-    LOG_REGISTER_CONTEXT;
-
-    gboolean ok = FALSE;
-    DBusError error;
-    DBusConnection *connection;
-
-    dbus_error_init(&error);
-    connection = dbus_bus_get(DBUS_BUS_SYSTEM, &error);
-    if (connection)
-    {
-        int i;
-        for (i=0; i<10; i++)
-        {
-            if (i>0)
-            {
-                if( !common_msleep(200) )
-                    break;
-            }
-            if (connman_try_set_tethering(connection, path, on))
-            {
-                ok = TRUE;
-                break;
-            }
-        }
-        dbus_connection_unref(connection);
-    }
-    else
-    {
-        log_err("%s\n", error.message);
-        dbus_error_free (&error);
-    }
-
-    return ok;
-}
-
-/**
- * Connman message handling
- */
-static char * connman_parse_manager_reply(DBusMessage *reply, const char *req_service)
-{
-    LOG_REGISTER_CONTEXT;
-
-    DBusMessageIter iter, subiter, origiter;
-    int type;
-    char *service;
-
-    dbus_message_iter_init(reply, &iter);
-    type = dbus_message_iter_get_arg_type(&iter);
-    dbus_message_iter_recurse(&iter, &subiter);
-    type = dbus_message_iter_get_arg_type(&subiter);
-    origiter = subiter;
-    iter = subiter;
-    while(type != DBUS_TYPE_INVALID)
-    {
-
-        if(type == DBUS_TYPE_STRUCT)
-        {
-            origiter = iter;
-            dbus_message_iter_recurse(&iter, &subiter);
-            type = dbus_message_iter_get_arg_type(&subiter);
-            if(type == DBUS_TYPE_OBJECT_PATH)
-            {
-                dbus_message_iter_get_basic(&subiter, &service);
-                log_debug("service = %s\n", service);
-                if(strstr(service, req_service))
-                {
-                    log_debug("%s service found!\n", req_service);
-                    return strdup(service);
-                }
-            }
-        }
-        dbus_message_iter_next(&origiter);
-        type = dbus_message_iter_get_arg_type(&origiter);
-        iter = origiter;
-    }
-    log_debug("end of list\n");
-    return 0;
-}
-
-static int connman_fill_connection_data(DBusMessage *reply, ipforward_data_t *ipforward)
-{
-    LOG_REGISTER_CONTEXT;
-
-    DBusMessageIter array_iter, dict_iter, inside_dict_iter, variant_iter;
-    DBusMessageIter sub_array_iter, string_iter;
-    int type, next;
-    char *string;
-
-    log_debug("Filling in dns data\n");
-    dbus_message_iter_init(reply, &array_iter);
-    type = dbus_message_iter_get_arg_type(&array_iter);
-
-    dbus_message_iter_recurse(&array_iter, &dict_iter);
-    type = dbus_message_iter_get_arg_type(&dict_iter);
-
-    while(type != DBUS_TYPE_INVALID)
-    {
-        dbus_message_iter_recurse(&dict_iter, &inside_dict_iter);
-        type = dbus_message_iter_get_arg_type(&inside_dict_iter);
-        if(type == DBUS_TYPE_STRING)
-        {
-            dbus_message_iter_get_basic(&inside_dict_iter, &string);
-            //log_debug("string = %s\n", string);
-            if(!strcmp(string, "Nameservers"))
-            {
-                //log_debug("Trying to get Nameservers");
-                dbus_message_iter_next (&inside_dict_iter);
-                type = dbus_message_iter_get_arg_type(&inside_dict_iter);
-                dbus_message_iter_recurse(&inside_dict_iter, &variant_iter);
-                type = dbus_message_iter_get_arg_type(&variant_iter);
-                if(type == DBUS_TYPE_ARRAY)
-                {
-                    dbus_message_iter_recurse(&variant_iter, &string_iter);
-                    type = dbus_message_iter_get_arg_type(&string_iter);
-                    if(type != DBUS_TYPE_STRING)
-                    {
-                        /* not online */
-                        return 1;
-                    }
-                    dbus_message_iter_get_basic(&string_iter, &string);
-                    log_debug("dns = %s\n", string);
-                    ipforward->dns1 = strdup(string);
-                    next = dbus_message_iter_next (&string_iter);
-                    if(!next)
-                    {
-                        log_debug("No secundary dns\n");
-                        /* FIXME: set the same dns for dns2 to avoid breakage */
-                        ipforward->dns2 = strdup(string);
-                        return 0;
-                    }
-                    dbus_message_iter_get_basic(&string_iter, &string);
-                    log_debug("dns2 = %s\n", string);
-                    ipforward->dns2 = strdup(string);
-                    return 0;
-                }
-            }
-            else if(!strcmp(string, "State"))
-            {
-                //log_debug("Trying to get online state");
-                dbus_message_iter_next (&inside_dict_iter);
-                type = dbus_message_iter_get_arg_type(&inside_dict_iter);
-                dbus_message_iter_recurse(&inside_dict_iter, &variant_iter);
-                type = dbus_message_iter_get_arg_type(&variant_iter);
-                if(type == DBUS_TYPE_STRING)
-                {
-                    dbus_message_iter_get_basic(&variant_iter, &string);
-                    log_debug("Connection state = %s\n", string);
-                    /* if cellular not online, connect it */
-                    if(strcmp(string, "online"))
-                    {
-                        /* if in ready state connection might be up anyway */
-                        if(strcmp(string, "ready"))
-                            log_debug("Not online. Turning on cellular data connection.\n");
-                        return 1;
-                    }
-
-                }
-
-            }
-            else if(!strcmp(string, "Ethernet"))
-            {
-                dbus_message_iter_next (&inside_dict_iter);
-                type = dbus_message_iter_get_arg_type(&inside_dict_iter);
-                dbus_message_iter_recurse(&inside_dict_iter, &variant_iter);
-                type = dbus_message_iter_get_arg_type(&variant_iter);
-                if(type == DBUS_TYPE_ARRAY)
-                {
-                    dbus_message_iter_recurse(&variant_iter, &sub_array_iter);
-                    /* we want the second dict */
-                    dbus_message_iter_next(&sub_array_iter);
-                    /* we go into the dict and get the string */
-                    dbus_message_iter_recurse(&sub_array_iter, &variant_iter);
-                    type = dbus_message_iter_get_arg_type(&variant_iter);
-                    if(type == DBUS_TYPE_STRING)
-                    {
-                        dbus_message_iter_get_basic(&variant_iter, &string);
-                        if(!strcmp(string, "Interface"))
-                        {
-                            /* get variant and iter down in it */
-                            dbus_message_iter_next(&variant_iter);
-                            dbus_message_iter_recurse(&variant_iter, &string_iter);
-                            dbus_message_iter_get_basic(&string_iter, &string);
-                            log_debug("cellular interface = %s\n", string);
-                            ipforward->nat_interface = strdup(string);
-                        }
-                    }
-                }
-
-            }
-        }
-        dbus_message_iter_next (&dict_iter);
-        type = dbus_message_iter_get_arg_type(&dict_iter);
-    }
-    return 0;
-}
-
-/**
- * Turn on cellular connection if it is not on
- */
-static int connman_set_cellular_online(DBusConnection *dbus_conn_connman, const char *service, int retry)
-{
-    LOG_REGISTER_CONTEXT;
-
-    DBusMessage *msg = NULL, *reply;
-    DBusError error;
-    int ret = 0;
-    char *wifi = NULL;
-
-    dbus_error_init(&error);
-
-    if(!retry)
-    {
-        if ((msg = dbus_message_new_method_call("net.connman", "/", "net.connman.Manager", "GetServices")) != NULL)
-        {
-            if ((reply = dbus_connection_send_with_reply_and_block(dbus_conn_connman, msg, -1, NULL)) != NULL)
-            {
-                wifi = connman_parse_manager_reply(reply, "wifi");
-                dbus_message_unref(reply);
-            }
-            dbus_message_unref(msg);
-        }
-
-        if(wifi != NULL)
-        {
-            /* we must make sure that wifi is disconnected as sometimes cellular will not come up otherwise */
-            if ((msg = dbus_message_new_method_call("net.connman", wifi, "net.connman.Service", "Disconnect")) != NULL)
-            {
-                /* we don't care for the reply, which is empty anyway if all goes well */
-                ret = !dbus_connection_send(dbus_conn_connman, msg, NULL);
-                dbus_connection_flush(dbus_conn_connman);
-                dbus_message_unref(msg);
-            }
-        }
-    }
-    if ((msg = dbus_message_new_method_call("net.connman", service, "net.connman.Service", "Connect")) != NULL)
-    {
-        /* we don't care for the reply, which is empty anyway if all goes well */
-        ret = !dbus_connection_send(dbus_conn_connman, msg, NULL);
-        /* sleep for the connection to come up */
-        common_sleep(5);
-        /* make sure the message is sent before cleaning up and closing the connection */
-        dbus_connection_flush(dbus_conn_connman);
-        dbus_message_unref(msg);
-    }
-
-    if(wifi)
-        free(wifi);
-
-    return ret;
-}
-
-/*
- * Turn on or off the wifi service
- * wifistatus static variable tracks the state so we do not turn on the wifi if it was off
+/** Update udhcpd.conf
  *
+ * Must be succesfully called before starting udhcpd to ensure
+ * /etc/udhcpd.conf points to valid data.
+ *
+ * No cleanup required (the config file can be left behind).
+ *
+ * @param data  Dynamic mode data
+ *
+ * @return zero on success, non-zero on failure
  */
-static int connman_wifi_power_control(DBusConnection *dbus_conn_connman, int on)
-{
-    LOG_REGISTER_CONTEXT;
-
-    static int wifistatus = 0;
-    int type = 0;
-    char *string;
-    DBusMessage *msg = NULL, *reply;
-    //DBusError error;
-    DBusMessageIter array_iter, dict_iter, inside_dict_iter, variant_iter;
-
-    if(!on)
-    {
-        /* check wifi status only before turning off */
-        if ((msg = dbus_message_new_method_call("net.connman", "/net/connman/technology/wifi", "net.connman.Technology", "GetProperties")) != NULL)
-        {
-            if ((reply = dbus_connection_send_with_reply_and_block(dbus_conn_connman, msg, -1, NULL)) != NULL)
-            {
-                dbus_message_iter_init(reply, &array_iter);
-
-                dbus_message_iter_recurse(&array_iter, &dict_iter);
-                type = dbus_message_iter_get_arg_type(&dict_iter);
-
-                while(type != DBUS_TYPE_INVALID)
-                {
-                    dbus_message_iter_recurse(&dict_iter, &inside_dict_iter);
-                    type = dbus_message_iter_get_arg_type(&inside_dict_iter);
-                    if(type == DBUS_TYPE_STRING)
-                    {
-                        dbus_message_iter_get_basic(&inside_dict_iter, &string);
-                        log_debug("string = %s\n", string);
-                        if(!strcmp(string, "Powered"))
-                        {
-                            dbus_message_iter_next (&inside_dict_iter);
-                            type = dbus_message_iter_get_arg_type(&inside_dict_iter);
-                            dbus_message_iter_recurse(&inside_dict_iter, &variant_iter);
-                            type = dbus_message_iter_get_arg_type(&variant_iter);
-                            if(type == DBUS_TYPE_BOOLEAN)
-                            {
-                                dbus_message_iter_get_basic(&variant_iter, &wifistatus);
-                                log_debug("Powered state = %d\n", wifistatus);
-                            }
-                            break;
-                        }
-                    }
-                    dbus_message_iter_next (&dict_iter);
-                    type = dbus_message_iter_get_arg_type(&dict_iter);
-                }
-                dbus_message_unref(reply);
-            }
-            dbus_message_unref(msg);
-        }
-    }
-
-    /*  /net/connman/technology/wifi net.connman.Technology.SetProperty string:Powered variant:boolean:false */
-    if(wifistatus && !on)
-        common_system("/bin/dbus-send --print-reply --type=method_call --system --dest=net.connman /net/connman/technology/wifi net.connman.Technology.SetProperty string:Powered variant:boolean:false");
-    if(wifistatus && on)
-        /* turn on wifi after tethering is over and wifi was on before */
-        common_system("/bin/dbus-send --print-reply --type=method_call --system --dest=net.connman /net/connman/technology/wifi net.connman.Technology.SetProperty string:Powered variant:boolean:true");
-
-    return 0;
-}
-
-static int connman_get_connection_data(ipforward_data_t *ipforward)
-{
-    LOG_REGISTER_CONTEXT;
-
-    DBusConnection *dbus_conn_connman = NULL;
-    DBusMessage *msg = NULL, *reply = NULL;
-    DBusError error;
-    char *service = NULL;
-    int online = 0, ret = 0;
-
-    dbus_error_init(&error);
-
-    if( (dbus_conn_connman = dbus_bus_get(DBUS_BUS_SYSTEM, &error)) == 0 )
-    {
-        log_err("Could not connect to dbus for connman\n");
-    }
-
-    /* turn off wifi in preparation for cellular connection if needed */
-    connman_wifi_power_control(dbus_conn_connman, 0);
-
-    /* get list of services so we can find out which one is the cellular */
-    if ((msg = dbus_message_new_method_call("net.connman", "/", "net.connman.Manager", "GetServices")) != NULL)
-    {
-        if ((reply = dbus_connection_send_with_reply_and_block(dbus_conn_connman, msg, -1, NULL)) != NULL)
-        {
-            service = connman_parse_manager_reply(reply, "cellular");
-            dbus_message_unref(reply);
-        }
-        dbus_message_unref(msg);
-    }
-
-    log_debug("service = %s\n", service);
-    if(service)
-    {
-try_again:
-        if ((msg = dbus_message_new_method_call("net.connman", service, "net.connman.Service", "GetProperties")) != NULL)
-        {
-            if ((reply = dbus_connection_send_with_reply_and_block(dbus_conn_connman, msg, -1, NULL)) != NULL)
-            {
-                if(connman_fill_connection_data(reply, ipforward))
-                {
-                    if(!connman_set_cellular_online(dbus_conn_connman, service, online) && !online)
-                    {
-                        online = 1;
-                        goto try_again;
-                    }
-                    else
-                    {
-                        log_debug("Cannot connect to cellular data\n");
-                        ret = 1;
-                    }
-                }
-                dbus_message_unref(reply);
-            }
-            dbus_message_unref(msg);
-        }
-    }
-    dbus_connection_unref(dbus_conn_connman);
-    dbus_error_free(&error);
-    free(service);
-    return ret;
-}
-
-static int connman_reset_state(void)
-{
-    LOG_REGISTER_CONTEXT;
-
-    DBusConnection *dbus_conn_connman = NULL;
-    DBusError error;
-
-    dbus_error_init(&error);
-
-    if( (dbus_conn_connman = dbus_bus_get(DBUS_BUS_SYSTEM, &error)) == 0 )
-    {
-        log_err("Could not connect to dbus for connman\n");
-    }
-
-    /* make sure connman turns wifi back on when we disconnect */
-    log_debug("Turning wifi back on\n");
-    connman_wifi_power_control(dbus_conn_connman, 1);
-    dbus_connection_unref(dbus_conn_connman);
-    dbus_error_free(&error);
-
-    return 0;
-}
-#endif /* CONNMAN */
-
-/**
- * Write out /etc/udhcpd.conf conf so the config is available when it gets started
- */
-int network_set_up_dhcpd(const modedata_t *data)
+int
+network_update_udhcpd_config(const modedata_t *data)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -972,325 +1067,161 @@ int network_set_up_dhcpd(const modedata_t *data)
     int ret = 1;
 
     /* Set up nat info only if it is required */
-    if(data->nat)
+    if( data->nat )
     {
 #ifdef OFONO
         /* check if we are roaming or not */
-        if(get_roaming())
-        {
+        if( ofono_get_roaming_status() ) {
             /* get permission to use roaming */
             if(config_is_roaming_not_allowed())
-                goto end;
+                goto EXIT;
         }
-#endif /* OFONO */
-        ipforward = calloc(1, sizeof *ipforward);
+#endif
+
+        ipforward = ipforward_data_create();
+
 #ifdef CONNMAN
-        if(connman_get_connection_data(ipforward))
+        if( !connman_get_connection_data(ipforward) )
         {
-            log_debug("data connection not available!\n");
+            log_debug("data connection not available from connman!");
             /* TODO: send a message to the UI */
-            goto end;
+            goto EXIT;
         }
 #else
-        if(resolv_conf_dns(ipforward))
-            goto end;
-#endif /*CONNMAN */
+        if( !legacy_get_connection_data(ipforward) ) {
+            log_debug("data connection not available in resolv.conf!");
+            goto EXIT;
+        }
+#endif
     }
+
     /* ipforward can be NULL here, which is expected and handled in this function */
-    ret = network_write_udhcpd_conf(ipforward, data);
+    ret = network_write_udhcpd_config(data, ipforward);
 
-    if(data->nat)
-        ret = network_set_usb_ip_forward(data, ipforward);
+    if( ret == 0 && data->nat )
+        ret = network_setup_ip_forwarding(data, ipforward);
 
-end:
-    /* the function checks if ipforward is NULL or not */
-    network_free_ipforward_data(ipforward);
+EXIT:
+    ipforward_data_delete(ipforward);
+
     return ret;
 }
 
-#if CONNMAN_WORKS_BETTER
-static int append_variant(DBusMessageIter *iter, const char *property,
-                          int type, const char *value)
-{
-    LOG_REGISTER_CONTEXT;
-
-    DBusMessageIter variant;
-    const char *type_str;
-
-    switch(type) {
-    case DBUS_TYPE_BOOLEAN:
-        type_str = DBUS_TYPE_BOOLEAN_AS_STRING;
-        break;
-    case DBUS_TYPE_BYTE:
-        type_str = DBUS_TYPE_BYTE_AS_STRING;
-        break;
-    case DBUS_TYPE_STRING:
-        type_str = DBUS_TYPE_STRING_AS_STRING;
-        break;
-    case DBUS_TYPE_INT32:
-        type_str = DBUS_TYPE_INT32_AS_STRING;
-        break;
-    default:
-        return -EOPNOTSUPP;
-    }
-
-    dbus_message_iter_append_basic(iter, DBUS_TYPE_STRING, &property);
-    dbus_message_iter_open_container(iter, DBUS_TYPE_VARIANT, type_str,
-                                     &variant);
-    dbus_message_iter_append_basic(&variant, type, value);
-    dbus_message_iter_close_container(iter, &variant);
-
-    return 0;
-}
-#endif /* CONNMAN */
-
-/**
- * Activate the network interface
+/** Activate the network interface
  *
+ * @param data  Dynamic mode data (not used)
+ *
+ * @return zero on success, non-zero on failure
  */
-int network_up(const modedata_t *data)
+int
+network_up(const modedata_t *data)
 {
     LOG_REGISTER_CONTEXT;
 
-    char *ip = NULL, *gateway = NULL;
-    int ret = -1;
+    // assume failure
+    int ret = 1;
 
-#if CONNMAN_WORKS_BETTER
-    DBusConnection *dbus_conn_connman = NULL;
-    DBusMessage *msg = NULL, *reply = NULL;
-    DBusMessageIter iter, variant, dict;
-    DBusMessageIter msg_iter;
-    DBusMessageIter dict_entry;
-    DBusError error;
-    const char *service = NULL;
+    gchar *interface = 0;
+    gchar *address   = 0;
+    gchar *netmask   = 0;
+    gchar *gateway   = 0;
 
-    /* make sure connman will recognize the gadget interface NEEDED? */
-    //common_system("/bin/dbus-send --print-reply --type=method_call --system --dest=net.connman /net/connman/technology/gadget net.connman.Technology.SetProperty string:Powered variant:boolean:true");
-    //common_system("/sbin/ifconfig rndis0 up");
+    char command[256];
 
-    log_debug("waiting for connman to pick up interface\n");
-    common_sleep(1);
-    dbus_error_init(&error);
-
-    if( (dbus_conn_connman = dbus_bus_get(DBUS_BUS_SYSTEM, &error)) == 0 )
-    {
-        log_err("Could not connect to dbus for connman\n");
+    if( !(interface = network_get_interface(data)) ) {
+        log_err("no network interface");
+        goto EXIT;
     }
 
-    /* get list of services so we can find out which one is the usb gadget */
-    if ((msg = dbus_message_new_method_call("net.connman", "/", "net.connman.Manager", "GetServices")) != NULL)
+    if( !(address = config_get_network_setting(NETWORK_IP_KEY)) ) {
+        log_err("no network address");
+        goto EXIT;
+    }
+
+    if( !(netmask = config_get_network_setting(NETWORK_NETMASK_KEY)) ) {
+        log_err("no network address mask");
+        goto EXIT;
+    }
+
+    if( !(gateway = config_get_network_setting(NETWORK_GATEWAY_KEY)) ) {
+        /* gateway is optional */
+        log_warning("no network gateway");
+    }
+
+    if( !strcmp(address, "dhcp") )
     {
-        if ((reply = dbus_connection_send_with_reply_and_block(dbus_conn_connman, msg, -1, NULL)) != NULL)
-        {
-            service = connman_parse_manager_reply(reply, "gadget");
-            dbus_message_unref(reply);
+        snprintf(command, sizeof command,"dhclient -d %s", interface);
+        if( common_system(command) != 0 ) {
+            snprintf(command, sizeof command,"udhcpc -i %s", interface);
+            if( common_system(command) != 0 )
+                goto EXIT;
         }
-        dbus_message_unref(msg);
-    }
-
-    if(service == NULL)
-        return 1;
-    log_debug("gadget = %s\n", service);
-
-    /* now we need to configure the connection */
-    if ((msg = dbus_message_new_method_call("net.connman", service, "net.connman.Service", "SetProperty")) != NULL)
-    {
-        log_debug("iter init\n");
-        dbus_message_iter_init_append(msg, &msg_iter);
-        log_debug("iter append\n");
-        // TODO: crashes here, need to rework this whole bit, connman dbus is hell
-        dbus_message_iter_append_basic(&msg_iter, DBUS_TYPE_STRING, "IPv4.Configuration");
-        log_debug("iter open container\n");
-        dbus_message_iter_open_container(&msg_iter, DBUS_TYPE_VARIANT,
-                                         DBUS_TYPE_ARRAY_AS_STRING
-                                         DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
-                                         DBUS_TYPE_STRING_AS_STRING
-                                         DBUS_TYPE_VARIANT_AS_STRING
-                                         DBUS_DICT_ENTRY_END_CHAR_AS_STRING,
-                                         &variant);
-
-        log_debug("iter open container 2\n");
-        dbus_message_iter_open_container(&variant, DBUS_TYPE_ARRAY,
-                                         DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
-                                         DBUS_TYPE_STRING_AS_STRING
-                                         DBUS_TYPE_VARIANT_AS_STRING
-                                         DBUS_DICT_ENTRY_END_CHAR_AS_STRING,
-                                         &dict);
-
-        log_debug("Set Method\n");
-        dbus_message_iter_open_container(&dict, DBUS_TYPE_DICT_ENTRY, NULL, &dict_entry);
-        append_variant(&dict_entry, "Method", DBUS_TYPE_STRING, "manual");
-        dbus_message_iter_close_container(&dict, &dict_entry);
-
-        log_debug("Set ip\n");
-        ip = get_network_settings(NETWORK_IP_KEY);
-        dbus_message_iter_open_container(&dict, DBUS_TYPE_DICT_ENTRY, NULL, &dict_entry);
-        append_variant(&dict_entry, "Address", DBUS_TYPE_STRING, ip);
-        dbus_message_iter_close_container(&dict, &dict_entry);
-
-        log_debug("Set netmask\n");
-        dbus_message_iter_open_container(&dict, DBUS_TYPE_DICT_ENTRY, NULL, &dict_entry);
-        append_variant(&dict_entry, "Netmask", DBUS_TYPE_STRING, "255.255.255.0");
-        dbus_message_iter_close_container(&dict, &dict_entry);
-
-        log_debug("set gateway\n");
-        gateway = config_get_network_setting(NETWORK_GATEWAY_KEY);
-        if(gateway)
-        {
-            dbus_message_iter_open_container(&dict, DBUS_TYPE_DICT_ENTRY, NULL, &dict_entry);
-            append_variant(&dict_entry, "Gateway", DBUS_TYPE_STRING, gateway);
-            dbus_message_iter_close_container(&dict, &dict_entry);
-        }
-        dbus_message_iter_close_container(&variant, &dict);
-        dbus_message_iter_close_container(&msg_iter, &variant);
-    }
-
-    log_debug("Connect gadget\n");
-    /* Finally we can bring it up */
-    if ((msg = dbus_message_new_method_call("net.connman", service, "net.connman.Service", "Connect")) != NULL)
-    {
-        /* we don't care for the reply, which is empty anyway if all goes well */
-        ret = !dbus_connection_send(dbus_conn_connman, msg, NULL);
-        /* make sure the message is sent before cleaning up and closing the connection */
-        dbus_connection_flush(dbus_conn_connman);
-        dbus_message_unref(msg);
-    }
-    dbus_connection_unref(dbus_conn_connman);
-    dbus_error_free(&error);
-    free(service);
-    if(ip)
-        free(ip);
-    if(gateway)
-        free(gateway);
-    return ret;
-
-#else
-    char command[128];
-    char *interface;
-    char *netmask;
-
-    interface = network_get_interface(data);
-
-    if(interface == NULL)
-        return 1;
-
-    /* interface found, so we can get all the rest */
-    ip = config_get_network_setting(NETWORK_IP_KEY);
-    gateway = config_get_network_setting(NETWORK_GATEWAY_KEY);
-    netmask = config_get_network_setting(NETWORK_NETMASK_KEY);
-
-    if(!strcmp(ip, "dhcp"))
-    {
-        sprintf(command, "dhclient -d %s\n", interface);
-        ret = common_system(command);
-        if(ret != 0)
-        {
-            sprintf(command, "udhcpc -i %s\n", interface);
-            common_system(command);
-        }
-
     }
     else
     {
-        sprintf(command, "ifconfig %s %s netmask %s\n", interface, ip, netmask);
-        common_system(command);
+        snprintf(command, sizeof command,"ifconfig %s %s netmask %s", interface, address, netmask);
+        if( common_system(command) != 0 )
+            goto EXIT;
     }
 
     /* TODO: Check first if there is a gateway set */
-    if(gateway)
+    if( gateway )
     {
-        sprintf(command, "route add default gw %s\n", gateway);
-        common_system(command);
+        snprintf(command, sizeof command,"route add default gw %s", gateway);
+        if( common_system(command) != 0 )
+            goto EXIT;
     }
 
-    free(interface);
-    free(gateway);
-    free(ip);
-    free(netmask);
+    ret = 0;
 
-    return 0;
-#endif /* CONNMAN */
+EXIT:
+    log_debug("iface=%s addr=%s mask=%s gw=%s -> %s",
+              interface ?: "n/a",
+              address   ?: "n/a",
+              netmask   ?: "n/a",
+              gateway   ?: "n/a",
+              ret ? "failure" : "success");
+
+    g_free(gateway);
+    g_free(netmask);
+    g_free(address);
+    g_free(interface);
+    return ret;
 }
 
-/**
- * Deactivate the network interface
+/** Deactivate the network interface
  *
+ * @param data  Dynamic mode data (not used)
  */
-int network_down(const modedata_t *data)
+void
+network_down(const modedata_t *data)
 {
     LOG_REGISTER_CONTEXT;
 
-#if CONNMAN_WORKS_BETTER
-    DBusConnection *dbus_conn_connman = NULL;
-    DBusMessage *msg = NULL, *reply = NULL;
-    DBusError error;
-    char *service = NULL;
-    int ret = -1;
+    gchar *interface = network_get_interface(data);
 
-    dbus_error_init(&error);
+    char command[256];
 
-    if( (dbus_conn_connman = dbus_bus_get(DBUS_BUS_SYSTEM, &error)) == 0 )
-    {
-        log_err("Could not connect to dbus for connman\n");
+    log_debug("iface=%s nat=%d", interface ?: "n/a", data->nat);
+
+    if( interface ) {
+        snprintf(command, sizeof command,"ifconfig %s down", interface);
+        common_system(command);
     }
-
-    /* get list of services so we can find out which one is the usb gadget */
-    if ((msg = dbus_message_new_method_call("net.connman", "/", "net.connman.Manager", "GetServices")) != NULL)
-    {
-        if ((reply = dbus_connection_send_with_reply_and_block(dbus_conn_connman, msg, -1, NULL)) != NULL)
-        {
-            service = connman_parse_manager_reply(reply, "gadget");
-            dbus_message_unref(reply);
-        }
-        dbus_message_unref(msg);
-    }
-
-    if(service == NULL)
-        return 1;
-
-    /* Finally we can shut it down */
-    if ((msg = dbus_message_new_method_call("net.connman", service, "net.connman.Service", "Disconnect")) != NULL)
-    {
-        /* we don't care for the reply, which is empty anyway if all goes well */
-        ret = !dbus_connection_send(dbus_conn_connman, msg, NULL);
-        /* make sure the message is sent before cleaning up and closing the connection */
-        dbus_connection_flush(dbus_conn_connman);
-        dbus_message_unref(msg);
-    }
-    free(service);
-
-    /* dhcp server shutdown happens on disconnect automatically */
-    if(data->nat)
-        network_clean_usb_ip_forward();
-    dbus_error_free(&error);
-
-    return ret;
-#else
-    char *interface;
-    char command[128];
-
-    interface = network_get_interface(data);
-    if(interface == NULL)
-        return 0;
-
-    sprintf(command, "ifconfig %s down\n", interface);
-    common_system(command);
 
     /* dhcp client shutdown happens on disconnect automatically */
     if(data->nat)
-        network_clean_usb_ip_forward();
+        network_cleanup_ip_forwarding();
 
-    free(interface);
-
-    return 0;
-#endif /* CONNMAN_IS_EVER_FIXED_FOR_USB */
+    g_free(interface);
 }
 
-/**
- * Update the network interface with the new setting if connected.
+/** Update the network interface with the new setting if connected.
  *
+ * Should be called when relevant settings have changed.
  */
-int network_update(void)
+void
+network_update(void)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -1302,5 +1233,4 @@ int network_update(void)
         }
         modedata_free(data);
     }
-    return 0;
 }
