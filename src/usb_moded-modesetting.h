@@ -57,4 +57,14 @@ void modesetting_quit              (void);
 # define write_to_file(path,text)\
      modesetting_write_to_file_real(__FILE__,__LINE__,__FUNCTION__,(path),(text))
 
+/* Used to retry syscalls that can return EINTR. Taken from bionic unistd.h */
+#ifndef TEMP_FAILURE_RETRY
+#define TEMP_FAILURE_RETRY(exp) ({         \
+    __typeof__(exp) _rc;                   \
+    do {                                   \
+        _rc = (exp);                       \
+    } while (_rc == -1 && errno == EINTR); \
+    _rc; })
+#endif
+
 #endif /* USB_MODED_MODESETTING_H_ */
