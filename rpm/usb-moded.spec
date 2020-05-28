@@ -332,6 +332,7 @@ install -m 644 -D config/diag/* %{buildroot}/%{_sysconfdir}/usb-moded/diag/
 install -m 644 -D config/run/* %{buildroot}/%{_sysconfdir}/usb-moded/run/
 install -m 644 -D config/run-diag/* %{buildroot}/%{_sysconfdir}/usb-moded/run-diag/
 install -m 644 -D config/mass-storage-jolla.ini %{buildroot}/%{_sysconfdir}/usb-moded/
+install -m 644 -D config/10-usb-moded-defaults.ini %{buildroot}/%{_sysconfdir}/usb-moded/
 install -d %{buildroot}/%{_sharedstatedir}/usb-moded
 
 ln -sf /run/usb-moded/udhcpd.conf %{buildroot}/%{_sysconfdir}/udhcpd.conf
@@ -363,6 +364,7 @@ systemctl daemon-reload || :
 %dir %{_sysconfdir}/usb-moded
 %dir %{_sysconfdir}/usb-moded/dyn-modes
 %dir %{_sysconfdir}/usb-moded/run
+%{_sysconfdir}/usb-moded/10-usb-moded-defaults.ini
 %{_sysconfdir}/udhcpd.conf
 %{_sysconfdir}/dbus-1/system.d/usb_moded.conf
 %{_sysconfdir}/modprobe.d/usb_moded.conf
