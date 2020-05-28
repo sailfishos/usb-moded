@@ -357,6 +357,7 @@ bool usbmoded_is_mode_permitted(const char *modename, uid_t uid)
 
     bool        allowed = true;
     modedata_t *data = 0;
+    char       *group = 0;
 
     /* all modes are allowed for root */
     if( uid == 0 )
@@ -366,11 +367,14 @@ bool usbmoded_is_mode_permitted(const char *modename, uid_t uid)
     if( !(data = usbmoded_dup_modedata(modename)) )
         goto EXIT;
 
-    /* dynamic modes are allowed for device owner and denied for others */
-    allowed = sailfish_access_control_hasgroup(uid, "sailfish-system");
+    /* dynamic modes are allowed based on group,
+     * which defaults to sailfish-system meaning device owner only */
+    group = config_get_group_for_mode(modename);
+    allowed = sailfish_access_control_hasgroup(uid, group);
 
 EXIT:
 
+    g_free(group);
     modedata_free(data);
 
     return allowed;
