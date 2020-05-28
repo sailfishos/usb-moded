@@ -78,6 +78,9 @@ set_config_result_t  config_set_hide_mode_setting   (const char *mode);
 set_config_result_t  config_set_unhide_mode_setting (const char *mode);
 set_config_result_t  config_set_mode_whitelist      (const char *whitelist);
 set_config_result_t  config_set_mode_in_whitelist   (const char *mode, int allowed);
+#ifdef SAILFISH_ACCESS_CONTROL
+char                *config_get_group_for_mode      (const char *mode);
+#endif
 set_config_result_t  config_set_network_setting     (const char *config, const char *setting);
 char                *config_get_network_setting     (const char *config);
 bool                 config_init                    (void);
