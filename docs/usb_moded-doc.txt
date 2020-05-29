@@ -170,6 +170,20 @@ but not all usb network related profiles might want it enabled.
 
 If you want the device to load a dhcp server you need to configure this in the mode config, just like nat. (see lower)
 
+USB moded supports access control of dynamic modes when built with --enable-sailfish-access-control.
+Modes are allowed and denied based on the user of the process accessing the D-Bus API.
+By default dynamic modes are allowed for users in sailfish-system but the group can be overridden in configuration.
+
+For example:
+
+[mode_group]
+mtp_mode = users
+developer_mode = developers
+
+This allows mode called mtp_mode to users in "users" group and mode called developer_mode for users in "developers" group.
+Users group includes all regular users which is less restrictive than the default.
+Note that if the group doesn't exist access is denied.
+
 Functional overview
 --------------------
 

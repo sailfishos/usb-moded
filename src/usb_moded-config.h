@@ -72,6 +72,7 @@
 # define ANDROID_PRODUCT_ID_KEY         "idProduct"
 # define MODE_HIDE_KEY                  "hide"
 # define MODE_WHITELIST_KEY             "whitelist"
+# define MODE_GROUP_ENTRY               "mode_group"
 
 /* ========================================================================= *
  * Types
