@@ -52,6 +52,11 @@
 # define USB_MODED_DYNAMIC_CONFIG_DIR    "/var/lib/usb-moded"
 # define USB_MODED_DYNAMIC_CONFIG_FILE   USB_MODED_DYNAMIC_CONFIG_DIR"/usb-moded.ini"
 
+#ifdef SAILFISH_ACCESS_CONTROL
+# define MIN_ADDITIONAL_USER 100001
+# define MAX_ADDITIONAL_USER 999999
+#endif
+
 /* ========================================================================= *
  * Prototypes
  * ========================================================================= */
@@ -71,9 +76,11 @@ char                *config_get_trigger_mode        (void);
 char                *config_get_trigger_property    (void);
 char                *config_get_trigger_value       (void);
 char                *config_get_conf_string         (const gchar *entry, const gchar *key);
-char                *config_get_mode_setting        (void);
+gchar               *config_get_user_conf_string    (const gchar *entry, const gchar *base_key, uid_t uid);
+char                *config_get_mode_setting        (uid_t uid);
 set_config_result_t  config_set_config_setting      (const char *entry, const char *key, const char *value);
-set_config_result_t  config_set_mode_setting        (const char *mode);
+set_config_result_t  config_set_user_config_setting (const char *entry, const char *base_key, const char *value, uid_t uid);
+set_config_result_t  config_set_mode_setting        (const char *mode, uid_t uid);
 set_config_result_t  config_set_hide_mode_setting   (const char *mode);
 set_config_result_t  config_set_unhide_mode_setting (const char *mode);
 set_config_result_t  config_set_mode_whitelist      (const char *whitelist);

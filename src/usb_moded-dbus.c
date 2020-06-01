@@ -424,15 +424,16 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
         }
         else if(!strcmp(member, USB_MODE_CONFIG_SET))
         {
-            char *config = 0;
+            char       *config = 0;
             DBusError   err = DBUS_ERROR_INIT;
+            uid_t       uid = umdbus_get_sender_uid(sender);
 
             if(!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID))
                 reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
             else
             {
                 /* error checking is done when setting configuration */
-                int ret = config_set_mode_setting(config);
+                int ret = config_set_mode_setting(config, uid);
                 if (SET_CONFIG_OK(ret))
                 {
                     if((reply = dbus_message_new_method_return(msg)))
@@ -551,7 +552,8 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
         }
         else if(!strcmp(member, USB_MODE_CONFIG_GET))
         {
-            char *config = config_get_mode_setting();
+            uid_t uid = umdbus_get_sender_uid(sender);
+            char *config = config_get_mode_setting(uid);
 
             if((reply = dbus_message_new_method_return(msg)))
                 dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID);

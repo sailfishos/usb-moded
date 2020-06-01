@@ -344,7 +344,11 @@ void control_select_usb_mode(void)
     }
 
     uid_t current_user = control_get_current_user();
-    mode_to_set = config_get_mode_setting();
+    /* If current user could not be determined, assume that device is
+     * booting up or between sessions. Therefore we either must use whatever
+     * is configured as global mode or let device lock to prevent the mode
+     * so that it can be set again once the device is unlocked */
+    mode_to_set = config_get_mode_setting((current_user == UID_UNKNOWN) ? 0 : current_user);
 
     /* If there is only one allowed mode, use it without
      * going through ask-mode */
