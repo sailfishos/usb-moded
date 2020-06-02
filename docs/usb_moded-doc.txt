@@ -110,6 +110,11 @@ Also the default usb mode can be configured there. For example:
 
 [usbmode]
 mode = ask
+mode_100001 = charging
+
+This says that default mode for user with uid 100001 is charging and other users default to mode ask.
+Modes with uid are only used when built with --enable-sailfish-access-control and
+only users with uid higher than 100000 and lower or equal to 999999 can have user specific usb modes.
 
 The other settings and config dirs will be handled later in the appsync and dynamic modes part.
 (This is optional and can be compiled out)
