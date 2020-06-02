@@ -49,9 +49,9 @@ AC_ARG_ENABLE([mer_ssu], AS_HELP_STRING([--enable-mer-ssu], [Enable MER SSU @<:@
    esac],[mer_ssu=false])
 AM_CONDITIONAL([USE_MER_SSU], [test x$mer_ssu = xtrue])
 
-AC_ARG_ENABLE([sailfish_access_control], AS_HELP_STRING([--enable-sailfish-access-control], [Enable Sailfish Access Control @<:@default=false@:>@]),
+AC_ARG_ENABLE([sailfish_access_control], AS_HELP_STRING([--enable-sailfish-access-control], [Enable Sailfish Access Control, implies --enable-systemd @<:@default=false@:>@]),
   [case "${enableval}" in
-   yes) sailfish_access_control=true ; CFLAGS="-DSAILFISH_ACCESS_CONTROL $CFLAGS" ;;
+   yes) sailfish_access_control=true ; CFLAGS="-DSAILFISH_ACCESS_CONTROL $CFLAGS" ; enable_systemd=yes ;;
    no)  sailfish_access_control=false ;;
    *) AC_MSG_ERROR([bad value ${enableval} for --enable-sailfish-access-control]) ;;
    esac],[sailfish_access_control=false])
