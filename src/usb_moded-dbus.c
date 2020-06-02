@@ -57,6 +57,8 @@
 #define INIT_DONE_SIGNAL    "init_done"
 #define INIT_DONE_MATCH     "type='signal',interface='"INIT_DONE_INTERFACE"',member='"INIT_DONE_SIGNAL"'"
 
+# define PID_UNKNOWN ((pid_t)-1)
+
 /* ========================================================================= *
  * Prototypes
  * ========================================================================= */
@@ -1396,14 +1398,14 @@ EXIT:
  * Get uid of sender from D-Bus. This makes a synchronous D-Bus call
  *
  * @param name   Name of sender from DBusMessage
- * @return Uid of the sender
+ * @return Uid of the sender or UID_UNKNOWN if it can not be determined
  */
 uid_t umdbus_get_sender_uid(const char *name)
 {
     LOG_REGISTER_CONTEXT;
 
-    pid_t        pid = (pid_t)-1;
-    uid_t        uid = (uid_t)-1;
+    pid_t        pid = PID_UNKNOWN;
+    uid_t        uid = UID_UNKNOWN;
     DBusMessage *req = 0;
     DBusMessage *rsp = 0;
     DBusError    err = DBUS_ERROR_INIT;
