@@ -581,8 +581,6 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
             if((reply = dbus_message_new_method_return(msg)))
                 dbus_message_append_args (reply, DBUS_TYPE_STRING, (const char *) &mode_list, DBUS_TYPE_INVALID);
             g_free(mode_list);
-
-            control_set_last_seen_user(uid);
         }
         else if(!strcmp(member, USB_MODE_RESCUE_OFF))
         {

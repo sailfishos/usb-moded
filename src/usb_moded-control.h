@@ -50,6 +50,6 @@ void           control_set_cable_state              (cable_state_t cable_state);
 cable_state_t  control_get_cable_state              (void);
 void           control_clear_cable_state            (void);
 bool           control_get_connection_state         (void);
-void           control_set_last_seen_user           (uid_t uid);
+uid_t          control_get_current_user             (void);
 
 #endif /* USB_MODED_CONTROL_H_ */
