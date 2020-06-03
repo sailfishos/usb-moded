@@ -363,6 +363,12 @@ bool usbmoded_is_mode_permitted(const char *modename, uid_t uid)
     if( uid == 0 )
         goto EXIT;
 
+    /* non-existing special value, deny everything */
+    if( uid == UID_UNKNOWN ) {
+        allowed = false;
+        goto EXIT;
+    }
+
     /* non-dynamic modes are allowed for all */
     if( !(data = usbmoded_dup_modedata(modename)) )
         goto EXIT;
