@@ -363,6 +363,12 @@ bool usbmoded_is_mode_permitted(const char *modename, uid_t uid)
     if( uid == 0 )
         goto EXIT;
 
+    /* non-existing special value, deny everything */
+    if( uid == UID_UNKNOWN ) {
+        allowed = false;
+        goto EXIT;
+    }
+
     /* non-dynamic modes are allowed for all */
     if( !(data = usbmoded_dup_modedata(modename)) )
         goto EXIT;
@@ -621,12 +627,13 @@ void usbmoded_handle_signal(int signum)
 
         /* If default mode selection became invalid,
          * revert setting to "ask" */
-        gchar *config = config_get_mode_setting();
+        uid_t current_user = control_get_current_user();
+        gchar *config = config_get_mode_setting(current_user);
         if( g_strcmp0(config, MODE_ASK) &&
             common_valid_mode(config) ) {
             log_warning("default mode '%s' is not valid, reset to '%s'",
                         config, MODE_ASK);
-            config_set_mode_setting(MODE_ASK);
+            config_set_mode_setting(MODE_ASK, current_user);
         }
         else {
             log_debug("default mode '%s' is still valid", config);

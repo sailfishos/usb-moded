@@ -57,6 +57,8 @@
 #define INIT_DONE_SIGNAL    "init_done"
 #define INIT_DONE_MATCH     "type='signal',interface='"INIT_DONE_INTERFACE"',member='"INIT_DONE_SIGNAL"'"
 
+# define PID_UNKNOWN ((pid_t)-1)
+
 /* ========================================================================= *
  * Prototypes
  * ========================================================================= */
@@ -422,15 +424,16 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
         }
         else if(!strcmp(member, USB_MODE_CONFIG_SET))
         {
-            char *config = 0;
+            char       *config = 0;
             DBusError   err = DBUS_ERROR_INIT;
+            uid_t       uid = umdbus_get_sender_uid(sender);
 
             if(!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID))
                 reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
             else
             {
                 /* error checking is done when setting configuration */
-                int ret = config_set_mode_setting(config);
+                int ret = config_set_mode_setting(config, uid);
                 if (SET_CONFIG_OK(ret))
                 {
                     if((reply = dbus_message_new_method_return(msg)))
@@ -549,7 +552,8 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
         }
         else if(!strcmp(member, USB_MODE_CONFIG_GET))
         {
-            char *config = config_get_mode_setting();
+            uid_t uid = umdbus_get_sender_uid(sender);
+            char *config = config_get_mode_setting(uid);
 
             if((reply = dbus_message_new_method_return(msg)))
                 dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID);
@@ -579,8 +583,6 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
             if((reply = dbus_message_new_method_return(msg)))
                 dbus_message_append_args (reply, DBUS_TYPE_STRING, (const char *) &mode_list, DBUS_TYPE_INVALID);
             g_free(mode_list);
-
-            control_set_last_seen_user(uid);
         }
         else if(!strcmp(member, USB_MODE_RESCUE_OFF))
         {
@@ -1396,14 +1398,14 @@ EXIT:
  * Get uid of sender from D-Bus. This makes a synchronous D-Bus call
  *
  * @param name   Name of sender from DBusMessage
- * @return Uid of the sender
+ * @return Uid of the sender or UID_UNKNOWN if it can not be determined
  */
 uid_t umdbus_get_sender_uid(const char *name)
 {
     LOG_REGISTER_CONTEXT;
 
-    pid_t        pid = (pid_t)-1;
-    uid_t        uid = (uid_t)-1;
+    pid_t        pid = PID_UNKNOWN;
+    uid_t        uid = UID_UNKNOWN;
     DBusMessage *req = 0;
     DBusMessage *rsp = 0;
     DBusError    err = DBUS_ERROR_INIT;

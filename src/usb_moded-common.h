@@ -98,4 +98,9 @@ gchar      *common_get_mode_list                (mode_list_type_t type, uid_t ui
 # define               common_msleep(msec)         common_msleep_(__FILE__,__LINE__,__FUNCTION__,(msec))
 # define               common_sleep(sec)           common_msleep_(__FILE__,__LINE__,__FUNCTION__,(sec)*1000)
 
+/* ========================================================================= *
+ * Constants
+ * ========================================================================= */
+# define UID_UNKNOWN ((uid_t)-1)
+
 #endif /* USB_MODED_COMMON_H_ */

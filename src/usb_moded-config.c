@@ -80,10 +80,13 @@ static char         *config_get_network_netmask      (void);
 static char         *config_get_network_nat_interface(void);
 static int           config_get_conf_int             (const gchar *entry, const gchar *key);
 char                *config_get_conf_string          (const gchar *entry, const gchar *key);
+static gchar        *config_make_user_key_string     (const gchar *base_key, uid_t uid);
+gchar               *config_get_user_conf_string     (const gchar *entry, const gchar *base_key, uid_t uid);
 static char         *config_get_kcmdline_string      (const char *entry);
-char                *config_get_mode_setting         (void);
+char                *config_get_mode_setting         (uid_t uid);
 set_config_result_t  config_set_config_setting       (const char *entry, const char *key, const char *value);
-set_config_result_t  config_set_mode_setting         (const char *mode);
+set_config_result_t  config_set_user_config_setting  (const char *entry, const char *base_key, const char *value, uid_t uid);
+set_config_result_t  config_set_mode_setting         (const char *mode, uid_t uid);
 static char         *config_make_modes_string        (const char *key, const char *mode_name, int include);
 set_config_result_t  config_set_hide_mode_setting    (const char *mode);
 set_config_result_t  config_set_unhide_mode_setting  (const char *mode);
@@ -290,6 +293,34 @@ char *config_get_conf_string(const gchar *entry, const gchar *key)
     return val;
 }
 
+static gchar *config_make_user_key_string(const gchar *base_key, uid_t uid)
+{
+    LOG_REGISTER_CONTEXT;
+
+    gchar *key = 0;
+#ifdef SAILFISH_ACCESS_CONTROL
+    /* If uid is for an additional user, construct a key */
+    if( uid >= MIN_ADDITIONAL_USER && uid <= MAX_ADDITIONAL_USER )
+        key = g_strdup_printf("%s_%d", base_key, (int)uid);
+#endif
+    return key;
+}
+
+gchar *config_get_user_conf_string(const gchar *entry, const gchar *base_key, uid_t uid)
+{
+    LOG_REGISTER_CONTEXT;
+
+    gchar *value = 0;
+    gchar *key = config_make_user_key_string(base_key, uid);
+    if( key )
+        value = config_get_conf_string(entry, key);
+    /* Fallback to global config if user doesn't have a value set */
+    if( !value )
+        value = config_get_conf_string(entry, base_key);
+    g_free(key);
+    return value;
+}
+
 static char * config_get_kcmdline_string(const char *entry)
 {
     LOG_REGISTER_CONTEXT;
@@ -368,7 +399,7 @@ static char * config_get_kcmdline_string(const char *entry)
     return ret;
 }
 
-char * config_get_mode_setting(void)
+char * config_get_mode_setting(uid_t uid)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -378,11 +409,18 @@ char * config_get_mode_setting(void)
     if( (mode = config_get_kcmdline_string(MODE_SETTING_KEY)) )
         goto EXIT;
 
-    if( (mode = config_get_conf_string(MODE_SETTING_ENTRY, MODE_SETTING_KEY)) )
-        goto EXIT;
+    mode = config_get_user_conf_string(MODE_SETTING_ENTRY, MODE_SETTING_KEY, uid);
 
     /* If no default mode is configured, treat it as charging only */
-    mode = g_strdup(MODE_CHARGING);
+    if( !mode )
+        mode = g_strdup(MODE_CHARGING);
+    /* If mode is not allowed, i.e. non-existent or not whitelisted or permitted, use MODE_ASK */
+    else if( strcmp(mode, MODE_ASK) && (common_valid_mode(mode) || !usbmoded_is_mode_permitted(mode, uid)) ) {
+        log_warning("default mode '%s' is not valid for uid '%d', reset to '%s'",
+                    mode, (int)uid, MODE_ASK);
+        g_free(mode), mode = g_strdup(MODE_ASK);
+        config_set_mode_setting(mode, uid);
+    }
 
 EXIT:
     return mode;
@@ -426,17 +464,30 @@ set_config_result_t config_set_config_setting(const char *entry, const char *key
     return ret;
 }
 
-set_config_result_t config_set_mode_setting(const char *mode)
+set_config_result_t config_set_user_config_setting(const char *entry, const char *base_key, const char *value, uid_t uid)
 {
     LOG_REGISTER_CONTEXT;
 
+    gchar *key = config_make_user_key_string(base_key, uid);
+    set_config_result_t ret = config_set_config_setting(entry, key ?: base_key, value);
+    g_free(key);
+    return ret;
+}
+
+set_config_result_t config_set_mode_setting(const char *mode, uid_t uid)
+{
+    LOG_REGISTER_CONTEXT;
+
+    /* Don't write values that don't exist */
     if (strcmp(mode, MODE_ASK) && common_valid_mode(mode))
         return SET_CONFIG_ERROR;
 
-    int ret = config_set_config_setting(MODE_SETTING_ENTRY,
-                                        MODE_SETTING_KEY, mode);
+    /* Don't write values that are not permitted */
+    if (!usbmoded_is_mode_permitted(mode, uid))
+        return SET_CONFIG_ERROR;
 
-    return ret;
+    return config_set_user_config_setting(MODE_SETTING_ENTRY,
+                                          MODE_SETTING_KEY, mode, uid);
 }
 
 /* Builds the string used for hidden modes, when hide set to one builds the
@@ -558,9 +609,10 @@ set_config_result_t config_set_mode_whitelist(const char *whitelist)
         char *mode_setting;
         const char *current_mode;
 
-        mode_setting = config_get_mode_setting();
+        uid_t current_user = control_get_current_user();
+        mode_setting = config_get_mode_setting(current_user);
         if (strcmp(mode_setting, MODE_ASK) && common_valid_mode(mode_setting))
-            config_set_mode_setting(MODE_ASK);
+            config_set_mode_setting(MODE_ASK, current_user);
         g_free(mode_setting);
 
         current_mode = control_get_usb_mode();

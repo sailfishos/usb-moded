@@ -34,6 +34,15 @@
 #include <string.h>
 #include <stdlib.h>
 
+#ifdef SYSTEMD
+# include <systemd/sd-login.h>
+#endif
+
+/* Sanity check, configure should take care of this */
+#if defined SAILFISH_ACCESS_CONTROL && !defined SYSTEMD
+# error if SAILFISH_ACCESS_CONTROL is defined, SYSTEMD must be defined as well
+#endif
+
 /* ========================================================================= *
  * Prototypes
  * ========================================================================= */
@@ -59,7 +68,7 @@ void           control_set_cable_state              (cable_state_t cable_state);
 cable_state_t  control_get_cable_state              (void);
 void           control_clear_cable_state            (void);
 bool           control_get_connection_state         (void);
-void           control_set_last_seen_user           (uid_t uid);
+uid_t          control_get_current_user             (void);
 
 /* ========================================================================= *
  * Data
@@ -90,12 +99,6 @@ static char *control_internal_mode = NULL;
  * - control_get_connection_state()
  */
 static cable_state_t control_cable_state = CABLE_STATE_UNKNOWN;
-
-/** Last user seen
- *
- * Defaults to invalid user which has no rights.
- */
-static uid_t control_last_seen_user = (uid_t)-1;
 
 /* ========================================================================= *
  * Functions
@@ -340,17 +343,22 @@ void control_select_usb_mode(void)
         goto EXIT;
     }
 
-    mode_to_set = config_get_mode_setting();
+    uid_t current_user = control_get_current_user();
+    /* If current user could not be determined, assume that device is
+     * booting up or between sessions. Therefore we either must use whatever
+     * is configured as global mode or let device lock to prevent the mode
+     * so that it can be set again once the device is unlocked */
+    mode_to_set = config_get_mode_setting((current_user == UID_UNKNOWN) ? 0 : current_user);
 
     /* If there is only one allowed mode, use it without
      * going through ask-mode */
     if( !strcmp(MODE_ASK, mode_to_set) ) {
-        if( control_last_seen_user == (uid_t)-1 ) {
+        if( current_user == UID_UNKNOWN ) {
             /* Use charging only if no user has been seen */
             free(mode_to_set), mode_to_set = 0;
         } else {
             // FIXME free() vs g_free() conflict
-            gchar *available = common_get_mode_list(AVAILABLE_MODES_LIST, control_last_seen_user);
+            gchar *available = common_get_mode_list(AVAILABLE_MODES_LIST, current_user);
             if( *available && !strchr(available, ',') ) {
                 free(mode_to_set), mode_to_set = available, available = 0;
             }
@@ -445,11 +453,21 @@ bool control_get_connection_state(void)
     return connected;
 }
 
-/** Set the last seen user
+/**
+ * Get the user using the device
  *
- * @param uid of last seen user, controls implicitly set modes
+ * When built without Sailfish access control support,
+ * this returns root's uid (0) unconditionally.
+ *
+ * @return current user on seat0 or UID_UNKNOWN if it can not be determined
  */
-void control_set_last_seen_user(uid_t uid)
+uid_t control_get_current_user(void)
 {
-    control_last_seen_user = uid;
+#ifdef SAILFISH_ACCESS_CONTROL
+    uid_t uid = UID_UNKNOWN;
+    sd_seat_get_active("seat0", 0, &uid);
+    return uid;
+#else
+    return 0;
+#endif
 }
