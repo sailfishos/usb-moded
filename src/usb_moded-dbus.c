@@ -32,6 +32,7 @@
  */
 
 #include "usb_moded-dbus-private.h"
+#include "usb_moded-dbus.h"
 
 #include "usb_moded-config-private.h"
 #include "usb_moded-control.h"
@@ -53,6 +54,7 @@
  * Constants
  * ========================================================================= */
 
+#define INIT_DONE_OBJECT    "/com/nokia/startup/signal"
 #define INIT_DONE_INTERFACE "com.nokia.startup.signal"
 #define INIT_DONE_SIGNAL    "init_done"
 #define INIT_DONE_MATCH     "type='signal',interface='"INIT_DONE_INTERFACE"',member='"INIT_DONE_SIGNAL"'"
@@ -60,69 +62,232 @@
 # define PID_UNKNOWN ((pid_t)-1)
 
 /* ========================================================================= *
+ * Types
+ * ========================================================================= */
+
+typedef struct umdbus_context_t umdbus_context_t;
+
+/** Introspect / handling details for method call / signal
+ *
+ * Use ADD_METHOD(), ADD_SIGNAL() and ADD_SENTINEL macros
+ * for instantiating these structures.
+ */
+typedef struct  {
+    /** Differentiate between method calls and signals */
+    int          type;
+
+    /** Member name, or NULL for sentinel */
+    const char  *member;
+
+    /** Handler callback, use NULL for Introspect only  */
+    void       (*handler)(umdbus_context_t *);
+
+    /** Argument info for generating introspect XML */
+    const char  *args;
+} member_info_t;
+
+/** Define incoming method call handler + introspect data
+ */
+#define ADD_METHOD(NAME, FUNC, ARGS) {\
+    .type    = DBUS_MESSAGE_TYPE_METHOD_CALL,\
+    .member  = NAME,\
+    .handler = FUNC,\
+    .args    = ARGS,\
+}
+
+/** Define outgoing signal introspect data
+ */
+#define ADD_SIGNAL(NAME, ARGS) {\
+    .type    = DBUS_MESSAGE_TYPE_SIGNAL,\
+    .member  = NAME,\
+    .handler = 0,\
+    .args    = ARGS,\
+}
+
+/** Terminate member data array
+ */
+#define ADD_SENTINEL {\
+    .type    = DBUS_MESSAGE_TYPE_INVALID,\
+    .member  = 0,\
+    .handler = 0,\
+    .args    = 0,\
+}
+
+/** D-Bus interface details for message handling / introspecting
+ */
+typedef struct
+{
+    /** D-Bus interface name */
+    const char          *interface;
+
+    /** Array of interface members */
+    const member_info_t *members;
+} interface_info_t;
+
+/** D-Bus object details for message handling / introspecting
+ */
+typedef struct
+{
+    /** D-Bus object path */
+    const char              *object;
+
+    /** Array of object interfaces */
+    const interface_info_t **interfaces;
+} object_info_t;
+
+/** Context info for D-Bus message handling
+ *
+ * Filled in at message filter, passed to member callbacks.
+ */
+struct umdbus_context_t {
+    /** Incoming message */
+    DBusMessage            *msg;
+
+    /** Message type */
+    int                     type;
+
+    /** D-Bus name of sender */
+    const char             *sender;
+
+    /** Message object path */
+    const char             *object;
+
+    /** Message interface name */
+    const char             *interface;
+
+    /** Message member name */
+    const char             *member;
+
+    /** Information about message object path */
+    const object_info_t    *object_info;
+
+    /** Information about message interface name */
+    const interface_info_t *interface_info;
+
+    /** Information about message member name */
+    const member_info_t    *member_info;
+
+    /** Reply message to send */
+    DBusMessage            *rsp;
+};
+
+/* ========================================================================= *
  * Prototypes
  * ========================================================================= */
+
+/* ------------------------------------------------------------------------- *
+ * MEMBER_INFO
+ * ------------------------------------------------------------------------- */
+
+static void member_info_introspect(const member_info_t *self, FILE *file);
+
+/* ------------------------------------------------------------------------- *
+ * INTERFACE_INFO
+ * ------------------------------------------------------------------------- */
+
+static const member_info_t *interface_info_get_member(const interface_info_t *self, const char *member);
+static void                 interface_info_introspect(const interface_info_t *self, FILE *file);
+
+/* ------------------------------------------------------------------------- *
+ * OBJECT_INFO
+ * ------------------------------------------------------------------------- */
+
+static const interface_info_t *object_info_get_interface     (const object_info_t *self, const char *interface);
+static void                    object_info_introspect        (const object_info_t *self, FILE *file, const char *interface);
+static char                   *object_info_get_introspect_xml(const object_info_t *self, const char *interface);
+
+/* ------------------------------------------------------------------------- *
+ * INTROSPECTABLE
+ * ------------------------------------------------------------------------- */
+
+static void introspectable_introspect_cb(umdbus_context_t *context);
+
+/* ------------------------------------------------------------------------- *
+ * USB_MODED
+ * ------------------------------------------------------------------------- */
+
+static void usb_moded_state_request_cb           (umdbus_context_t *context);
+static void usb_moded_target_state_get_cb        (umdbus_context_t *context);
+static void usb_moded_target_config_get_cb       (umdbus_context_t *context);
+static void usb_moded_state_set_cb               (umdbus_context_t *context);
+static void usb_moded_config_set_cb              (umdbus_context_t *context);
+static void usb_moded_config_get_cb              (umdbus_context_t *context);
+static void usb_moded_mode_list_cb               (umdbus_context_t *context);
+static void usb_moded_available_modes_get_cb     (umdbus_context_t *context);
+static void usb_moded_available_modes_for_user_cb(umdbus_context_t *context);
+static void usb_moded_mode_hide_cb               (umdbus_context_t *context);
+static void usb_moded_mode_unhide_cb             (umdbus_context_t *context);
+static void usb_moded_hidden_get_cb              (umdbus_context_t *context);
+static void usb_moded_whitelisted_modes_get_cb   (umdbus_context_t *context);
+static void usb_moded_whitelisted_modes_set_cb   (umdbus_context_t *context);
+static void usb_moded_whitelisted_set_cb         (umdbus_context_t *context);
+static void usb_moded_network_set_cb             (umdbus_context_t *context);
+static void usb_moded_network_get_cb             (umdbus_context_t *context);
+static void usb_moded_rescue_off_cb              (umdbus_context_t *context);
 
 /* ------------------------------------------------------------------------- *
  * UMDBUS
  * ------------------------------------------------------------------------- */
 
-void                      umdbus_send_config_signal           (const char *section, const char *key, const char *value);
-static DBusHandlerResult  umdbus_msg_handler                  (DBusConnection *const connection, DBusMessage *const msg, gpointer const user_data);
-DBusConnection           *umdbus_get_connection               (void);
-gboolean                  umdbus_init_connection              (void);
-gboolean                  umdbus_init_service                 (void);
-static void               umdbus_cleanup_service              (void);
-void                      umdbus_cleanup                      (void);
-static DBusMessage       *umdbus_new_signal                   (const char *signal_name);
-static int                umdbus_send_signal_ex               (const char *signal_name, const char *content);
-static void               umdbus_send_legacy_signal           (const char *state_ind);
-void                      umdbus_send_current_state_signal    (const char *state_ind);
-static bool               umdbus_append_basic_entry           (DBusMessageIter *iter, const char *key, int type, const void *val);
-static bool               umdbus_append_int32_entry           (DBusMessageIter *iter, const char *key, int val);
-static bool               umdbus_append_string_entry          (DBusMessageIter *iter, const char *key, const char *val);
-static bool               umdbus_append_mode_details          (DBusMessage *msg, const char *mode_name);
-static void               umdbus_send_mode_details_signal     (const char *mode_name);
-void                      umdbus_send_target_state_signal     (const char *state_ind);
-void                      umdbus_send_event_signal            (const char *state_ind);
-int                       umdbus_send_error_signal            (const char *error);
-int                       umdbus_send_supported_modes_signal  (const char *supported_modes);
-int                       umdbus_send_available_modes_signal  (const char *available_modes);
-int                       umdbus_send_hidden_modes_signal     (const char *hidden_modes);
-int                       umdbus_send_whitelisted_modes_signal(const char *whitelist);
-static void               umdbus_get_name_owner_cb            (DBusPendingCall *pc, void *aptr);
-gboolean                  umdbus_get_name_owner_async         (const char *name, usb_moded_get_name_owner_fn cb, DBusPendingCall **ppc);
-uid_t                     umdbus_get_sender_uid               (const char *sender);
-const char               *umdbus_arg_type_repr                (int type);
-const char               *umdbus_arg_type_signature           (int type);
-const char               *umdbus_msg_type_repr                (int type);
-bool                      umdbus_parser_init                  (DBusMessageIter *iter, DBusMessage *msg);
-int                       umdbus_parser_at_type               (DBusMessageIter *iter);
-bool                      umdbus_parser_at_end                (DBusMessageIter *iter);
-bool                      umdbus_parser_require_type          (DBusMessageIter *iter, int type, bool strict);
-bool                      umdbus_parser_get_bool              (DBusMessageIter *iter, bool *pval);
-bool                      umdbus_parser_get_int               (DBusMessageIter *iter, int *pval);
-bool                      umdbus_parser_get_string            (DBusMessageIter *iter, const char **pval);
-bool                      umdbus_parser_get_object            (DBusMessageIter *iter, const char **pval);
-bool                      umdbus_parser_get_variant           (DBusMessageIter *iter, DBusMessageIter *val);
-bool                      umdbus_parser_get_array             (DBusMessageIter *iter, DBusMessageIter *val);
-bool                      umdbus_parser_get_struct            (DBusMessageIter *iter, DBusMessageIter *val);
-bool                      umdbus_parser_get_entry             (DBusMessageIter *iter, DBusMessageIter *val);
-bool                      umdbus_append_init                  (DBusMessageIter *iter, DBusMessage *msg);
-bool                      umdbus_open_container               (DBusMessageIter *iter, DBusMessageIter *sub, int type, const char *sign);
-bool                      umdbus_close_container              (DBusMessageIter *iter, DBusMessageIter *sub, bool success);
-bool                      umdbus_append_basic_value           (DBusMessageIter *iter, int type, const DBusBasicValue *val);
-bool                      umdbus_append_basic_variant         (DBusMessageIter *iter, int type, const DBusBasicValue *val);
-bool                      umdbus_append_bool                  (DBusMessageIter *iter, bool val);
-bool                      umdbus_append_int                   (DBusMessageIter *iter, int val);
-bool                      umdbus_append_string                (DBusMessageIter *iter, const char *val);
-bool                      umdbus_append_bool_variant          (DBusMessageIter *iter, bool val);
-bool                      umdbus_append_int_variant           (DBusMessageIter *iter, int val);
-bool                      umdbus_append_string_variant        (DBusMessageIter *iter, const char *val);
-bool                      umdbus_append_args_va               (DBusMessageIter *iter, int type, va_list va);
-bool                      umdbus_append_args                  (DBusMessageIter *iter, int arg_type, ...);
-DBusMessage              *umdbus_blocking_call                (DBusConnection *con, const char *dst, const char *obj, const char *iface, const char *meth, DBusError *err, int arg_type, ...);
-bool                      umdbus_parse_reply                  (DBusMessage *rsp, int arg_type, ...);
+static const object_info_t *umdbus_get_object_info              (const char *object);
+void                        umdbus_dump_introspect_xml          (void);
+void                        umdbus_dump_busconfig_xml           (void);
+void                        umdbus_send_config_signal           (const char *section, const char *key, const char *value);
+static DBusHandlerResult    umdbus_msg_handler                  (DBusConnection *const connection, DBusMessage *const msg, gpointer const user_data);
+DBusConnection             *umdbus_get_connection               (void);
+gboolean                    umdbus_init_connection              (void);
+gboolean                    umdbus_init_service                 (void);
+static void                 umdbus_cleanup_service              (void);
+void                        umdbus_cleanup                      (void);
+static DBusMessage         *umdbus_new_signal                   (const char *signal_name);
+static int                  umdbus_send_signal_ex               (const char *signal_name, const char *content);
+static void                 umdbus_send_legacy_signal           (const char *state_ind);
+void                        umdbus_send_current_state_signal    (const char *state_ind);
+static bool                 umdbus_append_basic_entry           (DBusMessageIter *iter, const char *key, int type, const void *val);
+static bool                 umdbus_append_int32_entry           (DBusMessageIter *iter, const char *key, int val);
+static bool                 umdbus_append_string_entry          (DBusMessageIter *iter, const char *key, const char *val);
+static bool                 umdbus_append_mode_details          (DBusMessage *msg, const char *mode_name);
+static void                 umdbus_send_mode_details_signal     (const char *mode_name);
+void                        umdbus_send_target_state_signal     (const char *state_ind);
+void                        umdbus_send_event_signal            (const char *state_ind);
+int                         umdbus_send_error_signal            (const char *error);
+int                         umdbus_send_supported_modes_signal  (const char *supported_modes);
+int                         umdbus_send_available_modes_signal  (const char *available_modes);
+int                         umdbus_send_hidden_modes_signal     (const char *hidden_modes);
+int                         umdbus_send_whitelisted_modes_signal(const char *whitelist);
+static void                 umdbus_get_name_owner_cb            (DBusPendingCall *pc, void *aptr);
+gboolean                    umdbus_get_name_owner_async         (const char *name, usb_moded_get_name_owner_fn cb, DBusPendingCall **ppc);
+static uid_t                umdbus_get_sender_uid               (const char *name);
+const char                 *umdbus_arg_type_repr                (int type);
+const char                 *umdbus_arg_type_signature           (int type);
+const char                 *umdbus_msg_type_repr                (int type);
+bool                        umdbus_parser_init                  (DBusMessageIter *iter, DBusMessage *msg);
+int                         umdbus_parser_at_type               (DBusMessageIter *iter);
+bool                        umdbus_parser_at_end                (DBusMessageIter *iter);
+bool                        umdbus_parser_require_type          (DBusMessageIter *iter, int type, bool strict);
+bool                        umdbus_parser_get_bool              (DBusMessageIter *iter, bool *pval);
+bool                        umdbus_parser_get_int               (DBusMessageIter *iter, int *pval);
+bool                        umdbus_parser_get_string            (DBusMessageIter *iter, const char **pval);
+bool                        umdbus_parser_get_object            (DBusMessageIter *iter, const char **pval);
+bool                        umdbus_parser_get_variant           (DBusMessageIter *iter, DBusMessageIter *val);
+bool                        umdbus_parser_get_array             (DBusMessageIter *iter, DBusMessageIter *val);
+bool                        umdbus_parser_get_struct            (DBusMessageIter *iter, DBusMessageIter *val);
+bool                        umdbus_parser_get_entry             (DBusMessageIter *iter, DBusMessageIter *val);
+bool                        umdbus_append_init                  (DBusMessageIter *iter, DBusMessage *msg);
+bool                        umdbus_open_container               (DBusMessageIter *iter, DBusMessageIter *sub, int type, const char *sign);
+bool                        umdbus_close_container              (DBusMessageIter *iter, DBusMessageIter *sub, bool success);
+bool                        umdbus_append_basic_value           (DBusMessageIter *iter, int type, const DBusBasicValue *val);
+bool                        umdbus_append_basic_variant         (DBusMessageIter *iter, int type, const DBusBasicValue *val);
+bool                        umdbus_append_bool                  (DBusMessageIter *iter, bool val);
+bool                        umdbus_append_int                   (DBusMessageIter *iter, int val);
+bool                        umdbus_append_string                (DBusMessageIter *iter, const char *val);
+bool                        umdbus_append_bool_variant          (DBusMessageIter *iter, bool val);
+bool                        umdbus_append_int_variant           (DBusMessageIter *iter, int val);
+bool                        umdbus_append_string_variant        (DBusMessageIter *iter, const char *val);
+bool                        umdbus_append_args_va               (DBusMessageIter *iter, int type, va_list va);
+bool                        umdbus_append_args                  (DBusMessageIter *iter, int arg_type, ...);
+DBusMessage                *umdbus_blocking_call                (DBusConnection *con, const char *dst, const char *obj, const char *iface, const char *meth, DBusError *err, int arg_type, ...);
+bool                        umdbus_parse_reply                  (DBusMessage *rsp, int arg_type, ...);
 
 /* ========================================================================= *
  * Data
@@ -131,146 +296,871 @@ bool                      umdbus_parse_reply                  (DBusMessage *rsp,
 static DBusConnection *umdbus_connection = NULL;
 static gboolean        umdbus_service_name_acquired   = FALSE;
 
-/** Introspect xml format string for parents of USB_MODE_OBJECT */
-static const char umdbus_introspect_template[] =
-"<!DOCTYPE node PUBLIC \"-//freedesktop//DTD D-BUS Object Introspection 1.0//EN\" \"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd\">\n"
-"<node name=\"%s\">\n"
-"  <interface name=\"org.freedesktop.DBus.Introspectable\">\n"
-"    <method name=\"Introspect\">\n"
-"      <arg direction=\"out\" name=\"data\" type=\"s\"/>\n"
-"    </method>\n"
-"  </interface>\n"
-"  <interface name=\"org.freedesktop.DBus.Peer\">\n"
-"    <method name=\"Ping\"/>\n"
-"    <method name=\"GetMachineId\">\n"
-"      <arg direction=\"out\" name=\"machine_uuid\" type=\"s\" />\n"
-"    </method>\n"
-"  </interface>\n"
-"  <node name=\"%s\"/>\n"
-"</node>\n";
+/* ========================================================================= *
+ * MEMBER_INFO
+ * ========================================================================= */
 
-/** Introspect xml data for object path USB_MODE_OBJECT */
-static const char umdbus_introspect_usbmoded[] =
-"<!DOCTYPE node PUBLIC \"-//freedesktop//DTD D-BUS Object Introspection 1.0//EN\" "
-"\"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd\">\n"
-"<node name=\"" USB_MODE_OBJECT "\">\n"
-"  <interface name=\"org.freedesktop.DBus.Introspectable\">\n"
-"    <method name=\"Introspect\">\n"
-"      <arg name=\"xml\" type=\"s\" direction=\"out\"/>\n"
-"    </method>\n"
-"  </interface>\n"
-"  <interface name=\"org.freedesktop.DBus.Peer\">\n"
-"    <method name=\"Ping\"/>\n"
-"    <method name=\"GetMachineId\">\n"
-"      <arg direction=\"out\" name=\"machine_uuid\" type=\"s\" />\n"
-"    </method>\n"
-"  </interface>\n"
-"  <interface name=\"" USB_MODE_INTERFACE "\">\n"
-"    <method name=\"" USB_MODE_STATE_REQUEST "\">\n"
-"      <arg name=\"mode\" type=\"s\" direction=\"out\"/>\n"
-"    </method>\n"
-"    <method name=\""  USB_MODE_TARGET_STATE_GET "\">\n"
-"      <arg name=\"mode\" type=\"s\" direction=\"out\"/>\n"
-"    </method>\n"
-"    <method name=\"" USB_MODE_STATE_SET "\">\n"
-"      <arg name=\"mode\" type=\"s\" direction=\"in\"/>\n"
-"      <arg name=\"mode\" type=\"s\" direction=\"out\"/>\n"
-"    </method>\n"
-"    <method name=\"" USB_MODE_CONFIG_SET "\">\n"
-"      <arg name=\"config\" type=\"s\" direction=\"in\"/>\n"
-"      <arg name=\"config\" type=\"s\" direction=\"out\"/>\n"
-"    </method>\n"
-"    <method name=\"" USB_MODE_NETWORK_SET "\">\n"
-"      <arg name=\"key\" type=\"s\" direction=\"in\"/>\n"
-"      <arg name=\"value\" type=\"s\" direction=\"in\"/>\n"
-"      <arg name=\"key\" type=\"s\" direction=\"out\"/>\n"
-"      <arg name=\"value\" type=\"s\" direction=\"out\"/>\n"
-"    </method>\n"
-"    <method name=\"" USB_MODE_NETWORK_GET "\">\n"
-"      <arg name=\"key\" type=\"s\" direction=\"in\"/>\n"
-"      <arg name=\"key\" type=\"s\" direction=\"out\"/>\n"
-"      <arg name=\"value\" type=\"s\" direction=\"out\"/>\n"
-"    </method>\n"
-"    <method name=\"" USB_MODE_CONFIG_GET "\">\n"
-"      <arg name=\"mode\" type=\"s\" direction=\"out\"/>\n"
-"    </method>\n"
-"    <method name=\"" USB_MODE_LIST "\">\n"
-"      <arg name=\"modes\" type=\"s\" direction=\"out\"/>\n"
-"    </method>\n"
-"    <method name=\"" USB_MODE_AVAILABLE_MODES_GET "\">\n"
-"      <arg name=\"modes\" type=\"s\" direction=\"out\"/>\n"
-"    </method>\n"
-"    <method name=\"" USB_MODE_AVAILABLE_MODES_FOR_USER "\">\n"
-"      <arg name=\"modes\" type=\"s\" direction=\"out\"/>\n"
-"    </method>\n"
-"    <method name=\"" USB_MODE_HIDE "\">\n"
-"      <arg name=\"mode\" type=\"s\" direction=\"in\"/>\n"
-"      <arg name=\"mode\" type=\"s\" direction=\"out\"/>\n"
-"    </method>\n"
-"    <method name=\"" USB_MODE_UNHIDE "\">\n"
-"      <arg name=\"mode\" type=\"s\" direction=\"in\"/>\n"
-"      <arg name=\"mode\" type=\"s\" direction=\"out\"/>\n"
-"    </method>\n"
-"    <method name=\"" USB_MODE_HIDDEN_GET "\">\n"
-"      <arg name=\"modes\" type=\"s\" direction=\"out\"/>\n"
-"    </method>\n"
-"    <method name=\"" USB_MODE_WHITELISTED_MODES_GET "\">\n"
-"      <arg name=\"modes\" type=\"s\" direction=\"out\"/>\n"
-"    </method>\n"
-"    <method name=\"" USB_MODE_WHITELISTED_MODES_SET "\">\n"
-"      <arg name=\"modes\" type=\"s\" direction=\"in\"/>\n"
-"    </method>\n"
-"    <method name=\"" USB_MODE_WHITELISTED_SET "\">\n"
-"      <arg name=\"mode\" type=\"s\" direction=\"in\"/>\n"
-"      <arg name=\"whitelisted\" type=\"b\" direction=\"in\"/>\n"
-"    </method>\n"
-"    <method name=\"" USB_MODE_RESCUE_OFF "\"/>\n"
-"    <signal name=\"" USB_MODE_SIGNAL_NAME "\">\n"
-"      <arg name=\"mode_or_event\" type=\"s\"/>\n"
-"    </signal>\n"
-"    <signal name=\"" USB_MODE_CURRENT_STATE_SIGNAL_NAME "\">\n"
-"      <arg name=\"mode\" type=\"s\"/>\n"
-"    </signal>\n"
-"    <signal name=\"" USB_MODE_TARGET_STATE_SIGNAL_NAME "\">\n"
-"      <arg name=\"mode\" type=\"s\"/>\n"
-"    </signal>\n"
-"    <signal name=\"" USB_MODE_EVENT_SIGNAL_NAME "\">\n"
-"      <arg name=\"event\" type=\"s\"/>\n"
-"    </signal>\n"
-"    <signal name=\"" USB_MODE_ERROR_SIGNAL_NAME "\">\n"
-"      <arg name=\"error\" type=\"s\"/>\n"
-"    </signal>\n"
-"    <signal name=\"" USB_MODE_SUPPORTED_MODES_SIGNAL_NAME "\">\n"
-"      <arg name=\"modes\" type=\"s\"/>\n"
-"    </signal>\n"
-"    <signal name=\"" USB_MODE_AVAILABLE_MODES_SIGNAL_NAME "\">\n"
-"      <arg name=\"modes\" type=\"s\"/>\n"
-"    </signal>\n"
-"    <signal name=\"" USB_MODE_CONFIG_SIGNAL_NAME "\">\n"
-"      <arg name=\"section\" type=\"s\"/>\n"
-"      <arg name=\"key\" type=\"s\"/>\n"
-"      <arg name=\"value\" type=\"s\"/>\n"
-"    </signal>\n"
-"    <signal name=\"" USB_MODE_HIDDEN_MODES_SIGNAL_NAME "\">\n"
-"      <arg name=\"modes\" type=\"s\"/>\n"
-"    </signal>\n"
-"    <signal name=\"" USB_MODE_WHITELISTED_MODES_SIGNAL_NAME "\">\n"
-"      <arg name=\"modes\" type=\"s\"/>\n"
-"    </signal>\n"
-"    <signal name=\"" USB_MODE_TARGET_CONFIG_SIGNAL_NAME "\">\n"
-"      <arg name=\"config\" type=\"a{sv}\"/>\n"
-"      <annotation name=\"org.qtproject.QtDBus.QtTypeName.In0\" value=\"QVariantMap\"/>\n"
-"    </signal>\n"
-"    <method name=\"" USB_MODE_TARGET_CONFIG_GET "\">\n"
-"      <arg name=\"config\" type=\"a{sv}\" direction=\"out\"/>\n"
-"      <annotation name=\"org.qtproject.QtDBus.QtTypeName.Out0\" value=\"QVariantMap\"/>\n"
-"    </signal>\n"
-"  </interface>\n"
-"</node>\n";
+static void
+member_info_introspect(const member_info_t *self, FILE *file)
+{
+    LOG_REGISTER_CONTEXT;
+
+    switch( self->type ) {
+    case DBUS_MESSAGE_TYPE_METHOD_CALL:
+        /* All method call handlers are Introspectable */
+        if( self->args )
+            fprintf(file, "    <method name=\"%s\">\n%s    </method>\n", self->member, self->args);
+        else
+            fprintf(file, "    <method name=\"%s\"/>\n", self->member);
+        break;
+    case DBUS_MESSAGE_TYPE_SIGNAL:
+        /* Only dummy signal handlers are Introspectable */
+        if( self->handler )
+            break;
+        if( self->args )
+            fprintf(file, "    <signal name=\"%s\">\n%s    </signal>\n", self->member, self->args);
+        else
+            fprintf(file, "    <signal name=\"%s\"/>\n", self->member);
+        break;
+    default:
+        break;
+    }
+}
+
+/* ========================================================================= *
+ * INTERFACE_INFO
+ * ========================================================================= */
+
+static const member_info_t *
+interface_info_get_member(const interface_info_t *self, const char *member)
+{
+    LOG_REGISTER_CONTEXT;
+
+    const member_info_t *mem = 0;
+
+    if( !self || !member )
+        goto EXIT;
+
+    for( size_t i = 0; self->members[i].member; ++i ) {
+        if( strcmp(self->members[i].member, member) )
+            continue;
+        mem = &self->members[i];
+        break;
+    }
+EXIT:
+    return mem;
+}
+
+static void
+interface_info_introspect(const interface_info_t *self, FILE *file)
+{
+    LOG_REGISTER_CONTEXT;
+
+    fprintf(file, "  <interface name=\"%s\">\n", self->interface);
+    for( size_t i = 0; self->members[i].member; ++i )
+        member_info_introspect(&self->members[i], file);
+    fprintf(file, "  </interface>\n");
+}
+
+/* ========================================================================= *
+ * OBJECT_INFO
+ * ========================================================================= */
+
+static const interface_info_t *
+object_info_get_interface(const object_info_t *self, const char *interface)
+{
+    LOG_REGISTER_CONTEXT;
+
+    const interface_info_t *ifc = 0;
+
+    if( !self || !interface )
+        goto EXIT;
+
+    for( size_t i = 0; self->interfaces[i]; ++i ) {
+        if( strcmp(self->interfaces[i]->interface, interface) )
+            continue;
+        ifc = self->interfaces[i];
+        break;
+    }
+EXIT:
+    return ifc;
+}
+
+static void
+object_info_introspect(const object_info_t *self, FILE *file, const char *interface)
+{
+    LOG_REGISTER_CONTEXT;
+
+    if( !self || !file )
+        goto EXIT;
+
+    static const char dtd[] =
+        "<!DOCTYPE node PUBLIC\n"
+        " \"-//freedesktop//DTD D-BUS Object Introspection 1.0//EN\"\n"
+        " \"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd\">\n";
+
+    fprintf(file, "%s\n", dtd);
+
+    fprintf(file, "<node name=\"%s\">\n", self->object);
+    for( size_t i = 0; self->interfaces[i]; ++i ) {
+        /* Optionally skip all but requested interface */
+        if( interface && strcmp(self->interfaces[i]->interface, interface) )
+            continue;
+        interface_info_introspect(self->interfaces[i], file);
+    }
+
+    /* ASSUMED: self is in an statically allocated array where potential
+     *          child nodes are located after it.
+     */
+    const char *parent = self->object;
+    if( !strcmp(parent, "/") )
+        parent = "";
+    size_t n = strlen(parent);
+    for( const object_info_t *obj = self + 1; obj->object; ++obj ) {
+        const char *child = obj->object;
+        if( strncmp(parent, child, n) )
+            continue;
+        if( child[n] != '/' )
+            continue;
+        child += n + 1;
+        if( strchr(child, '/' ) )
+            continue;
+        fprintf(file, "  <node name=\"%s\"/>\n", child);
+    }
+
+    fprintf(file, "</node>\n");
+EXIT:
+    return;
+}
+
+static char *
+object_info_get_introspect_xml(const object_info_t *self, const char *interface)
+{
+    LOG_REGISTER_CONTEXT;
+
+    char *text = 0;
+
+    if( self ) {
+        size_t  size = 0;
+        FILE   *file = open_memstream(&text, &size);
+        object_info_introspect(self, file, interface);
+        fclose(file);
+    }
+
+    return text;
+}
+
+/* ========================================================================= *
+ * INTROSPECTABLE  --  org.freedesktop.DBus.Introspectable
+ * ========================================================================= */
+
+static void
+introspectable_introspect_cb(umdbus_context_t *context)
+{
+    LOG_REGISTER_CONTEXT;
+
+    char *text = object_info_get_introspect_xml(context->object_info, 0);
+    if( (context->rsp = dbus_message_new_method_return(context->msg)) )
+        dbus_message_append_args(context->rsp, DBUS_TYPE_STRING, &text, DBUS_TYPE_INVALID);
+    free(text);
+}
+
+static const member_info_t introspectable_members[] =
+{
+  ADD_METHOD("Introspect",
+             introspectable_introspect_cb,
+             "      <arg name=\"xml\" type=\"s\" direction=\"out\"/>\n"),
+  ADD_SENTINEL
+};
+
+static const interface_info_t introspectable_interface = {
+    .interface = "org.freedesktop.DBus.Introspectable",
+    .members  = introspectable_members
+};
+
+/* ========================================================================= *
+ * PEER  --  org.freedesktop.DBus.Peer
+ * ========================================================================= */
+
+static const member_info_t peer_members[] =
+{
+  /* Note: Introspect glue only - libdbus handles these internally */
+  ADD_METHOD("Ping",
+             0,
+             0),
+  ADD_METHOD("GetMachineId",
+             0,
+             "      <arg direction=\"out\" name=\"machine_uuid\" type=\"s\"/>\n"),
+  ADD_SENTINEL
+};
+
+static const interface_info_t peer_interface = {
+    .interface = "org.freedesktop.DBus.Peer",
+    .members  = peer_members
+};
+
+/* ========================================================================= *
+ * USB_MODED -- com.meego.usb_moded
+ * ========================================================================= */
+
+/* ------------------------------------------------------------------------- *
+ * mode transition
+ * ------------------------------------------------------------------------- */
+
+/** Get currently active usb mode
+ */
+static void
+usb_moded_state_request_cb(umdbus_context_t *context)
+{
+    LOG_REGISTER_CONTEXT;
+
+    const char *mode = control_get_external_mode();
+    /* To the outside we want to keep CHARGING and CHARGING_FALLBACK the same */
+    if( !strcmp(MODE_CHARGING_FALLBACK, mode) )
+        mode = MODE_CHARGING;
+    if( (context->rsp = dbus_message_new_method_return(context->msg)) )
+        dbus_message_append_args(context->rsp, DBUS_TYPE_STRING, &mode, DBUS_TYPE_INVALID);
+}
+
+/** Get current target usb mode
+ */
+static void
+usb_moded_target_state_get_cb(umdbus_context_t *context)
+{
+    LOG_REGISTER_CONTEXT;
+
+    const char *mode = control_get_target_mode();
+    if( (context->rsp = dbus_message_new_method_return(context->msg)) )
+        dbus_message_append_args(context->rsp, DBUS_TYPE_STRING, &mode, DBUS_TYPE_INVALID);
+}
+
+/** Get current target usb mode configuration
+ */
+static void
+usb_moded_target_config_get_cb(umdbus_context_t *context)
+{
+    LOG_REGISTER_CONTEXT;
+
+    const char *mode = control_get_target_mode();
+    if( (context->rsp = dbus_message_new_method_return(context->msg)) )
+        umdbus_append_mode_details(context->rsp, mode);
+}
+
+/** Set usb mode
+ *
+ * When accepted, mode shows up 1st as target mode and then as active mode
+ */
+static void
+usb_moded_state_set_cb(umdbus_context_t *context)
+{
+    LOG_REGISTER_CONTEXT;
+
+    const char *mode = control_get_external_mode();
+    char       *use  = 0;
+    DBusError   err  = DBUS_ERROR_INIT;
+    uid_t       uid  = umdbus_get_sender_uid(context->sender);
+
+    if( !dbus_message_get_args(context->msg, &err, DBUS_TYPE_STRING, &use, DBUS_TYPE_INVALID) ) {
+        log_err("parse error: %s: %s", err.name, err.message);
+        context->rsp = dbus_message_new_error(context->msg, DBUS_ERROR_INVALID_ARGS, context->member);
+    }
+    else if( !usbmoded_is_mode_permitted(use, uid) ) {
+        /* Insufficient permissions */
+        log_warning("Mode '%s' is not allowed for uid %d", use, uid);
+        context->rsp = dbus_message_new_error(context->msg, DBUS_ERROR_ACCESS_DENIED, context->member);
+    }
+    else if( control_get_cable_state() != CABLE_STATE_PC_CONNECTED ) {
+        /* Mode change makes no sence unless we have a PC connection */
+        log_warning("Mode '%s' requested while not connected to pc", use);
+    }
+    else if( common_valid_mode(use) ) {
+        /* Mode does not exist */
+        log_warning("Unknown mode '%s' requested", use);
+    }
+    else if( !g_strcmp0(mode, MODE_BUSY) ) {
+        /* In middle of a pending mode switch */
+        log_warning("Mode '%s' requested while busy", use);
+    }
+    else {
+        log_debug("Mode '%s' requested", use);
+        /* Initiate mode switch */
+        control_set_usb_mode(use);
+
+        /* Acknowledge that the mode request was accepted */
+        if( (context->rsp = dbus_message_new_method_return(context->msg)) )
+            dbus_message_append_args(context->rsp, DBUS_TYPE_STRING, &use, DBUS_TYPE_INVALID);
+    }
+
+    /* Default to returning a generic error context->rsp */
+    if( !context->rsp )
+        context->rsp = dbus_message_new_error(context->msg, DBUS_ERROR_FAILED, context->member);
+
+    dbus_error_free(&err);
+}
+
+/* ------------------------------------------------------------------------- *
+ * default mode
+ * ------------------------------------------------------------------------- */
+
+/** Set default mode to use on pc connection
+ */
+static void
+usb_moded_config_set_cb(umdbus_context_t *context)
+{
+    LOG_REGISTER_CONTEXT;
+
+    char       *config = 0;
+    DBusError   err    = DBUS_ERROR_INIT;
+    uid_t       uid    = umdbus_get_sender_uid(context->sender);
+
+    if( !dbus_message_get_args(context->msg, &err, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID) ) {
+        context->rsp = dbus_message_new_error(context->msg, DBUS_ERROR_INVALID_ARGS, context->member);
+    }
+    else {
+        /* error checking is done when setting configuration */
+        int ret = config_set_mode_setting(config, uid);
+        if( SET_CONFIG_OK(ret) ) {
+            if( (context->rsp = dbus_message_new_method_return(context->msg)) )
+                dbus_message_append_args(context->rsp, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID);
+        }
+        else {
+            context->rsp = dbus_message_new_error(context->msg, DBUS_ERROR_INVALID_ARGS, config);
+        }
+    }
+    dbus_error_free(&err);
+}
+
+/** Get default mode to use on pc connection
+ */
+static void
+usb_moded_config_get_cb(umdbus_context_t *context)
+{
+    LOG_REGISTER_CONTEXT;
+
+    uid_t  uid    = umdbus_get_sender_uid(context->sender);
+    char  *config = config_get_mode_setting(uid);
+
+    if( (context->rsp = dbus_message_new_method_return(context->msg)) )
+        dbus_message_append_args(context->rsp, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID);
+    g_free(config);
+}
+
+/* ------------------------------------------------------------------------- *
+ * supported modes  --  modes that exist and are not hidden
+ * ------------------------------------------------------------------------- */
+
+/** Get comma separated list of supported modes
+ */
+static void
+usb_moded_mode_list_cb(umdbus_context_t *context)
+{
+    LOG_REGISTER_CONTEXT;
+
+    gchar *mode_list = common_get_mode_list(SUPPORTED_MODES_LIST, 0);
+
+    if( (context->rsp = dbus_message_new_method_return(context->msg)) )
+        dbus_message_append_args(context->rsp, DBUS_TYPE_STRING, &mode_list, DBUS_TYPE_INVALID);
+    g_free(mode_list);
+}
+
+/* ------------------------------------------------------------------------- *
+ * available modes  --  modes that exist and are whitelisted and not hidden
+ * ------------------------------------------------------------------------- */
+
+/** Get comma separated list of modes available for selection
+ */
+static void
+usb_moded_available_modes_get_cb(umdbus_context_t *context)
+{
+    LOG_REGISTER_CONTEXT;
+
+    gchar *mode_list = common_get_mode_list(AVAILABLE_MODES_LIST, 0);
+
+    if( (context->rsp = dbus_message_new_method_return(context->msg)) )
+        dbus_message_append_args(context->rsp, DBUS_TYPE_STRING, &mode_list, DBUS_TYPE_INVALID);
+    g_free(mode_list);
+}
+
+/** Get comma separated list of modes available for selection by current user
+ */
+static void
+usb_moded_available_modes_for_user_cb(umdbus_context_t *context)
+{
+    LOG_REGISTER_CONTEXT;
+
+    uid_t uid = umdbus_get_sender_uid(context->sender);
+    gchar *mode_list = common_get_mode_list(AVAILABLE_MODES_LIST, uid);
+
+    if( (context->rsp = dbus_message_new_method_return(context->msg)) )
+        dbus_message_append_args(context->rsp, DBUS_TYPE_STRING, &mode_list, DBUS_TYPE_INVALID);
+    g_free(mode_list);
+}
+
+/* ------------------------------------------------------------------------- *
+ * hidden modes  --  one layer of masking modes from settings ui
+ * ------------------------------------------------------------------------- */
+
+/** Hide a mode so it is not selectable in settings ui
+ */
+static void
+usb_moded_mode_hide_cb(umdbus_context_t *context)
+{
+    LOG_REGISTER_CONTEXT;
+
+    char      *config = 0;
+    DBusError  err    = DBUS_ERROR_INIT;
+
+    if( !dbus_message_get_args(context->msg, &err, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID) ) {
+        context->rsp = dbus_message_new_error(context->msg, DBUS_ERROR_INVALID_ARGS, context->member);
+    }
+#ifdef SAILFISH_ACCESS_CONTROL
+    /* do not let non-owner user hide modes */
+    else if( !sailfish_access_control_hasgroup(umdbus_get_sender_uid(context->sender), "sailfish-system") ) {
+        context->rsp = dbus_message_new_error(context->msg, DBUS_ERROR_ACCESS_DENIED, context->member);
+    }
+#endif
+    else {
+        /* error checking is done when setting configuration */
+        int ret = config_set_hide_mode_setting(config);
+        if( SET_CONFIG_OK(ret) ) {
+            if( (context->rsp = dbus_message_new_method_return(context->msg)) )
+                dbus_message_append_args(context->rsp, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID);
+        }
+        else {
+            context->rsp = dbus_message_new_error(context->msg, DBUS_ERROR_INVALID_ARGS, config);
+        }
+    }
+    dbus_error_free(&err);
+}
+
+/** Unhide a mode so it is selectable in settings ui
+ */
+static void
+usb_moded_mode_unhide_cb(umdbus_context_t *context)
+{
+    LOG_REGISTER_CONTEXT;
+
+    char      *config = 0;
+    DBusError  err    = DBUS_ERROR_INIT;
+
+    if( !dbus_message_get_args(context->msg, &err, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID) ) {
+        context->rsp = dbus_message_new_error(context->msg, DBUS_ERROR_INVALID_ARGS, context->member);
+    }
+#ifdef SAILFISH_ACCESS_CONTROL
+    /* do not let non-owner user unhide modes */
+    else if( !sailfish_access_control_hasgroup(umdbus_get_sender_uid(context->sender), "sailfish-system") ) {
+        context->rsp = dbus_message_new_error(context->msg, DBUS_ERROR_ACCESS_DENIED, context->member);
+    }
+#endif
+    else {
+        /* error checking is done when setting configuration */
+        int ret = config_set_unhide_mode_setting(config);
+        if( SET_CONFIG_OK(ret) ) {
+            if( (context->rsp = dbus_message_new_method_return(context->msg)) )
+                dbus_message_append_args(context->rsp, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID);
+        }
+        else {
+            context->rsp = dbus_message_new_error(context->msg, DBUS_ERROR_INVALID_ARGS, config);
+        }
+    }
+    dbus_error_free(&err);
+}
+
+/** Get a comma separated list of hidden modes
+ */
+static void
+usb_moded_hidden_get_cb(umdbus_context_t *context)
+{
+    LOG_REGISTER_CONTEXT;
+
+    char *config = config_get_hidden_modes();
+    if( !config )
+        config = g_strdup("");
+    if( (context->rsp = dbus_message_new_method_return(context->msg)) )
+        dbus_message_append_args(context->rsp, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID);
+    g_free(config);
+}
+
+/* ------------------------------------------------------------------------- *
+ * whitelisted modes  --  another layer of masking modes from settings ui
+ * ------------------------------------------------------------------------- */
+
+/** Get comma separated list of whitelisted usb modes
+ */
+static void
+usb_moded_whitelisted_modes_get_cb(umdbus_context_t *context)
+{
+    LOG_REGISTER_CONTEXT;
+
+    gchar *mode_list = config_get_mode_whitelist();
+
+    if( !mode_list )
+        mode_list = g_strdup("");
+
+    if( (context->rsp = dbus_message_new_method_return(context->msg)) )
+        dbus_message_append_args(context->rsp, DBUS_TYPE_STRING, &mode_list, DBUS_TYPE_INVALID);
+    g_free(mode_list);
+}
+
+/** Set comma separated list of whitelisted usb modes
+ */
+static void
+usb_moded_whitelisted_modes_set_cb(umdbus_context_t *context)
+{
+    LOG_REGISTER_CONTEXT;
+
+    const char *whitelist = 0;
+    DBusError   err       = DBUS_ERROR_INIT;
+
+    if( !dbus_message_get_args(context->msg, &err, DBUS_TYPE_STRING, &whitelist, DBUS_TYPE_INVALID) ) {
+        context->rsp = dbus_message_new_error(context->msg, DBUS_ERROR_INVALID_ARGS, context->member);
+    }
+    else {
+        int ret = config_set_mode_whitelist(whitelist);
+        if( SET_CONFIG_OK(ret) ) {
+            if( (context->rsp = dbus_message_new_method_return(context->msg)) )
+                dbus_message_append_args(context->rsp, DBUS_TYPE_STRING, &whitelist, DBUS_TYPE_INVALID);
+        }
+        else
+            context->rsp = dbus_message_new_error(context->msg, DBUS_ERROR_INVALID_ARGS, whitelist);
+    }
+    dbus_error_free(&err);
+}
+
+/** Add usb mode to whitelist
+ */
+static void
+usb_moded_whitelisted_set_cb(umdbus_context_t *context)
+{
+    LOG_REGISTER_CONTEXT;
+
+    const char   *mode    = 0;
+    dbus_bool_t   enabled = FALSE;
+    DBusError     err     = DBUS_ERROR_INIT;
+
+    if( !dbus_message_get_args(context->msg, &err, DBUS_TYPE_STRING, &mode, DBUS_TYPE_BOOLEAN, &enabled, DBUS_TYPE_INVALID) )
+        context->rsp = dbus_message_new_error(context->msg, DBUS_ERROR_INVALID_ARGS, context->member);
+    else {
+        int ret = config_set_mode_in_whitelist(mode, enabled);
+        if( SET_CONFIG_OK(ret) )
+            context->rsp = dbus_message_new_method_return(context->msg);
+        else
+            context->rsp = dbus_message_new_error(context->msg, DBUS_ERROR_INVALID_ARGS, mode);
+    }
+    dbus_error_free(&err);
+}
+
+/* ------------------------------------------------------------------------- *
+ * network configuration
+ * ------------------------------------------------------------------------- */
+
+/** Set network configuration value
+ */
+static void
+usb_moded_network_set_cb(umdbus_context_t *context)
+{
+    LOG_REGISTER_CONTEXT;
+
+    char      *config  = 0;
+    char      *setting = 0;
+    DBusError  err     = DBUS_ERROR_INIT;
+
+    if( !dbus_message_get_args(context->msg, &err, DBUS_TYPE_STRING, &config, DBUS_TYPE_STRING, &setting, DBUS_TYPE_INVALID) ) {
+        context->rsp = dbus_message_new_error(context->msg, DBUS_ERROR_INVALID_ARGS, context->member);
+    }
+    else {
+        /* error checking is done when setting configuration */
+        int ret = config_set_network_setting(config, setting);
+        if( SET_CONFIG_OK(ret) ) {
+            if( (context->rsp = dbus_message_new_method_return(context->msg)) )
+                dbus_message_append_args(context->rsp, DBUS_TYPE_STRING, &config, DBUS_TYPE_STRING, &setting, DBUS_TYPE_INVALID);
+            network_update();
+        }
+        else {
+            context->rsp = dbus_message_new_error(context->msg, DBUS_ERROR_INVALID_ARGS, config);
+        }
+    }
+    dbus_error_free(&err);
+}
+
+/** Get network configuration value
+ */
+static void
+usb_moded_network_get_cb(umdbus_context_t *context)
+{
+    LOG_REGISTER_CONTEXT;
+
+    char      *config  = 0;
+    char      *setting = 0;
+    DBusError  err     = DBUS_ERROR_INIT;
+
+    if( !dbus_message_get_args(context->msg, &err, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID) ) {
+        context->rsp = dbus_message_new_error(context->msg, DBUS_ERROR_INVALID_ARGS, context->member);
+    }
+    else {
+        setting = config_get_network_setting(config);
+        if( setting ) {
+            if( (context->rsp = dbus_message_new_method_return(context->msg)) )
+                dbus_message_append_args(context->rsp, DBUS_TYPE_STRING, &config, DBUS_TYPE_STRING, &setting, DBUS_TYPE_INVALID);
+            free(setting);
+        }
+        else {
+            context->rsp = dbus_message_new_error(context->msg, DBUS_ERROR_INVALID_ARGS, config);
+        }
+    }
+    dbus_error_free(&err);
+}
+
+/* ------------------------------------------------------------------------- *
+ * miscellaneous
+ * ------------------------------------------------------------------------- */
+
+/** Turn off rescue mode
+ */
+static void
+usb_moded_rescue_off_cb(umdbus_context_t *context)
+{
+    LOG_REGISTER_CONTEXT;
+
+    usbmoded_set_rescue_mode(false);
+    log_debug("Rescue mode off\n ");
+    context->rsp = dbus_message_new_method_return(context->msg);
+}
+
+static const member_info_t usb_moded_members[] =
+{
+    /* FIXME: ordering here does not make sense, but minimizes
+     *        diff with old manually updated introspect data.
+     */
+    ADD_METHOD(USB_MODE_STATE_REQUEST,
+               usb_moded_state_request_cb,
+               "      <arg name=\"mode\" type=\"s\" direction=\"out\"/>\n"),
+    ADD_METHOD(USB_MODE_TARGET_STATE_GET,
+               usb_moded_target_state_get_cb,
+               "      <arg name=\"mode\" type=\"s\" direction=\"out\"/>\n"),
+    ADD_METHOD(USB_MODE_STATE_SET,
+               usb_moded_state_set_cb,
+               "      <arg name=\"mode\" type=\"s\" direction=\"in\"/>\n"
+               "      <arg name=\"mode\" type=\"s\" direction=\"out\"/>\n"),
+    ADD_METHOD(USB_MODE_CONFIG_SET,
+               usb_moded_config_set_cb,
+               "      <arg name=\"config\" type=\"s\" direction=\"in\"/>\n"
+               "      <arg name=\"config\" type=\"s\" direction=\"out\"/>\n"),
+    ADD_METHOD(USB_MODE_NETWORK_SET,
+               usb_moded_network_set_cb,
+               "      <arg name=\"key\" type=\"s\" direction=\"in\"/>\n"
+               "      <arg name=\"value\" type=\"s\" direction=\"in\"/>\n"
+               "      <arg name=\"key\" type=\"s\" direction=\"out\"/>\n"
+               "      <arg name=\"value\" type=\"s\" direction=\"out\"/>\n"),
+    ADD_METHOD(USB_MODE_NETWORK_GET,
+               usb_moded_network_get_cb,
+               "      <arg name=\"key\" type=\"s\" direction=\"in\"/>\n"
+               "      <arg name=\"key\" type=\"s\" direction=\"out\"/>\n"
+               "      <arg name=\"value\" type=\"s\" direction=\"out\"/>\n"),
+    ADD_METHOD(USB_MODE_CONFIG_GET,
+               usb_moded_config_get_cb,
+               "      <arg name=\"mode\" type=\"s\" direction=\"out\"/>\n"),
+    ADD_METHOD(USB_MODE_LIST,
+               usb_moded_mode_list_cb,
+               "      <arg name=\"modes\" type=\"s\" direction=\"out\"/>\n"),
+    ADD_METHOD(USB_MODE_AVAILABLE_MODES_GET,
+               usb_moded_available_modes_get_cb,
+               "      <arg name=\"modes\" type=\"s\" direction=\"out\"/>\n"),
+    ADD_METHOD(USB_MODE_AVAILABLE_MODES_FOR_USER,
+               usb_moded_available_modes_for_user_cb,
+               "      <arg name=\"modes\" type=\"s\" direction=\"out\"/>\n"),
+    ADD_METHOD(USB_MODE_HIDE,
+               usb_moded_mode_hide_cb,
+               "      <arg name=\"mode\" type=\"s\" direction=\"in\"/>\n"
+               "      <arg name=\"mode\" type=\"s\" direction=\"out\"/>\n"),
+    ADD_METHOD(USB_MODE_UNHIDE,
+               usb_moded_mode_unhide_cb,
+               "      <arg name=\"mode\" type=\"s\" direction=\"in\"/>\n"
+               "      <arg name=\"mode\" type=\"s\" direction=\"out\"/>\n"),
+    ADD_METHOD(USB_MODE_HIDDEN_GET,
+               usb_moded_hidden_get_cb,
+               "      <arg name=\"modes\" type=\"s\" direction=\"out\"/>\n"),
+    ADD_METHOD(USB_MODE_WHITELISTED_MODES_GET,
+               usb_moded_whitelisted_modes_get_cb,
+               "      <arg name=\"modes\" type=\"s\" direction=\"out\"/>\n"),
+    ADD_METHOD(USB_MODE_WHITELISTED_MODES_SET,
+               usb_moded_whitelisted_modes_set_cb,
+               "      <arg name=\"modes\" type=\"s\" direction=\"in\"/>\n"),
+    ADD_METHOD(USB_MODE_WHITELISTED_SET,
+               usb_moded_whitelisted_set_cb,
+               "      <arg name=\"mode\" type=\"s\" direction=\"in\"/>\n"
+               "      <arg name=\"whitelisted\" type=\"b\" direction=\"in\"/>\n"),
+    ADD_METHOD(USB_MODE_RESCUE_OFF,
+               usb_moded_rescue_off_cb,
+               0),
+    ADD_SIGNAL(USB_MODE_SIGNAL_NAME,
+               "      <arg name=\"mode_or_event\" type=\"s\"/>\n"),
+    ADD_SIGNAL(USB_MODE_CURRENT_STATE_SIGNAL_NAME,
+               "      <arg name=\"mode\" type=\"s\"/>\n"),
+    ADD_SIGNAL(USB_MODE_TARGET_STATE_SIGNAL_NAME,
+               "      <arg name=\"mode\" type=\"s\"/>\n"),
+    ADD_SIGNAL(USB_MODE_EVENT_SIGNAL_NAME,
+               "      <arg name=\"event\" type=\"s\"/>\n"),
+    ADD_SIGNAL(USB_MODE_ERROR_SIGNAL_NAME,
+               "      <arg name=\"error\" type=\"s\"/>\n"),
+    ADD_SIGNAL(USB_MODE_SUPPORTED_MODES_SIGNAL_NAME,
+               "      <arg name=\"modes\" type=\"s\"/>\n"),
+    ADD_SIGNAL(USB_MODE_AVAILABLE_MODES_SIGNAL_NAME,
+               "      <arg name=\"modes\" type=\"s\"/>\n"),
+    ADD_SIGNAL(USB_MODE_CONFIG_SIGNAL_NAME,
+               "      <arg name=\"section\" type=\"s\"/>\n"
+               "      <arg name=\"key\" type=\"s\"/>\n"
+               "      <arg name=\"value\" type=\"s\"/>\n"),
+    ADD_SIGNAL(USB_MODE_HIDDEN_MODES_SIGNAL_NAME,
+               "      <arg name=\"modes\" type=\"s\"/>\n"),
+    ADD_SIGNAL(USB_MODE_WHITELISTED_MODES_SIGNAL_NAME,
+               "      <arg name=\"modes\" type=\"s\"/>\n"),
+    ADD_SIGNAL(USB_MODE_TARGET_CONFIG_SIGNAL_NAME,
+               "      <arg name=\"config\" type=\"a{sv}\"/>\n"
+               "      <annotation name=\"org.qtproject.QtDBus.QtTypeName.In0\" value=\"QVariantMap\"/>\n"),
+    ADD_METHOD(USB_MODE_TARGET_CONFIG_GET,
+               usb_moded_target_config_get_cb,
+               "      <arg name=\"config\" type=\"a{sv}\" direction=\"out\"/>\n"
+               "      <annotation name=\"org.qtproject.QtDBus.QtTypeName.Out0\" value=\"QVariantMap\"/>\n"),
+    ADD_SENTINEL
+};
+
+static const interface_info_t usb_moded_interface = {
+    .interface = USB_MODE_INTERFACE,
+    .members   = usb_moded_members
+};
 
 /* ========================================================================= *
  * Functions
  * ========================================================================= */
+
+/** Standard D-Bus interfaces exposed by all objects
+ */
+static const interface_info_t *standard_interfaces[] = {
+    &introspectable_interface,
+    &peer_interface,
+    0
+};
+
+/** D-Bus interfaces exposed by USB_MODE_OBJECT
+ */
+static const interface_info_t *usb_moded_interfaces[] = {
+    &introspectable_interface,
+    &peer_interface,
+    &usb_moded_interface,
+    0
+};
+
+/** Object "tree" usb-moded makes available
+ */
+static const object_info_t usb_moded_objects[] =
+{
+    /* NOTE: Parents must be listed before children.
+     *       See object_info_introspect().
+     */
+    {
+        .object     = "/",
+        .interfaces = standard_interfaces,
+    },
+    {
+        .object     = "/com",
+        .interfaces = standard_interfaces,
+    },
+    {
+        .object     = "/com/meego",
+        .interfaces = standard_interfaces,
+    },
+    {
+        .object     = USB_MODE_OBJECT, // = "/com/meego/usb_moded"
+        .interfaces = usb_moded_interfaces,
+    },
+    {
+        .object     = 0
+    },
+};
+
+/** Locate info for D-Bus object path
+ */
+static const object_info_t *
+umdbus_get_object_info(const char *object)
+{
+    LOG_REGISTER_CONTEXT;
+
+    const object_info_t *obj = 0;
+
+    if( !object )
+        goto EXIT;
+
+    for( size_t i = 0; usb_moded_objects[i].object; ++i ) {
+        if( !strcmp(usb_moded_objects[i].object, object) ) {
+            obj = &usb_moded_objects[i];
+            break;
+        }
+    }
+
+EXIT:
+    return obj;
+}
+
+/** Dump D-Bus introspect XML to stdout
+ *
+ * For implementing --dbus-introspect-xml option
+ */
+void
+umdbus_dump_introspect_xml(void)
+{
+    LOG_REGISTER_CONTEXT;
+
+    const object_info_t *object_info = umdbus_get_object_info(USB_MODE_OBJECT);
+    char *xml = object_info_get_introspect_xml(object_info, USB_MODE_INTERFACE);
+    fprintf(stdout, "%s", xml ?: "\n");
+    free(xml);
+};
+
+/** Dump D-Bus policy configuration XML to stdout
+ *
+ * For implementing --dbus-busconfig-xml option
+ */
+void
+umdbus_dump_busconfig_xml(void)
+{
+    LOG_REGISTER_CONTEXT;
+
+    static const char dtd[] =
+        "<!DOCTYPE busconfig PUBLIC\n"
+        " \"-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN\"\n"
+        " \"http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd\">\n";
+
+    fprintf(stdout, "%s\n", dtd);
+    fprintf(stdout, "<busconfig>\n");
+
+    fprintf(stdout,
+            "  <policy user=\"root\">\n"
+            "    <allow own=\"" USB_MODE_SERVICE "\"/>\n"
+            "    <allow send_destination=\"" USB_MODE_SERVICE "\"\n"
+            "           send_interface=\"" USB_MODE_INTERFACE "\"/>\n"
+            "  </policy>\n");
+
+    fprintf(stdout,
+            "  <policy context=\"default\">\n"
+            "    <deny own=\"" USB_MODE_SERVICE "\"/>\n"
+            "    <deny send_destination=\"" USB_MODE_SERVICE "\"\n"
+            "          send_interface=\"" USB_MODE_INTERFACE "\"/>\n"
+            "    <allow send_destination=\"" USB_MODE_SERVICE "\"\n"
+            "           send_interface=\"org.freedesktop.DBus.Introspectable\"/>\n");
+
+    for( const member_info_t *mem = usb_moded_members; mem->member; ++mem ) {
+        if( mem->type != DBUS_MESSAGE_TYPE_METHOD_CALL )
+            continue;
+        fprintf(stdout,
+                "    <allow send_destination=\"" USB_MODE_SERVICE "\"\n"
+                "           send_interface=\"" USB_MODE_INTERFACE "\"\n"
+                "           send_member=\"%s\"/>\n",
+                mem->member);
+    }
+    fprintf(stdout, "  </policy>\n");
+    fprintf(stdout, "</busconfig>\n");
+}
 
 /**
  * Issues "sig_usb_config_ind" signal.
@@ -318,28 +1208,43 @@ EXIT:
 
 static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DBusMessage *const msg, gpointer const user_data)
 {
-    LOG_REGISTER_CONTEXT;
-
-    DBusHandlerResult   status    = DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
-    DBusMessage        *reply     = 0;
-    const char         *interface = dbus_message_get_interface(msg);
-    const char         *member    = dbus_message_get_member(msg);
-    const char         *object    = dbus_message_get_path(msg);
-    int                 type      = dbus_message_get_type(msg);
-    const char         *sender    = dbus_message_get_sender(msg);
-
     (void)user_data;
 
-    if(!interface || !member || !object) goto EXIT;
+    LOG_REGISTER_CONTEXT;
+
+    DBusHandlerResult status = DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+
+    umdbus_context_t context = { .msg = msg, };
+
+    /* We are only interested in signals and method calls */
+    switch( (context.type = dbus_message_get_type(msg)) ) {
+    case DBUS_MESSAGE_TYPE_SIGNAL:
+    case DBUS_MESSAGE_TYPE_METHOD_CALL:
+        break;
+    default:
+        goto EXIT;
+    }
+
+    /* Parse message basic info */
+    if( !(context.sender = dbus_message_get_sender(msg)) )
+        goto EXIT;
+
+    if( !(context.object = dbus_message_get_path(msg)) )
+        goto EXIT;
+
+    if( !(context.interface = dbus_message_get_interface(msg)) )
+        goto EXIT;
+
+    if( !(context.member = dbus_message_get_member(msg)) )
+        goto EXIT;
 
     log_debug("DBUS %s %s.%s from %s",
-              dbus_message_type_to_string(type),
-              interface, member,
-              dbus_message_get_sender(msg) ?: "N/A");
+              dbus_message_type_to_string(context.type),
+              context.interface, context.member, context.sender);
 
-    if( type == DBUS_MESSAGE_TYPE_SIGNAL )
-    {
-        if( !strcmp(interface, INIT_DONE_INTERFACE) && !strcmp(member, INIT_DONE_SIGNAL) ) {
+    /* Deal with incoming signals */
+    if( context.type == DBUS_MESSAGE_TYPE_SIGNAL ) {
+        if( !strcmp(context.interface, INIT_DONE_INTERFACE) && !strcmp(context.member, INIT_DONE_SIGNAL) ) {
             /* Update the cached state value */
             usbmoded_set_init_done(true);
 
@@ -352,382 +1257,45 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
         goto EXIT;
     }
 
-    if( type == DBUS_MESSAGE_TYPE_METHOD_CALL && !strcmp(interface, USB_MODE_INTERFACE) && !strcmp(object, USB_MODE_OBJECT))
-    {
-        status = DBUS_HANDLER_RESULT_HANDLED;
+    /* Locate and use method call handler */
+    context.object_info    = umdbus_get_object_info(context.object);
+    context.interface_info = object_info_get_interface(context.object_info,
+                                                       context.interface);
+    context.member_info    = interface_info_get_member(context.interface_info,
+                                                       context.member);
 
-        if(!strcmp(member, USB_MODE_STATE_REQUEST))
-        {
-            const char *mode = control_get_external_mode();
-
-            /* To the outside we want to keep CHARGING and CHARGING_FALLBACK the same */
-            if(!strcmp(MODE_CHARGING_FALLBACK, mode))
-                mode = MODE_CHARGING;
-            if((reply = dbus_message_new_method_return(msg)))
-                dbus_message_append_args (reply, DBUS_TYPE_STRING, &mode, DBUS_TYPE_INVALID);
-        }
-        else if(!strcmp(member, USB_MODE_TARGET_CONFIG_GET))
-        {
-            const char *mode = control_get_target_mode();
-            if((reply = dbus_message_new_method_return(msg)))
-                umdbus_append_mode_details(reply, mode);
-        }
-        else if(!strcmp(member, USB_MODE_TARGET_STATE_GET))
-        {
-            const char *mode = control_get_target_mode();
-            if((reply = dbus_message_new_method_return(msg)))
-                dbus_message_append_args (reply, DBUS_TYPE_STRING, &mode, DBUS_TYPE_INVALID);
-        }
-        else if(!strcmp(member, USB_MODE_STATE_SET))
-        {
-            const char *mode = control_get_external_mode();
-            char       *use  = 0;
-            DBusError   err  = DBUS_ERROR_INIT;
-            uid_t       uid  = umdbus_get_sender_uid(sender);
-
-            if(!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &use, DBUS_TYPE_INVALID)) {
-                log_err("parse error: %s: %s", err.name, err.message);
-                reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
-            }
-            else if( !usbmoded_is_mode_permitted(use, uid) ) {
-                /* Insufficient permissions */
-                log_warning("Mode '%s' is not allowed for uid %d", use, uid);
-                reply = dbus_message_new_error(msg, DBUS_ERROR_ACCESS_DENIED, member);
-            }
-            else if( control_get_cable_state() != CABLE_STATE_PC_CONNECTED ) {
-                /* Mode change makes no sence unless we have a PC connection */
-                log_warning("Mode '%s' requested while not connected to pc", use);
-            }
-            else if( common_valid_mode(use) ) {
-                /* Mode does not exist */
-                log_warning("Unknown mode '%s' requested", use);
-            }
-            else if( !g_strcmp0(mode, MODE_BUSY) ) {
-                /* In middle of a pending mode switch */
-                log_warning("Mode '%s' requested while busy", use);
-            }
-            else {
-                log_debug("Mode '%s' requested", use);
-                /* Initiate mode switch */
-                control_set_usb_mode(use);
-
-                /* Acknowledge that the mode request was accepted */
-                if((reply = dbus_message_new_method_return(msg)))
-                    dbus_message_append_args (reply, DBUS_TYPE_STRING, &use, DBUS_TYPE_INVALID);
-            }
-
-            /* Default to returning a generic error reply */
-            if( !reply )
-                reply = dbus_message_new_error(msg, DBUS_ERROR_FAILED, member);
-
-            dbus_error_free(&err);
-        }
-        else if(!strcmp(member, USB_MODE_CONFIG_SET))
-        {
-            char       *config = 0;
-            DBusError   err = DBUS_ERROR_INIT;
-            uid_t       uid = umdbus_get_sender_uid(sender);
-
-            if(!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID))
-                reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
-            else
-            {
-                /* error checking is done when setting configuration */
-                int ret = config_set_mode_setting(config, uid);
-                if (SET_CONFIG_OK(ret))
-                {
-                    if((reply = dbus_message_new_method_return(msg)))
-                        dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID);
-                }
-                else
-                    reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, config);
-            }
-            dbus_error_free(&err);
-        }
-        else if(!strcmp(member, USB_MODE_HIDE))
-        {
-            char *config = 0;
-            DBusError   err = DBUS_ERROR_INIT;
-
-            if(!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID))
-                reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
-#ifdef SAILFISH_ACCESS_CONTROL
-            /* do not let non-owner user hide modes */
-            else if (!sailfish_access_control_hasgroup(umdbus_get_sender_uid(sender), "sailfish-system"))
-                reply = dbus_message_new_error(msg, DBUS_ERROR_ACCESS_DENIED, member);
-#endif
-            else
-            {
-                /* error checking is done when setting configuration */
-                int ret = config_set_hide_mode_setting(config);
-                if (SET_CONFIG_OK(ret))
-                {
-                    if((reply = dbus_message_new_method_return(msg)))
-                        dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID);
-                }
-                else
-                    reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, config);
-            }
-            dbus_error_free(&err);
-        }
-        else if(!strcmp(member, USB_MODE_UNHIDE))
-        {
-            char *config = 0;
-            DBusError   err = DBUS_ERROR_INIT;
-
-            if(!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID))
-                reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
-#ifdef SAILFISH_ACCESS_CONTROL
-            /* do not let non-owner user unhide modes */
-            else if (!sailfish_access_control_hasgroup(umdbus_get_sender_uid(sender), "sailfish-system"))
-                reply = dbus_message_new_error(msg, DBUS_ERROR_ACCESS_DENIED, member);
-#endif
-            else
-            {
-                /* error checking is done when setting configuration */
-                int ret = config_set_unhide_mode_setting(config);
-                if (SET_CONFIG_OK(ret))
-                {
-                    if((reply = dbus_message_new_method_return(msg)))
-                        dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID);
-                }
-                else
-                    reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, config);
-            }
-            dbus_error_free(&err);
-        }
-        else if(!strcmp(member, USB_MODE_HIDDEN_GET))
-        {
-            char *config = config_get_hidden_modes();
-            if(!config)
-                config = g_strdup("");
-            if((reply = dbus_message_new_method_return(msg)))
-                dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID);
-            g_free(config);
-        }
-        else if(!strcmp(member, USB_MODE_NETWORK_SET))
-        {
-            char *config = 0, *setting = 0;
-            DBusError   err = DBUS_ERROR_INIT;
-
-            if(!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &config, DBUS_TYPE_STRING, &setting, DBUS_TYPE_INVALID))
-                reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
-            else
-            {
-                /* error checking is done when setting configuration */
-                int ret = config_set_network_setting(config, setting);
-                if (SET_CONFIG_OK(ret))
-                {
-                    if((reply = dbus_message_new_method_return(msg)))
-                        dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_STRING, &setting, DBUS_TYPE_INVALID);
-                    network_update();
-                }
-                else
-                    reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, config);
-            }
-            dbus_error_free(&err);
-        }
-        else if(!strcmp(member, USB_MODE_NETWORK_GET))
-        {
-            char *config = 0;
-            char *setting = 0;
-            DBusError   err = DBUS_ERROR_INIT;
-
-            if(!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID))
-            {
-                reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
-            }
-            else
-            {
-                setting = config_get_network_setting(config);
-                if(setting)
-                {
-                    if((reply = dbus_message_new_method_return(msg)))
-                        dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_STRING, &setting, DBUS_TYPE_INVALID);
-                    free(setting);
-                }
-                else
-                    reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, config);
-            }
-        }
-        else if(!strcmp(member, USB_MODE_CONFIG_GET))
-        {
-            uid_t uid = umdbus_get_sender_uid(sender);
-            char *config = config_get_mode_setting(uid);
-
-            if((reply = dbus_message_new_method_return(msg)))
-                dbus_message_append_args (reply, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID);
-            g_free(config);
-        }
-        else if(!strcmp(member, USB_MODE_LIST))
-        {
-            gchar *mode_list = common_get_mode_list(SUPPORTED_MODES_LIST, 0);
-
-            if((reply = dbus_message_new_method_return(msg)))
-                dbus_message_append_args (reply, DBUS_TYPE_STRING, (const char *) &mode_list, DBUS_TYPE_INVALID);
-            g_free(mode_list);
-        }
-        else if(!strcmp(member, USB_MODE_AVAILABLE_MODES_GET))
-        {
-            gchar *mode_list = common_get_mode_list(AVAILABLE_MODES_LIST, 0);
-
-            if((reply = dbus_message_new_method_return(msg)))
-                dbus_message_append_args (reply, DBUS_TYPE_STRING, (const char *) &mode_list, DBUS_TYPE_INVALID);
-            g_free(mode_list);
-        }
-        else if(!strcmp(member, USB_MODE_AVAILABLE_MODES_FOR_USER))
-        {
-            uid_t uid = umdbus_get_sender_uid(sender);
-            gchar *mode_list = common_get_mode_list(AVAILABLE_MODES_LIST, uid);
-
-            if((reply = dbus_message_new_method_return(msg)))
-                dbus_message_append_args (reply, DBUS_TYPE_STRING, (const char *) &mode_list, DBUS_TYPE_INVALID);
-            g_free(mode_list);
-        }
-        else if(!strcmp(member, USB_MODE_RESCUE_OFF))
-        {
-            usbmoded_set_rescue_mode(false);
-            log_debug("Rescue mode off\n ");
-            reply = dbus_message_new_method_return(msg);
-        }
-        else if(!strcmp(member, USB_MODE_WHITELISTED_MODES_GET))
-        {
-            gchar *mode_list = config_get_mode_whitelist();
-
-            if(!mode_list)
-                mode_list = g_strdup("");
-
-            if((reply = dbus_message_new_method_return(msg)))
-                dbus_message_append_args(reply, DBUS_TYPE_STRING, &mode_list, DBUS_TYPE_INVALID);
-            g_free(mode_list);
-        }
-        else if(!strcmp(member, USB_MODE_WHITELISTED_MODES_SET))
-        {
-            const char *whitelist = 0;
-            DBusError err = DBUS_ERROR_INIT;
-
-            if (!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &whitelist, DBUS_TYPE_INVALID))
-                reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
-            else
-            {
-                int ret = config_set_mode_whitelist(whitelist);
-                if (SET_CONFIG_OK(ret))
-                {
-                    if ((reply = dbus_message_new_method_return(msg)))
-                        dbus_message_append_args(reply, DBUS_TYPE_STRING, &whitelist, DBUS_TYPE_INVALID);
-                }
-                else
-                    reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, whitelist);
-            }
-            dbus_error_free(&err);
-        }
-        else if (!strcmp(member, USB_MODE_WHITELISTED_SET))
-        {
-            const char *mode = 0;
-            dbus_bool_t enabled = FALSE;
-            DBusError err = DBUS_ERROR_INIT;
-
-            if (!dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &mode, DBUS_TYPE_BOOLEAN, &enabled, DBUS_TYPE_INVALID))
-                reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, member);
-            else
-            {
-                int ret = config_set_mode_in_whitelist(mode, enabled);
-                if (SET_CONFIG_OK(ret))
-                    reply = dbus_message_new_method_return(msg);
-                else
-                    reply = dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, mode);
-            }
-            dbus_error_free(&err);
-        }
-        else
-        {
-            /*unknown methods are handled here */
-            reply = dbus_message_new_error(msg, DBUS_ERROR_UNKNOWN_METHOD, member);
-        }
-
-        if( !reply )
-        {
-            reply = dbus_message_new_error(msg, DBUS_ERROR_FAILED, member);
-        }
+    if( context.member_info && context.member_info->type == context.type ) {
+        if( context.member_info->handler )
+            context.member_info->handler(&context);
     }
-    else if( type == DBUS_MESSAGE_TYPE_METHOD_CALL &&
-             !strcmp(interface, "org.freedesktop.DBus.Introspectable") &&
-             !strcmp(member, "Introspect"))
-    {
-        const gchar *xml = 0;
-        gchar       *tmp = 0;
-        gchar       *err = 0;
-        size_t       len = strlen(object);
-        const char  *pos = USB_MODE_OBJECT;
-
-        if( !strncmp(object, pos, len) )
-        {
-            if( pos[len] == 0 )
-            {
-                /* Full length USB_MODE_OBJECT requested */
-                xml = umdbus_introspect_usbmoded;
-            }
-            else if( pos[len] == '/' )
-            {
-                /* Leading part of USB_MODE_OBJECT requested */
-                gchar *parent = 0;
-                gchar *child = 0;
-                parent = g_strndup(pos, len);
-                pos += len + 1;
-                len = strcspn(pos, "/");
-                child = g_strndup(pos, len);
-                xml = tmp = g_strdup_printf(umdbus_introspect_template,
-                                            parent, child);
-                g_free(child);
-                g_free(parent);
-            }
-            else if( !strcmp(object, "/") )
-            {
-                /* Root object needs to be handled separately */
-                const char *parent = "/";
-                gchar *child = 0;
-                pos += 1;
-                len = strcspn(pos, "/");
-                child = g_strndup(pos, len);
-                xml = tmp = g_strdup_printf(umdbus_introspect_template,
-                                            parent, child);
-                g_free(child);
-            }
-        }
-
-        if( xml )
-        {
-            if((reply = dbus_message_new_method_return(msg)))
-                dbus_message_append_args (reply,
-                                          DBUS_TYPE_STRING, &xml,
-                                          DBUS_TYPE_INVALID);
-        }
-        else
-        {
-            err = g_strdup_printf("Object '%s' does not exist", object);
-            reply = dbus_message_new_error(msg, DBUS_ERROR_UNKNOWN_OBJECT,
-                                           err);
-        }
-
-        g_free(err);
-        g_free(tmp);
-
-        if( reply )
-        {
-            status = DBUS_HANDLER_RESULT_HANDLED;
-        }
+    else if( !context.object_info ) {
+        context.rsp = dbus_message_new_error_printf(context.msg,
+                                                    DBUS_ERROR_UNKNOWN_OBJECT,
+                                                    "Object '%s' does not exist",
+                                                    context.object);
+    }
+    else if( !context.interface_info ) {
+        context.rsp = dbus_message_new_error_printf(context.msg,
+                                                    DBUS_ERROR_UNKNOWN_INTERFACE,
+                                                    "Interface '%s' does not exist",
+                                                    context.interface);
+    }
+    else {
+        context.rsp = dbus_message_new_error_printf(context.msg,
+                                                    DBUS_ERROR_UNKNOWN_METHOD,
+                                                    "Method '%s.%s' does not exist",
+                                                    context.interface,
+                                                    context.member);
     }
 
 EXIT:
-
-    if(reply)
-    {
-        if( !dbus_message_get_no_reply(msg) )
-        {
-            if( !dbus_connection_send(connection, reply, 0) )
+    if( context.rsp ) {
+        status = DBUS_HANDLER_RESULT_HANDLED;
+        if( !dbus_message_get_no_reply(context.msg) ) {
+            if( !dbus_connection_send(connection, context.rsp, 0) )
                 log_debug("Failed sending reply. Out Of Memory!\n");
         }
-        dbus_message_unref(reply);
+        dbus_message_unref(context.rsp);
     }
 
     return status;
@@ -1400,7 +1968,8 @@ EXIT:
  * @param name   Name of sender from DBusMessage
  * @return Uid of the sender or UID_UNKNOWN if it can not be determined
  */
-uid_t umdbus_get_sender_uid(const char *name)
+static uid_t
+umdbus_get_sender_uid(const char *name)
 {
     LOG_REGISTER_CONTEXT;
 

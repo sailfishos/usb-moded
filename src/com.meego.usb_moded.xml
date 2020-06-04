@@ -1,5 +1,7 @@
-<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
-"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<!DOCTYPE node PUBLIC
+ "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+
 <node name="/com/meego/usb_moded">
   <interface name="com.meego.usb_moded">
     <method name="mode_request">
@@ -100,6 +102,6 @@
     <method name="get_target_mode_config">
       <arg name="config" type="a{sv}" direction="out"/>
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QVariantMap"/>
-    </signal>
+    </method>
   </interface>
 </node>

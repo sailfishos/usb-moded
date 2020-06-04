@@ -953,6 +953,10 @@ static const char usbmoded_usage_info[] =
 "      Setup given function during bootup. Might be required\n"
 "      on some devices to make enumeration work on the 1st\n"
 "      cable connect.\n"
+"  -I --dbus-introspect-xml\n"
+"      Dump usb-moded D-Bus introspect data to stdout.\n"
+"  -B --dbus-busconfig-xml\n"
+"      Dump usb-moded D-Bus busconfig data to stdout.\n"
 "\n";
 
 static const struct option usbmoded_long_options[] =
@@ -972,10 +976,12 @@ static const struct option usbmoded_long_options[] =
     { "max-cable-delay",                required_argument, 0, 'm' },
     { "android-bootup-function",        required_argument, 0, 'b' },
     { "auto-exit",                      no_argument,       0, 'Q' },
+    { "dbus-introspect-xml",            no_argument,       0, 'I' },
+    { "dbus-busconfig-xml",             no_argument,       0, 'B' },
     { 0, 0, 0, 0 }
 };
 
-static const char usbmoded_short_options[] = "aifsTlDdhrnvm:b:Q";
+static const char usbmoded_short_options[] = "aifsTlDdhrnvm:b:QIB";
 
 /* Display usbmoded_usage information */
 static void usbmoded_usage(void)
@@ -1057,6 +1063,14 @@ static void usbmoded_parse_options(int argc, char* argv[])
         case 'Q':
           usbmoded_auto_exit = true;
           break;
+
+        case 'I':
+            umdbus_dump_introspect_xml();
+            exit(EXIT_SUCCESS);
+
+        case 'B':
+            umdbus_dump_busconfig_xml();
+            exit(EXIT_SUCCESS);
 
         default:
             usbmoded_usage();
