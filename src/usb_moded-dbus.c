@@ -929,15 +929,16 @@ usb_moded_rescue_off_cb(umdbus_context_t *context)
 
 static const member_info_t usb_moded_members[] =
 {
-    /* FIXME: ordering here does not make sense, but minimizes
-     *        diff with old manually updated introspect data.
-     */
     ADD_METHOD(USB_MODE_STATE_REQUEST,
                usb_moded_state_request_cb,
                "      <arg name=\"mode\" type=\"s\" direction=\"out\"/>\n"),
     ADD_METHOD(USB_MODE_TARGET_STATE_GET,
                usb_moded_target_state_get_cb,
                "      <arg name=\"mode\" type=\"s\" direction=\"out\"/>\n"),
+    ADD_METHOD(USB_MODE_TARGET_CONFIG_GET,
+               usb_moded_target_config_get_cb,
+               "      <arg name=\"config\" type=\"a{sv}\" direction=\"out\"/>\n"
+               "      <annotation name=\"org.qtproject.QtDBus.QtTypeName.Out0\" value=\"QVariantMap\"/>\n"),
     ADD_METHOD(USB_MODE_STATE_SET,
                usb_moded_state_set_cb,
                "      <arg name=\"mode\" type=\"s\" direction=\"in\"/>\n"
@@ -946,17 +947,6 @@ static const member_info_t usb_moded_members[] =
                usb_moded_config_set_cb,
                "      <arg name=\"config\" type=\"s\" direction=\"in\"/>\n"
                "      <arg name=\"config\" type=\"s\" direction=\"out\"/>\n"),
-    ADD_METHOD(USB_MODE_NETWORK_SET,
-               usb_moded_network_set_cb,
-               "      <arg name=\"key\" type=\"s\" direction=\"in\"/>\n"
-               "      <arg name=\"value\" type=\"s\" direction=\"in\"/>\n"
-               "      <arg name=\"key\" type=\"s\" direction=\"out\"/>\n"
-               "      <arg name=\"value\" type=\"s\" direction=\"out\"/>\n"),
-    ADD_METHOD(USB_MODE_NETWORK_GET,
-               usb_moded_network_get_cb,
-               "      <arg name=\"key\" type=\"s\" direction=\"in\"/>\n"
-               "      <arg name=\"key\" type=\"s\" direction=\"out\"/>\n"
-               "      <arg name=\"value\" type=\"s\" direction=\"out\"/>\n"),
     ADD_METHOD(USB_MODE_CONFIG_GET,
                usb_moded_config_get_cb,
                "      <arg name=\"mode\" type=\"s\" direction=\"out\"/>\n"),
@@ -990,6 +980,17 @@ static const member_info_t usb_moded_members[] =
                usb_moded_whitelisted_set_cb,
                "      <arg name=\"mode\" type=\"s\" direction=\"in\"/>\n"
                "      <arg name=\"whitelisted\" type=\"b\" direction=\"in\"/>\n"),
+    ADD_METHOD(USB_MODE_NETWORK_SET,
+               usb_moded_network_set_cb,
+               "      <arg name=\"key\" type=\"s\" direction=\"in\"/>\n"
+               "      <arg name=\"value\" type=\"s\" direction=\"in\"/>\n"
+               "      <arg name=\"key\" type=\"s\" direction=\"out\"/>\n"
+               "      <arg name=\"value\" type=\"s\" direction=\"out\"/>\n"),
+    ADD_METHOD(USB_MODE_NETWORK_GET,
+               usb_moded_network_get_cb,
+               "      <arg name=\"key\" type=\"s\" direction=\"in\"/>\n"
+               "      <arg name=\"key\" type=\"s\" direction=\"out\"/>\n"
+               "      <arg name=\"value\" type=\"s\" direction=\"out\"/>\n"),
     ADD_METHOD(USB_MODE_RESCUE_OFF,
                usb_moded_rescue_off_cb,
                0),
@@ -999,29 +1000,25 @@ static const member_info_t usb_moded_members[] =
                "      <arg name=\"mode\" type=\"s\"/>\n"),
     ADD_SIGNAL(USB_MODE_TARGET_STATE_SIGNAL_NAME,
                "      <arg name=\"mode\" type=\"s\"/>\n"),
+    ADD_SIGNAL(USB_MODE_TARGET_CONFIG_SIGNAL_NAME,
+               "      <arg name=\"config\" type=\"a{sv}\"/>\n"
+               "      <annotation name=\"org.qtproject.QtDBus.QtTypeName.In0\" value=\"QVariantMap\"/>\n"),
     ADD_SIGNAL(USB_MODE_EVENT_SIGNAL_NAME,
                "      <arg name=\"event\" type=\"s\"/>\n"),
-    ADD_SIGNAL(USB_MODE_ERROR_SIGNAL_NAME,
-               "      <arg name=\"error\" type=\"s\"/>\n"),
-    ADD_SIGNAL(USB_MODE_SUPPORTED_MODES_SIGNAL_NAME,
-               "      <arg name=\"modes\" type=\"s\"/>\n"),
-    ADD_SIGNAL(USB_MODE_AVAILABLE_MODES_SIGNAL_NAME,
-               "      <arg name=\"modes\" type=\"s\"/>\n"),
     ADD_SIGNAL(USB_MODE_CONFIG_SIGNAL_NAME,
                "      <arg name=\"section\" type=\"s\"/>\n"
                "      <arg name=\"key\" type=\"s\"/>\n"
                "      <arg name=\"value\" type=\"s\"/>\n"),
+    ADD_SIGNAL(USB_MODE_SUPPORTED_MODES_SIGNAL_NAME,
+               "      <arg name=\"modes\" type=\"s\"/>\n"),
+    ADD_SIGNAL(USB_MODE_AVAILABLE_MODES_SIGNAL_NAME,
+               "      <arg name=\"modes\" type=\"s\"/>\n"),
     ADD_SIGNAL(USB_MODE_HIDDEN_MODES_SIGNAL_NAME,
                "      <arg name=\"modes\" type=\"s\"/>\n"),
     ADD_SIGNAL(USB_MODE_WHITELISTED_MODES_SIGNAL_NAME,
                "      <arg name=\"modes\" type=\"s\"/>\n"),
-    ADD_SIGNAL(USB_MODE_TARGET_CONFIG_SIGNAL_NAME,
-               "      <arg name=\"config\" type=\"a{sv}\"/>\n"
-               "      <annotation name=\"org.qtproject.QtDBus.QtTypeName.In0\" value=\"QVariantMap\"/>\n"),
-    ADD_METHOD(USB_MODE_TARGET_CONFIG_GET,
-               usb_moded_target_config_get_cb,
-               "      <arg name=\"config\" type=\"a{sv}\" direction=\"out\"/>\n"
-               "      <annotation name=\"org.qtproject.QtDBus.QtTypeName.Out0\" value=\"QVariantMap\"/>\n"),
+    ADD_SIGNAL(USB_MODE_ERROR_SIGNAL_NAME,
+               "      <arg name=\"error\" type=\"s\"/>\n"),
     ADD_SENTINEL
 };
 

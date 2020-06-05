@@ -10,6 +10,10 @@
     <method name="get_target_state">
       <arg name="mode" type="s" direction="out"/>
     </method>
+    <method name="get_target_mode_config">
+      <arg name="config" type="a{sv}" direction="out"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QVariantMap"/>
+    </method>
     <method name="set_mode">
       <arg name="mode" type="s" direction="in"/>
       <arg name="mode" type="s" direction="out"/>
@@ -17,17 +21,6 @@
     <method name="set_config">
       <arg name="config" type="s" direction="in"/>
       <arg name="config" type="s" direction="out"/>
-    </method>
-    <method name="net_config">
-      <arg name="key" type="s" direction="in"/>
-      <arg name="value" type="s" direction="in"/>
-      <arg name="key" type="s" direction="out"/>
-      <arg name="value" type="s" direction="out"/>
-    </method>
-    <method name="get_net_config">
-      <arg name="key" type="s" direction="in"/>
-      <arg name="key" type="s" direction="out"/>
-      <arg name="value" type="s" direction="out"/>
     </method>
     <method name="get_config">
       <arg name="mode" type="s" direction="out"/>
@@ -62,6 +55,17 @@
       <arg name="mode" type="s" direction="in"/>
       <arg name="whitelisted" type="b" direction="in"/>
     </method>
+    <method name="net_config">
+      <arg name="key" type="s" direction="in"/>
+      <arg name="value" type="s" direction="in"/>
+      <arg name="key" type="s" direction="out"/>
+      <arg name="value" type="s" direction="out"/>
+    </method>
+    <method name="get_net_config">
+      <arg name="key" type="s" direction="in"/>
+      <arg name="key" type="s" direction="out"/>
+      <arg name="value" type="s" direction="out"/>
+    </method>
     <method name="rescue_off"/>
     <signal name="sig_usb_state_ind">
       <arg name="mode_or_event" type="s"/>
@@ -72,11 +76,17 @@
     <signal name="sig_usb_target_state_ind">
       <arg name="mode" type="s"/>
     </signal>
+    <signal name="sig_usb_taget_mode_config_ind">
+      <arg name="config" type="a{sv}"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.In0" value="QVariantMap"/>
+    </signal>
     <signal name="sig_usb_event_ind">
       <arg name="event" type="s"/>
     </signal>
-    <signal name="sig_usb_state_error_ind">
-      <arg name="error" type="s"/>
+    <signal name="sig_usb_config_ind">
+      <arg name="section" type="s"/>
+      <arg name="key" type="s"/>
+      <arg name="value" type="s"/>
     </signal>
     <signal name="sig_usb_supported_modes_ind">
       <arg name="modes" type="s"/>
@@ -84,24 +94,14 @@
     <signal name="sig_usb_available_modes_ind">
       <arg name="modes" type="s"/>
     </signal>
-    <signal name="sig_usb_config_ind">
-      <arg name="section" type="s"/>
-      <arg name="key" type="s"/>
-      <arg name="value" type="s"/>
-    </signal>
     <signal name="sig_usb_hidden_modes_ind">
       <arg name="modes" type="s"/>
     </signal>
     <signal name="sig_usb_whitelisted_modes_ind">
       <arg name="modes" type="s"/>
     </signal>
-    <signal name="sig_usb_taget_mode_config_ind">
-      <arg name="config" type="a{sv}"/>
-      <annotation name="org.qtproject.QtDBus.QtTypeName.In0" value="QVariantMap"/>
+    <signal name="sig_usb_state_error_ind">
+      <arg name="error" type="s"/>
     </signal>
-    <method name="get_target_mode_config">
-      <arg name="config" type="a{sv}" direction="out"/>
-      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QVariantMap"/>
-    </method>
   </interface>
 </node>
