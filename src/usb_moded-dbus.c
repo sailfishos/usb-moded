@@ -808,7 +808,7 @@ gboolean umdbus_init_service(void)
     {
         log_debug("failed claiming dbus name\n");
         if( dbus_error_is_set(&error) )
-            log_debug("DBUS ERROR: %s, %s \n", error.name, error.message);
+            log_debug("DBUS ERROR: %s, %s", error.name, error.message);
         goto EXIT;
     }
     log_debug("claimed name %s", USB_MODE_SERVICE);

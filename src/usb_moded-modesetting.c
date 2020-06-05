@@ -527,7 +527,7 @@ static bool modesetting_enter_mass_storage_mode(const modedata_t *data)
             log_debug("%s does not exist, unloading and reloading mass_storage\n", tmp);
             modules_unload_module(MODULE_MASS_STORAGE);
             snprintf(tmp, sizeof tmp, "modprobe %s luns=%zd", MODULE_MASS_STORAGE, count);
-            log_debug("usb-load command = %s \n", tmp);
+            log_debug("usb-load command = %s", tmp);
             if( common_system(tmp) != 0 )
                 goto EXIT;
         }
