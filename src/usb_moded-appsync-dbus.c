@@ -91,7 +91,7 @@ static void dbusappsync_release_name(void)
 
         if( dbus_error_is_set(&error) )
         {
-            log_debug("DBUS ERROR: %s, %s \n", error.name, error.message);
+            log_debug("DBUS ERROR: %s, %s", error.name, error.message);
             dbus_error_free(&error);
         }
     }
@@ -144,7 +144,7 @@ EXIT:
 
     if( dbus_error_is_set(&error) )
     {
-        log_debug("DBUS ERROR: %s, %s \n", error.name, error.message);
+        log_debug("DBUS ERROR: %s, %s", error.name, error.message);
         dbus_error_free(&error);
     }
 

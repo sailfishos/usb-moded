@@ -203,6 +203,15 @@ usb_moded-OBJS += src/usb_moded-worker.o
 usb_moded : $(usb_moded-OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS) $(LDLIBS)
 
+update-configs:: debian/usb_moded.conf
+update-configs:: src/com.meego.usb_moded.xml
+
+debian/usb_moded.conf: usb_moded
+	./usb_moded --dbus-busconfig-xml > $@
+
+src/com.meego.usb_moded.xml: usb_moded
+	./usb_moded --dbus-introspect-xml > $@
+
 # ----------------------------------------------------------------------------
 # usb-moded-devel
 # ----------------------------------------------------------------------------
@@ -343,6 +352,12 @@ PROTO_CPPFLAGS += -DOFONO
 PROTO_CPPFLAGS += -DSYSTEMD
 PROTO_CPPFLAGS += -DUSE_MER_SSU
 PROTO_CPPFLAGS += -DVERBOSE_WAKELOCKING=1
+PROTO_CPPFLAGS += -D_Float32=float
+PROTO_CPPFLAGS += -D_Float64=double
+PROTO_CPPFLAGS += -D_Float128="long double"
+PROTO_CPPFLAGS += -D_Float32x=float
+PROTO_CPPFLAGS += -D_Float64x=double
+PROTO_CPPFLAGS += -D_Float128x="long double"
 
 %.q : CPPFLAGS += $(PROTO_CPPFLAGS)
 %.q : %.c ; $(CC) -o $@ -E $< $(CPPFLAGS) -O

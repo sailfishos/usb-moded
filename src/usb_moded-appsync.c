@@ -280,7 +280,7 @@ int appsync_activate_sync(const char *mode)
     /* check dbus initialisation, skip dbus activated services if this fails */
     if(!dbusappsync_init())
     {
-        log_debug("dbus setup failed => skipping dbus launched apps \n");
+        log_debug("dbus setup failed => skipping dbus launched apps");
         appsync_no_dbus = 1;
     }
 
@@ -347,7 +347,7 @@ int appsync_activate_sync_post(const char *mode)
     /* check dbus initialisation, skip dbus activated services if this fails */
     if(!dbusappsync_init())
     {
-        log_debug("dbus setup failed => skipping dbus launched apps \n");
+        log_debug("dbus setup failed => skipping dbus launched apps");
         appsync_no_dbus = 1;
     }
 #endif /* APP_SYNC_DBUS */
