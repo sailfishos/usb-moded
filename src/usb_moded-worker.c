@@ -33,6 +33,10 @@
 #include "usb_moded-modesetting.h"
 #include "usb_moded-modules.h"
 
+// FIXME: worker thread should not depend on control functionality
+#include "usb_moded-control.h"
+
+#include <sys/types.h>
 #include <sys/eventfd.h>
 
 #include <pthread.h> // NOTRIM
@@ -40,6 +44,27 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <pwd.h>
+
+/* ========================================================================= *
+ * Types
+ * ========================================================================= */
+
+/** Device mounting state */
+typedef enum {
+    /** Mountpoint state can't be determined */
+    DEVSTATE_UNKNOWN,
+    /** Mountpoint does not exist */
+    DEVSTATE_UNMOUNTED,
+    /** Mountpoint does exist */
+    DEVSTATE_MOUNTED,
+} devstate_t;
+
+static const char * const devstate_name[] = {
+  [DEVSTATE_UNKNOWN]   = "unknown",
+  [DEVSTATE_UNMOUNTED] = "unmounted",
+  [DEVSTATE_MOUNTED]   = "mounted",
+};
 
 /* ========================================================================= *
  * Prototypes
@@ -51,6 +76,9 @@
 
 static bool        worker_thread_p                 (void);
 bool               worker_bailing_out              (void);
+static devstate_t  worker_get_mtp_device_state     (void);
+static void        worker_unmount_mtp_device       (void);
+static bool        worker_mount_mtp_device         (void);
 static bool        worker_mode_is_mtp_mode         (const char *mode);
 static bool        worker_is_mtpd_running          (void);
 static bool        worker_mtpd_running_p           (void *aptr);
@@ -141,6 +169,113 @@ worker_bailing_out(void)
     return (worker_thread_p() &&
             worker_bailout_requested &&
             !worker_bailout_handled);
+}
+
+/* ------------------------------------------------------------------------- *
+ * MTP_DEVICE
+ * ------------------------------------------------------------------------- */
+
+/** Check if mtp device is mounted
+ *
+ * Returns DEVSTATE_MOUNTED / DEVSTATE_UNMOUNTED depending
+ * on whether control endpoint file exists in the mtp device
+ * directory.
+ *
+ * Note: If mtp device directory is for some reason not accessible by
+ *       uid=root processes and usb-moded does not have suitable DAC
+ *       override permissions existance of the control endpoint file
+ *       might not be determinable. In these cases DEVSTATE_UNKNOWN
+ *       is returned and it is left up to the caller how to handle
+ *       such uncertainty.
+ *
+ * @return DEVSTATE_UNMOUNTED,
+ *         DEVSTATE_MOUNTED, or
+ *         DEVSTATE_UNKNOWN
+ */
+static devstate_t
+worker_get_mtp_device_state(void)
+{
+    LOG_REGISTER_CONTEXT;
+
+    devstate_t state = DEVSTATE_UNKNOWN;
+
+    if( access("/dev/mtp/ep0", F_OK) == 0 )
+        state = DEVSTATE_MOUNTED;
+    else if( errno == ENOENT )
+        state = DEVSTATE_UNMOUNTED;
+    else
+        log_warning("/dev/mtp/ep0: %m");
+
+    log_debug("mtp device state = %s", devstate_name[state]);
+    return state;
+}
+
+/** Unmount mtp device
+ */
+static void
+worker_unmount_mtp_device(void)
+{
+    LOG_REGISTER_CONTEXT;
+
+    if( worker_get_mtp_device_state() != DEVSTATE_UNMOUNTED ) {
+        log_debug("unmounting mtp device");
+        common_system("/bin/umount /dev/mtp");
+    }
+}
+
+/** Mount mtp device
+ *
+ * Mount mtp device so that it is accessible by root and the
+ * currently active user.
+ *
+ * @return true if mtp device was mounted as result of call, false otherwise
+ */
+static bool
+worker_mount_mtp_device(void)
+{
+    LOG_REGISTER_CONTEXT;
+
+    bool mounted = false;
+
+    /* Fail if control endpoint is already present */
+    if( worker_get_mtp_device_state() != DEVSTATE_UNMOUNTED ) {
+        log_err("mtp device already mounted");
+        goto EXIT;
+    }
+
+    /* Probe currently active user for uid/gid info. In case these
+     * can't be obtained, use values for default user as fallback. */
+    gid_t gid = 100000;
+    uid_t uid = control_get_current_user();
+    if( uid == UID_UNKNOWN )
+        uid = 100000;
+
+    struct passwd *pw = getpwuid(uid);
+    if( pw )
+        gid = pw->pw_gid;
+
+    /* Attempt to mount mtp device using root uid and primary
+     * gid of the current user.
+     */
+    char cmd[256];
+    snprintf(cmd, sizeof cmd,
+             "/bin/mount -o mode=0770,uid=0,gid=%u -t functionfs mtp /dev/mtp",
+             (unsigned)gid);
+
+    log_debug("mounting mtp device");
+    if( common_system(cmd) != 0 )
+        goto EXIT;
+
+    /* Check that control endpoint is present */
+    if( worker_get_mtp_device_state() != DEVSTATE_MOUNTED ) {
+        log_err("mtp control not mounted");
+        goto EXIT;
+    }
+
+    mounted = true;
+
+EXIT:
+    return mounted;
 }
 
 /* ------------------------------------------------------------------------- *
@@ -588,8 +723,12 @@ worker_switch_to_mode(const char *mode)
 
     /* Either mtp daemon is not needed, or it must be *started* in
      * correct phase of gadget configuration when entering mtp mode.
+     *
+     * Similarly, unmount mtp device to make sure sure it gets mounted
+     * with appropriate uid/gid values when it is actually needed.
      */
     worker_stop_mtpd();
+    worker_unmount_mtp_device();
 
     if( worker_get_usb_mode_data() ) {
         modesetting_leave_dynamic_mode();
@@ -624,6 +763,8 @@ worker_switch_to_mode(const char *mode)
         /* When dealing with configfs, we can't enable UDC without
          * already having mtpd running */
         if( worker_mode_is_mtp_mode(mode) && configfs_in_use() ) {
+            if( !worker_mount_mtp_device() )
+                goto FAILED;
             if( !worker_start_mtpd() )
                 goto FAILED;
         }
@@ -638,6 +779,8 @@ worker_switch_to_mode(const char *mode)
          * we can start mtpd. Assumption is that the same applies
          * when using kernel modules. */
         if( worker_mode_is_mtp_mode(mode) && !configfs_in_use() ) {
+            if( !worker_mount_mtp_device() )
+                goto FAILED;
             if( !worker_start_mtpd() )
                 goto FAILED;
         }

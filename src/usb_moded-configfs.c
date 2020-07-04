@@ -797,9 +797,6 @@ configfs_init(void)
 
     /* Prep: mtp_mode */
     configfs_register_function(FUNCTION_MTP);
-    if( access("/dev/mtp/ep0", F_OK) == -1 ) {
-        common_system("/bin/mount -o uid=100000,gid=100000 -t functionfs mtp /dev/mtp");
-    }
 
     /* Prep: developer_mode */
     configfs_register_function(FUNCTION_RNDIS);
