@@ -118,6 +118,7 @@ char                *config_get_android_product_id   (void);
 char                *config_get_hidden_modes         (void);
 char                *config_get_mode_whitelist       (void);
 int                  config_is_roaming_not_allowed   (void);
+bool                 config_user_clear               (uid_t uid);
 
 /* ========================================================================= *
  * Functions
@@ -1100,4 +1101,28 @@ int config_is_roaming_not_allowed(void)
     LOG_REGISTER_CONTEXT;
 
     return config_get_conf_int(NETWORK_ENTRY, NO_ROAMING_KEY);
+}
+
+/**
+ * Remove user configs
+ */
+bool config_user_clear(uid_t uid)
+{
+    if (uid < MIN_ADDITIONAL_USER || uid > MAX_ADDITIONAL_USER) {
+        log_err("Invalid uid value: %d\n", uid);
+        return false;
+    }
+
+    GKeyFile *active_ini = g_key_file_new();
+    config_load_dynamic_config(active_ini);
+
+    char *key = config_make_user_key_string(MODE_SETTING_KEY, uid);
+    if (key) {
+        if (g_key_file_remove_key(active_ini, MODE_SETTING_ENTRY, key, NULL))
+            config_save_dynamic_config(active_ini);
+        g_free(key);
+    }
+
+    g_key_file_free(active_ini);
+    return true;
 }

@@ -67,6 +67,9 @@
       <arg name="value" type="s" direction="out"/>
     </method>
     <method name="rescue_off"/>
+    <method name="clear_config">
+      <arg name="uid" type="u" direction="in"/>
+    </method>
     <signal name="sig_usb_state_ind">
       <arg name="mode_or_event" type="s"/>
     </signal>

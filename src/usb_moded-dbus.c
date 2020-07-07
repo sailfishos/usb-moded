@@ -224,6 +224,7 @@ static void usb_moded_whitelisted_set_cb         (umdbus_context_t *context);
 static void usb_moded_network_set_cb             (umdbus_context_t *context);
 static void usb_moded_network_get_cb             (umdbus_context_t *context);
 static void usb_moded_rescue_off_cb              (umdbus_context_t *context);
+static void usb_moded_user_config_clear_cb       (umdbus_context_t *context);
 
 /* ------------------------------------------------------------------------- *
  * UMDBUS
@@ -827,6 +828,28 @@ usb_moded_whitelisted_modes_set_cb(umdbus_context_t *context)
     dbus_error_free(&err);
 }
 
+/** Clear user config
+ */
+static void
+usb_moded_user_config_clear_cb(umdbus_context_t *context)
+{
+    LOG_REGISTER_CONTEXT;
+
+    dbus_uint32_t uid = 0;
+    DBusError   err       = DBUS_ERROR_INIT;
+
+    if( !dbus_message_get_args(context->msg, &err, DBUS_TYPE_UINT32, &uid, DBUS_TYPE_INVALID) ) {
+        context->rsp = dbus_message_new_error(context->msg, DBUS_ERROR_INVALID_ARGS, context->member);
+    }
+    else {
+        if ( !config_user_clear(uid) )
+            context->rsp =  dbus_message_new_error(context->msg, DBUS_ERROR_INVALID_ARGS, context->member);
+        else if( (context->rsp = dbus_message_new_method_return(context->msg)) )
+            dbus_message_append_args(context->rsp, DBUS_TYPE_UINT32, &uid, DBUS_TYPE_INVALID);
+    }
+    dbus_error_free(&err);
+}
+
 /** Add usb mode to whitelist
  */
 static void
@@ -994,6 +1017,9 @@ static const member_info_t usb_moded_members[] =
     ADD_METHOD(USB_MODE_RESCUE_OFF,
                usb_moded_rescue_off_cb,
                0),
+    ADD_METHOD(USB_MODE_USER_CONFIG_CLEAR,
+               usb_moded_user_config_clear_cb,
+               "      <arg name=\"uid\" type=\"u\" direction=\"in\"/>\n"),
     ADD_SIGNAL(USB_MODE_SIGNAL_NAME,
                "      <arg name=\"mode_or_event\" type=\"s\"/>\n"),
     ADD_SIGNAL(USB_MODE_CURRENT_STATE_SIGNAL_NAME,

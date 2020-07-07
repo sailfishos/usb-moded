@@ -49,6 +49,7 @@ static int util_set_hide_mode_config  (char *mode);
 static int util_set_unhide_mode_config(char *mode);
 static int util_get_hiddenlist        (void);
 static int util_handle_network        (char *network);
+static int util_clear_user_config     (char *uid);
 
 /* ------------------------------------------------------------------------- *
  * MAIN
@@ -369,10 +370,37 @@ static int util_handle_network(char *network)
         return 1;
 }
 
+static int util_clear_user_config(char *uid)
+{
+    if (!uid) {
+        fprintf(stderr, "No uid given, try -h for more information\n");
+        return true;
+    }
+    dbus_uint32_t user = atoi(uid);
+
+    DBusMessage *req = NULL;
+    DBusMessage *reply = NULL;
+    int ret = 1;
+
+    printf("Clearing config for user uid %d\n", user);
+    if ((req = dbus_message_new_method_call(USB_MODE_SERVICE, USB_MODE_OBJECT, USB_MODE_INTERFACE, USB_MODE_USER_CONFIG_CLEAR)) != NULL)
+    {
+        dbus_message_append_args (req, DBUS_TYPE_UINT32, &user, DBUS_TYPE_INVALID);
+        if ((reply = dbus_connection_send_with_reply_and_block(conn, req, -1, NULL)) != NULL)
+        {
+            dbus_message_unref(reply);
+            ret = 0;
+        }
+        dbus_message_unref(req);
+    }
+
+    return ret;
+}
+
 int main (int argc, char *argv[])
 {
     int query = 0, network = 0, setmode = 0, config = 0;
-    int modelist = 0, mode_configured = 0, hide = 0, unhide = 0, hiddenlist = 0;
+    int modelist = 0, mode_configured = 0, hide = 0, unhide = 0, hiddenlist = 0, clear = 0;
     int res = 1, opt, rescue = 0;
     char *option = 0;
 
@@ -382,7 +410,7 @@ int main (int argc, char *argv[])
         exit(1);
     }
 
-    while ((opt = getopt(argc, argv, "c:dhi:mn:qrs:u:v")) != -1)
+    while ((opt = getopt(argc, argv, "c:dhi:mn:qrs:u:vU:")) != -1)
     {
         switch (opt) {
         case 'c':
@@ -420,6 +448,10 @@ int main (int argc, char *argv[])
         case 'v':
             hiddenlist = 1;
             break;
+        case 'U':
+            clear = 1;
+            option = optarg;
+            break;
         case 'h':
         default:
                 fprintf(stderr, "\nUsage: %s -<option> <args>\n\n \
@@ -434,7 +466,8 @@ int main (int argc, char *argv[])
                    \t-r turn rescue mode off,\n \
                    \t-s to set/activate a mode,\n \
                    \t-u unhide a mode,\n \
-                   \t-v to get the list of hidden modes\n",
+                   \t-v to get the list of hidden modes\n \
+                   \t-U <uid> to clear config for a user\n",
                         argv[0]);
             exit(1);
         }
@@ -471,6 +504,8 @@ int main (int argc, char *argv[])
         res = util_set_unhide_mode_config(option);
     else if (hiddenlist)
         res = util_get_hiddenlist();
+    else if (clear)
+        res = util_clear_user_config(option);
 
     /* subfunctions will return 1 if an error occured, print message */
     if(res)

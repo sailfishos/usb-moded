@@ -80,6 +80,7 @@
 # define USB_MODE_AVAILABLE_MODES_GET        "get_available_modes" /* returns a comma separated list of modes which are currently available for selection */
 # define USB_MODE_AVAILABLE_MODES_FOR_USER   "get_available_modes_for_user" /* returns a comma separated list of modes which are currently available and permitted for user to select */
 # define USB_MODE_TARGET_CONFIG_GET          "get_target_mode_config" /* returns current target mode configuration */
+# define USB_MODE_USER_CONFIG_CLEAR          "clear_config" /* clear config for a user */
 
 /**
  * (Transient) states reported by "sig_usb_state_ind" that are not modes.

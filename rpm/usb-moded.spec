@@ -351,6 +351,8 @@ install -m 644 -D systemd/usb-moded.conf %{buildroot}/%{_sysconfdir}/tmpfiles.d/
 install -m 644 -D systemd/adbd-prepare.service %{buildroot}/lib/systemd/system/adbd-prepare.service
 install -m 644 -D systemd/adbd-prepare.service %{buildroot}/lib/systemd/system/graphical.target.wants/adbd-prepare.service
 install -m 744 -D systemd/adbd-functionfs.sh %{buildroot}/usr/sbin/adbd-functionfs.sh
+install -d %{buildroot}/usr/share/user-managerd/remove.d/
+install -m 744 -D scripts/usb_mode_user_clear.sh %{buildroot}/usr/share/user-managerd/remove.d/
 
 %preun
 systemctl daemon-reload || :
@@ -377,6 +379,7 @@ systemctl daemon-reload || :
 %{_sysconfdir}/tmpfiles.d/usb-moded.conf
 %dir %{_sharedstatedir}/usb-moded
 %ghost %{_sharedstatedir}/usb-moded/usb-moded.ini
+/usr/share/user-managerd/remove.d/usb_mode_user_clear.sh
 
 %files devel
 %defattr(-,root,root,-)
