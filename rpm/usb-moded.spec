@@ -17,6 +17,7 @@ BuildRequires: pkgconfig(libsystemd)
 BuildRequires: pkgconfig(ssu-sysinfo)
 BuildRequires: pkgconfig(dsme) >= 0.65.0
 BuildRequires: pkgconfig(sailfishaccesscontrol)
+BuildRequires: systemd
 
 Requires: lsof
 Requires: usb-moded-configs
@@ -339,17 +340,16 @@ ln -sf /run/usb-moded/udhcpd.conf %{buildroot}/%{_sysconfdir}/udhcpd.conf
 
 touch %{buildroot}/%{_sysconfdir}/modprobe.d/g_ether.conf
 #systemd stuff
-install -d $RPM_BUILD_ROOT/lib/systemd/system/basic.target.wants/
-install -m 644 -D systemd/%{name}.service %{buildroot}/lib/systemd/system/%{name}.service
-ln -s ../%{name}.service $RPM_BUILD_ROOT/lib/systemd/system/basic.target.wants/%{name}.service
-install -d %{buildroot}/usr/lib/systemd/user
+install -d $RPM_BUILD_ROOT%{_unitdir}/basic.target.wants/
+install -m 644 -D systemd/%{name}.service %{buildroot}%{_unitdir}/%{name}.service
+ln -s ../%{name}.service $RPM_BUILD_ROOT%{_unitdir}/basic.target.wants/%{name}.service
 install -m 644 -D systemd/usb-moded-args.conf %{buildroot}/var/lib/environment/usb-moded/usb-moded-args.conf
 install -m 755 -D systemd/turn-usb-rescue-mode-off %{buildroot}/%{_bindir}/turn-usb-rescue-mode-off
-install -m 644 -D systemd/usb-rescue-mode-off.service %{buildroot}/lib/systemd/system/usb-rescue-mode-off.service
-install -m 644 -D systemd/usb-rescue-mode-off.service %{buildroot}/lib/systemd/system/graphical.target.wants/usb-rescue-mode-off.service
+install -m 644 -D systemd/usb-rescue-mode-off.service %{buildroot}%{_unitdir}/usb-rescue-mode-off.service
+install -m 644 -D systemd/usb-rescue-mode-off.service %{buildroot}%{_unitdir}/graphical.target.wants/usb-rescue-mode-off.service
 install -m 644 -D systemd/usb-moded.conf %{buildroot}/%{_sysconfdir}/tmpfiles.d/usb-moded.conf
-install -m 644 -D systemd/adbd-prepare.service %{buildroot}/lib/systemd/system/adbd-prepare.service
-install -m 644 -D systemd/adbd-prepare.service %{buildroot}/lib/systemd/system/graphical.target.wants/adbd-prepare.service
+install -m 644 -D systemd/adbd-prepare.service %{buildroot}%{_unitdir}/adbd-prepare.service
+install -m 644 -D systemd/adbd-prepare.service %{buildroot}%{_unitdir}/graphical.target.wants/adbd-prepare.service
 install -m 744 -D systemd/adbd-functionfs.sh %{buildroot}/usr/sbin/adbd-functionfs.sh
 install -d %{buildroot}/usr/share/user-managerd/remove.d/
 install -m 744 -D scripts/usb_mode_user_clear.sh %{buildroot}/usr/share/user-managerd/remove.d/
@@ -374,8 +374,8 @@ systemctl daemon-reload || :
 %ghost %{_sysconfdir}/usb-moded/usb-moded.ini
 %{_sbindir}/usb_moded
 %{_sbindir}/usb_moded_util
-/lib/systemd/system/%{name}.service
-/lib/systemd/system/basic.target.wants/%{name}.service
+%{_unitdir}/%{name}.service
+%{_unitdir}/basic.target.wants/%{name}.service
 %{_sysconfdir}/tmpfiles.d/usb-moded.conf
 %dir %{_sharedstatedir}/usb-moded
 %ghost %{_sharedstatedir}/usb-moded/usb-moded.ini
@@ -430,8 +430,8 @@ systemctl daemon-reload || :
 %{_sysconfdir}/usb-moded/run/adb-startserver.ini
 %{_sysconfdir}/usb-moded/run/adb-prepare.ini
 %{_sysconfdir}/usb-moded/run/udhcpd-adb-mode.ini
-/lib/systemd/system/adbd-prepare.service
-/lib/systemd/system/graphical.target.wants/adbd-prepare.service
+%{_unitdir}/adbd-prepare.service
+%{_unitdir}/graphical.target.wants/adbd-prepare.service
 /usr/sbin/adbd-functionfs.sh
 
 %files mtp-mode-android
@@ -490,5 +490,5 @@ systemctl daemon-reload || :
 %defattr(-,root,root,-)
 /var/lib/environment/usb-moded/usb-moded-args.conf
 %{_bindir}/turn-usb-rescue-mode-off
-/lib/systemd/system/usb-rescue-mode-off.service
-/lib/systemd/system/graphical.target.wants/usb-rescue-mode-off.service
+%{_unitdir}/usb-rescue-mode-off.service
+%{_unitdir}/graphical.target.wants/usb-rescue-mode-off.service
