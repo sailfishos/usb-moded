@@ -725,7 +725,9 @@ bool modesetting_enter_dynamic_mode(void)
 
     log_debug("data->mode_name = %s", data->mode_name);
     log_debug("data->mass_storage = %d", data->mass_storage);
+#ifdef CONNMAN
     log_debug("data->connman_tethering = %s", data->connman_tethering ?: "n/a");
+#endif
     log_debug("data->appsync = %d", data->appsync);
     log_debug("data->network = %d", data->network);
     log_debug("data->network_interface = %s", data->network_interface ?: "n/a");
@@ -888,7 +890,9 @@ void modesetting_leave_dynamic_mode(void)
     }
 
     log_debug("data->mass_storage = %d", data->mass_storage);
+#ifdef CONNMAN
     log_debug("data->connman_tethering = %s", data->connman_tethering ?: "n/a");
+#endif
     log_debug("data->appsync = %d", data->appsync);
     log_debug("data->network = %d", data->network);
 
