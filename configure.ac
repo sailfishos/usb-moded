@@ -105,10 +105,30 @@ PKG_CHECK_MODULES([USB_MODED], [
  gio-2.0
  libudev
  libkmod
- ssu-sysinfo
- libsystemd
- dsme
- sailfishaccesscontrol
+])
+
+AS_IF([test "x$mer_ssu" = "xtrue"], [
+   PKG_CHECK_MODULES([SSU_SYSINFO], [ssu-sysinfo])
+   AC_SUBST(SSU_SYSINFO_LIBS)
+   AC_SUBST(SSU_SYSINFO_CFLAGS)
+])
+
+AS_IF([test "x$meegodevlock" = "xtrue"], [
+   PKG_CHECK_MODULES([DSME], [dsme])
+   AC_SUBST(DSME_LIBS)
+   AC_SUBST(DSME_CFLAGS)
+])
+
+AS_IF([test "x$sailfish_access_control" = "xtrue"], [
+   PKG_CHECK_MODULES([SAILFISH_ACCESS_CONTROL], [sailfishaccesscontrol])
+   AC_SUBST(SAILFISH_ACCESS_CONTROLD_LIBS)
+   AC_SUBST(SAILFISH_ACCESS_CONTROL_CFLAGS)
+])
+
+AS_IF([test "x$systemd" = "xtrue"], [
+   PKG_CHECK_MODULES([SYSTEMD], [libsystemd])
+   AC_SUBST(SYSTEMD_LIBS)
+   AC_SUBST(SYSTEMD_CFLAGS)
 ])
 
 AC_SUBST(USB_MODED_LIBS)
