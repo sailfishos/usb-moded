@@ -12,7 +12,6 @@ AC_PROG_LIBTOOL
 AC_C_CONST
 AC_HEADER_STDC
 
-AM_PROG_CC_C_O
 
 test_gcc_flag() {
 #    AC_LANG_CONFTEST([int main() {}])
