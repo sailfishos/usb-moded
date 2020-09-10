@@ -102,7 +102,7 @@ AM_CONDITIONAL([OFONO], [test x$ofono = xtrue])
 PKG_CHECK_MODULES([DBUS], dbus-1 >= 1.8)
 PKG_CHECK_MODULES([GLIB], glib-2.0 >= 2.24.0)
 PKG_CHECK_MODULES([USB_MODED], [
- glib-2.0 >= 2.24.0
+ glib-2.0 >= 2.40.0
  gobject-2.0 >= 2.16.6
  gio-2.0
  libudev
