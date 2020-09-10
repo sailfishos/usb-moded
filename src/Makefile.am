@@ -1,4 +1,5 @@
-USB_MODED_CFLAGS += -D_GNU_SOURCE
+USB_MODED_CFLAGS += -D_GNU_SOURCE \
+	$(DBUS_CFLAGS)
 USB_MODED_LIBS   += -lpthread
 
 sbin_PROGRAMS = usb_moded \
@@ -103,7 +104,8 @@ usb_moded_util_LDFLAGS = \
 	-Wl,--as-needed
 
 usb_moded_util_LDADD = \
-        $(USB_MODED_LIBS)
+        $(USB_MODED_LIBS) \
+	$(DBUS_LIBS)
 	
 usb_moded_util_SOURCES = \
 	usb_moded-util.c
