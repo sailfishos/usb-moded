@@ -12,7 +12,9 @@ usb_moded_LDFLAGS = \
 	-Wl,--as-needed
 
 usb_moded_LDADD = \
-        $(USB_MODED_LIBS)
+        $(USB_MODED_LIBS) \
+	$(DBUS_LIBS) \
+	$(top_srcdir)/dbus-gmain/libdbus-gmain.la
 
 usb_moded_SOURCES = \
         usb_moded.c \

@@ -1,5 +1,6 @@
 AC_INIT([usb_moded], [0.86.0+mer47])
-AM_INIT_AUTOMAKE([-Wall -Werror foreign])
+AM_INIT_AUTOMAKE([-Wall -Werror foreign subdir-objects])
+AM_EXTRA_RECURSIVE_TARGETS([dbus-gmain])
 
 AM_CONFIG_HEADER([config.h])
 
@@ -102,7 +103,6 @@ PKG_CHECK_MODULES([DBUS], dbus-1 >= 1.8)
 PKG_CHECK_MODULES([GLIB], glib-2.0 >= 2.24.0)
 PKG_CHECK_MODULES([USB_MODED], [
  glib-2.0 >= 2.24.0
- dbus-glib-1 >= 0.78
  gobject-2.0 >= 2.16.6
  gio-2.0
  libudev
@@ -138,6 +138,7 @@ AC_SUBST(USB_MODED_CFLAGS)
 
 AC_CONFIG_FILES([
 	Makefile
+        dbus-gmain/Makefile
 	src/Makefile
 	usb_moded.pc
 	docs/usb_moded-doxygen.conf
