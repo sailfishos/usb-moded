@@ -97,9 +97,9 @@ AC_ARG_ENABLE([ofono], AS_HELP_STRING([--enable-ofono], [Enable ofono DBUS inter
    esac],[ofono=false])
 AM_CONDITIONAL([OFONO], [test x$ofono = xtrue])
 
+PKG_CHECK_MODULES([DBUS], dbus-1 >= 1.8)
 PKG_CHECK_MODULES([USB_MODED], [
  glib-2.0 >= 2.24.0
- dbus-1 >= 1.2.1
  dbus-glib-1 >= 0.78
  gobject-2.0 >= 2.16.6
  gio-2.0
