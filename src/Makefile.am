@@ -36,7 +36,7 @@ usb_moded_SOURCES = \
 	usb_moded-network.h \
 	usb_moded-modesetting.c \
 	usb_moded-modesetting.h \
- 	usb_moded-mac.c \
+	usb_moded-mac.c \
 	usb_moded-mac.h \
 	usb_moded-dyn-config.c \
 	usb_moded-dyn-config.h \
@@ -108,6 +108,6 @@ usb_moded_util_LDFLAGS = \
 usb_moded_util_LDADD = \
         $(USB_MODED_LIBS) \
 	$(DBUS_LIBS)
-	
+
 usb_moded_util_SOURCES = \
 	usb_moded-util.c
