@@ -55,6 +55,9 @@ if USE_MER_SSU
 usb_moded_SOURCES += \
 	usb_moded-ssu.h \
 	usb_moded-ssu.c
+
+usb_moded_CPPFLAGS += ${SSU_SYSINFO_CFLAGS}
+usb_moded_LDADD += ${SSU_SYSINFO_LIBS}
 endif
 
 if MEEGOLOCK
@@ -63,6 +66,9 @@ usb_moded_SOURCES += \
 	usb_moded-devicelock.c \
 	usb_moded-dsme.h \
 	usb_moded-dsme.c
+
+usb_moded_CPPFLAGS += ${DSME_CFLAGS}
+usb_moded_LDADD += ${DSME_LIBS}
 endif
 
 if APP_SYNC
@@ -81,8 +87,13 @@ usb_moded_SOURCES += \
 endif
 
 if SAILFISH_ACCESS_CONTROL
-usb_moded_CPPFLAGS += `pkg-config --cflags sailfishaccesscontrol`
-usb_moded_LDFLAGS  += `pkg-config --libs sailfishaccesscontrol`
+usb_moded_CPPFLAGS += ${SAILFISH_ACCESS_CONTROL_CFLAGS}
+usb_moded_LDADD  += ${SAILFISH_ACCESS_CONTROL_LIBS}
+endif
+
+if SYSTEMD
+usb_moded_CPPFLAGS += ${SYSTEMD_CFLAGS}
+usb_moded_LDADD += ${SYSTEMD_LIBS}
 endif
 
 usb_moded_util_CPPFLAGS = \
