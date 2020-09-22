@@ -1108,10 +1108,12 @@ int config_is_roaming_not_allowed(void)
  */
 bool config_user_clear(uid_t uid)
 {
+#ifdef SAILFISH_ACCESS_CONTROL
     if (uid < MIN_ADDITIONAL_USER || uid > MAX_ADDITIONAL_USER) {
         log_err("Invalid uid value: %d\n", uid);
         return false;
     }
+#endif
 
     GKeyFile *active_ini = g_key_file_new();
     config_load_dynamic_config(active_ini);
