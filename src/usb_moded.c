@@ -327,11 +327,16 @@ void usbmoded_set_rescue_mode(bool rescue_mode)
  * In diag mode usb-moded uses separate mode configuration which
  * should have exactly one mode defined / available.
  */
-static bool usbmoded_diag_mode = false;
+static int usbmoded_diag_mode = -1;
 
 bool usbmoded_get_diag_mode(void)
 {
     LOG_REGISTER_CONTEXT;
+
+    if( usbmoded_diag_mode == -1 ) {
+        usbmoded_diag_mode = false;
+        log_info("diag_mode: locked to %d", usbmoded_diag_mode);
+    }
 
     return usbmoded_diag_mode;
 }
@@ -341,8 +346,13 @@ void usbmoded_set_diag_mode(bool diag_mode)
     LOG_REGISTER_CONTEXT;
 
     if( usbmoded_diag_mode != diag_mode ) {
-        log_info("diag_mode: %d -> %d",  usbmoded_diag_mode, diag_mode);
-        usbmoded_diag_mode = diag_mode;
+        if( usbmoded_diag_mode == -1 ) {
+            usbmoded_diag_mode = diag_mode;
+            log_info("diag_mode: set to %d", usbmoded_diag_mode);
+        }
+        else {
+            log_err("dig_mode: already locked to %d", usbmoded_diag_mode);
+        }
     }
 }
 
