@@ -37,39 +37,108 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <glob.h>
+
+/* ========================================================================= *
+ * Types
+ * ========================================================================= */
+
+/** Application activation state
+ */
+typedef enum app_state_t {
+    /** Application is not relevant for the current mode */
+    APP_STATE_DONTCARE = 0,
+    /** Application should be started */
+    APP_STATE_INACTIVE = 1,
+    /** Application should be stopped when exiting the mode  */
+    APP_STATE_ACTIVE   = 2,
+} app_state_t;
+
+/**
+ * keep all the needed info together for launching an app
+ */
+typedef struct application_t
+{
+    char        *name;     /**< name of the app to launch */
+    char        *mode;     /**< mode in which to launch the app */
+    char        *launch;   /**< dbus launch command/address */
+    app_state_t  state;    /**< marker to check if the app has started sucessfully */
+    int          systemd;  /**< marker to know if we start it with systemd or not */
+    int          post;     /**< marker to indicate when to start the app */
+} application_t;
 
 /* ========================================================================= *
  * Prototypes
  * ========================================================================= */
 
 /* ------------------------------------------------------------------------- *
+ * APPLICATION
+ * ------------------------------------------------------------------------- */
+
+static bool           application_is_valid  (const application_t *self);
+static application_t *application_load      (const char *filename);
+static void           application_free      (application_t *self);
+static void           application_free_cb   (gpointer self);
+static gint           application_compare_cb(gconstpointer a, gconstpointer b);
+
+/* ------------------------------------------------------------------------- *
+ * APPLIST
+ * ------------------------------------------------------------------------- */
+
+static void   applist_free(GList *list);
+static GList *applist_load(const char *conf_dir);
+
+/* ------------------------------------------------------------------------- *
  * APPSYNC
  * ------------------------------------------------------------------------- */
 
-static void         appsync_free_elem                 (list_elem_t *elem);
-static void         appsync_free_elem_cb              (gpointer elem, gpointer user_data);
-void                appsync_free_appsync_list         (void);
-static gint         appsync_list_sort_func            (gconstpointer a, gconstpointer b);
-void                appsync_read_list                 (void);
-static list_elem_t *appsync_read_file                 (const char *filename);
-int                 appsync_activate_sync             (const char *mode);
-int                 appsync_activate_sync_post        (const char *mode);
-int                 appsync_mark_active               (const gchar *name, int post);
+void            appsync_switch_configuration      (void);
+void            appsync_free_configuration        (void);
+void            appsync_load_configuration        (void);
+int             appsync_activate_pre              (const char *mode);
+int             appsync_activate_post             (const char *mode);
+static int      appsync_mark_active_locked        (const char *name, int post);
+int             appsync_mark_active               (const char *name, int post);
 #ifdef APP_SYNC_DBUS
-static gboolean     appsync_enumerate_usb_cb          (gpointer data);
-static void         appsync_start_enumerate_usb_timer (void);
-static void         appsync_cancel_enumerate_usb_timer(void);
-static void         appsync_enumerate_usb             (void);
-#endif // APP_SYNC_DBUS
-void                appsync_stop_apps                 (int post);
-int                 appsync_stop                      (gboolean force);
+static gboolean appsync_enumerate_usb_cb          (gpointer data);
+static void     appsync_start_enumerate_usb_timer (void);
+static void     appsync_cancel_enumerate_usb_timer(void);
+static void     appsync_enumerate_usb             (void);
+#endif
+static void     appsync_stop_apps                 (int post);
+void            appsync_deactivate_pre            (void);
+void            appsync_deactivate_post           (void);
+void            appsync_deactivate_all            (bool force);
 
 /* ========================================================================= *
  * Data
  * ========================================================================= */
 
-static GList *appsync_sync_list = NULL;
+/** Mutex for accessing appsync configuration lists
+ */
+static pthread_mutex_t appsync_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+#define APPSYNC_LOCKED_ENTER do {\
+    if( pthread_mutex_lock(&appsync_mutex) != 0 ) { \
+        log_crit("APPSYNC LOCK FAILED");\
+        _exit(EXIT_FAILURE);\
+    }\
+}while(0)
+
+#define APPSYNC_LOCKED_LEAVE do {\
+    if( pthread_mutex_unlock(&appsync_mutex) != 0 ) { \
+        log_crit("APPSYNC UNLOCK FAILED");\
+        _exit(EXIT_FAILURE);\
+    }\
+}while(0)
+
+/** Currently active application list */
+static GList *appsync_apps_curr = NULL;
+
+/** Application list to use from the next mode transition onwards */
+static GList *appsync_apps_next = NULL;
+static bool appsync_apps_updated = false;
 
 #ifdef APP_SYNC_DBUS
 static guint appsync_enumerate_usb_id = 0;
@@ -80,59 +149,152 @@ static int appsync_no_dbus = 1; // always disabled
 #endif /* APP_SYNC_DBUS */
 
 /* ========================================================================= *
- * Functions
+ * APPLICATION
  * ========================================================================= */
 
-static void appsync_free_elem(list_elem_t *elem)
+/** Validity check for loaded application objects
+ *
+ * To make sense object must specify:
+ * - application name
+ * - name of the mode that triggers the application
+ * - whether its started via systemd or dbus
+ *
+ * @return true if object is usable, false otherwise
+ */
+static bool application_is_valid(const application_t *self)
 {
-    LOG_REGISTER_CONTEXT;
-
-    g_free(elem->name);
-    g_free(elem->launch);
-    g_free(elem->mode);
-    free(elem);
+    return self && self->name && self->mode && (self->systemd || self->launch);
 }
 
-static void appsync_free_elem_cb(gpointer elem, gpointer user_data)
+/** Load application object from ini-file
+ *
+ * @param filename  Path to an ini-file
+ *
+ * @returns application object pointer, or NULL in case of errors
+ */
+static application_t *application_load(const char *filename)
 {
     LOG_REGISTER_CONTEXT;
 
-    (void)user_data;
-    appsync_free_elem(elem);
+    application_t *self   = NULL;
+    GKeyFile     *keyfile = NULL;
+
+    log_debug("loading appsync file: %s", filename);
+
+    if( !(keyfile = g_key_file_new()) )
+        goto cleanup;
+
+    if( !g_key_file_load_from_file(keyfile, filename, G_KEY_FILE_NONE, NULL) ) {
+        log_warning("failed to load appsync file: %s", filename);
+        goto cleanup;
+    }
+
+    if( !(self = calloc(1, sizeof *self)) )
+        goto cleanup;
+
+    self->name = g_key_file_get_string(keyfile, APP_INFO_ENTRY, APP_INFO_NAME_KEY, NULL);
+    log_debug("Appname = %s\n", self->name ?: "<unset>");
+
+    self->launch = g_key_file_get_string(keyfile, APP_INFO_ENTRY, APP_INFO_LAUNCH_KEY, NULL);
+    log_debug("Launch = %s\n", self->launch ?: "<unset>");
+
+    self->mode = g_key_file_get_string(keyfile, APP_INFO_ENTRY, APP_INFO_MODE_KEY, NULL);
+    log_debug("Launch mode = %s\n", self->mode ?: "<unset>");
+
+    self->systemd = g_key_file_get_integer(keyfile, APP_INFO_ENTRY, APP_INFO_SYSTEMD_KEY, NULL);
+    log_debug("Systemd control = %d\n", self->systemd);
+
+    self->post = g_key_file_get_integer(keyfile, APP_INFO_ENTRY, APP_INFO_POST, NULL);
+    log_debug("post = %d\n", self->post);
+
+    self->state = APP_STATE_DONTCARE;
+
+cleanup:
+
+    if(keyfile)
+        g_key_file_free(keyfile);
+
+    /* if a minimum set of required elements is not filled in we discard the list_item */
+    if( self && !application_is_valid(self) ) {
+        log_warning("discarding invalid appsync file: %s", filename);
+        application_free(self),
+            self = 0;
+    }
+
+    return self;
 }
 
-void appsync_free_appsync_list(void)
+/** Release dynamic memory associated with an application object
+ *
+ * @param self  Application object, or NULL
+ */
+static void application_free(application_t *self)
 {
     LOG_REGISTER_CONTEXT;
 
-    if( appsync_sync_list != 0 )
-    {
-        /*g_list_free_full(appsync_sync_list, appsync_free_elem); */
-        g_list_foreach (appsync_sync_list, appsync_free_elem_cb, NULL);
-        g_list_free (appsync_sync_list);
-        appsync_sync_list = 0;
-        log_debug("Appsync list freed\n");
+    if( self ) {
+        g_free(self->name);
+        g_free(self->launch);
+        g_free(self->mode);
+        free(self);
     }
 }
 
-static gint appsync_list_sort_func(gconstpointer a, gconstpointer b)
+/** GDestroyNotify type object destroy callback
+ *
+ * @param self  Application object as void pointer, or NULL
+ */
+static void application_free_cb(gpointer self)
 {
     LOG_REGISTER_CONTEXT;
 
-    return strcasecmp( (char*)a, (char*)b );
+    application_free(self);
 }
 
-void appsync_read_list(void)
+/** GCompareFunc type object compare callback
+ *
+ * @param a  Application object as void pointer
+ * @param b  Application object as void pointer
+ *
+ * returns negative value if a < b ; zero if a == b ; positive value if a > b
+ */
+static gint application_compare_cb(gconstpointer a, gconstpointer b)
 {
     LOG_REGISTER_CONTEXT;
 
-    gchar *pat = 0;
-    glob_t gb  = {};
+    const application_t *application_a = a;
+    const application_t *application_b = b;
+    return strcasecmp(application_a->name, application_b->name);
+}
 
-    appsync_free_appsync_list();
+/* ========================================================================= *
+ * APPLIST
+ * ========================================================================= */
 
-    bool diag_mode = usbmoded_get_diag_mode();
-    const char *conf_dir = diag_mode ? CONF_DIR_DIAG_PATH : CONF_DIR_PATH;
+/** Release a list of application objects
+ *
+ * @param list  List of objects, or NULL
+ */
+static void applist_free(GList *list)
+{
+    g_list_free_full(list, application_free_cb);
+}
+
+/** Load a list of application objects
+ *
+ * @param conf_dir  Path to directory containing ini-files
+ *
+ * @returns list of application objects, or
+ *          NULL if no files were present / could be loaded
+ */
+static GList *applist_load(const char *conf_dir)
+{
+    LOG_REGISTER_CONTEXT;
+
+    GList *list = 0;
+    gchar *pat  = 0;
+    glob_t gb   = {};
+
     if( !(pat = g_strdup_printf("%s/*.ini", conf_dir)) )
         goto cleanup;
 
@@ -142,115 +304,167 @@ void appsync_read_list(void)
     }
 
     for( size_t i = 0; i < gb.gl_pathc; ++i ) {
-        list_elem_t *list_item = appsync_read_file(gb.gl_pathv[i]);
-        if( list_item )
-            appsync_sync_list = g_list_append(appsync_sync_list, list_item);
+        application_t *application = application_load(gb.gl_pathv[i]);
+        if( application )
+            list = g_list_append(list, application);
     }
 
-    if( appsync_sync_list ) {
+    if( list ) {
         /* sort list alphabetically so services for a mode
          * can be run in a certain order */
-        appsync_sync_list = g_list_sort(appsync_sync_list, appsync_list_sort_func);
-
-        /* set up session bus connection if app sync in use
-         * so we do not need to make the time consuming connect
-         * operation at enumeration time ... */
-        log_debug("Sync list valid\n");
-#ifdef APP_SYNC_DBUS
-        dbusappsync_init_connection();
-#endif
+        list = g_list_sort(list, application_compare_cb);
     }
 
 cleanup:
     globfree(&gb);
     g_free(pat);
+
+    return list;
 }
 
-static list_elem_t *appsync_read_file(const char *filename)
+/* ========================================================================= *
+ * APPSYNC
+ * ========================================================================= */
+
+/** Take previously loaded appsync configuration in use
+ *
+ */
+void appsync_switch_configuration(void)
 {
     LOG_REGISTER_CONTEXT;
 
-    list_elem_t *list_item    = NULL;
-    GKeyFile    *settingsfile = NULL;
+    APPSYNC_LOCKED_ENTER;
 
-    log_debug("loading appsync file: %s", filename);
-
-    if( !(settingsfile = g_key_file_new()) )
-        goto cleanup;
-
-    if( !g_key_file_load_from_file(settingsfile, filename, G_KEY_FILE_NONE, NULL) ) {
-        log_err("failed to load appsync file: %s", filename);
-        goto cleanup;
+    if( appsync_apps_updated ) {
+        appsync_apps_updated = false;
+        log_debug("Switch appsync config");
+        applist_free(appsync_apps_curr),
+            appsync_apps_curr = appsync_apps_next,
+            appsync_apps_next = 0;
     }
 
-    if( !(list_item = calloc(1, sizeof *list_item)) )
-        goto cleanup;
-
-    list_item->name = g_key_file_get_string(settingsfile, APP_INFO_ENTRY, APP_INFO_NAME_KEY, NULL);
-    log_debug("Appname = %s\n", list_item->name);
-    list_item->launch = g_key_file_get_string(settingsfile, APP_INFO_ENTRY, APP_INFO_LAUNCH_KEY, NULL);
-    log_debug("Launch = %s\n", list_item->launch);
-    list_item->mode = g_key_file_get_string(settingsfile, APP_INFO_ENTRY, APP_INFO_MODE_KEY, NULL);
-    log_debug("Launch mode = %s\n", list_item->mode);
-    list_item->systemd = g_key_file_get_integer(settingsfile, APP_INFO_ENTRY, APP_INFO_SYSTEMD_KEY, NULL);
-    log_debug("Systemd control = %d\n", list_item->systemd);
-    list_item->post = g_key_file_get_integer(settingsfile, APP_INFO_ENTRY, APP_INFO_POST, NULL);
-    list_item->state = APP_STATE_DONTCARE;
-
-cleanup:
-
-    if(settingsfile)
-        g_key_file_free(settingsfile);
-
-    /* if a minimum set of required elements is not filled in we discard the list_item */
-    if( list_item && !(list_item->name && list_item->mode) )
-    {
-        log_err("discarding invalid appsync file: %s", filename);
-        appsync_free_elem(list_item);
-        list_item = 0;
-    }
-
-    return list_item;
+    APPSYNC_LOCKED_LEAVE;
 }
 
-/* @return 0 on succes, 1 if there is a failure */
-int appsync_activate_sync(const char *mode)
+/** Release appsync configuration data
+ */
+void appsync_free_configuration(void)
 {
     LOG_REGISTER_CONTEXT;
 
-    GList *iter;
+    APPSYNC_LOCKED_ENTER;
+
+    if( appsync_apps_curr ) {
+        log_debug("Release current appsync config");
+        applist_free(appsync_apps_curr),
+            appsync_apps_curr = 0;
+    }
+
+    if( appsync_apps_next ) {
+        log_debug("Release future appsync config");
+        applist_free(appsync_apps_next),
+            appsync_apps_next = 0;
+    }
+
+    APPSYNC_LOCKED_LEAVE;
+}
+
+/** Load appsync configuration data
+ *
+ * Appsync configuration files are read on usb-moded startup and whenever
+ * SIGHUP is sent to usb-moded.
+ *
+ * Appsync configuration data is stateful and accessed both from worker
+ * and control threads. Due to this special care must be taken when
+ * configuration changes due to SIGHUP. Freshly loaded data is set aside
+ * and taken in use by calling appsync_switch_configuration() in an
+ * apprioriate time - presently when worker thread is executing mode
+ * transition and has cleaned up previously active usb mode.
+ */
+void appsync_load_configuration(void)
+{
+    LOG_REGISTER_CONTEXT;
+
+    GList *applist = applist_load(usbmoded_get_diag_mode() ?
+                                  CONF_DIR_DIAG_PATH : CONF_DIR_PATH);
+
+    APPSYNC_LOCKED_ENTER;
+
+    if( !appsync_apps_curr ) {
+        log_debug("Update current appsync config");
+        appsync_apps_curr = applist;
+
+        applist_free(appsync_apps_next),
+            appsync_apps_next = 0;
+        appsync_apps_updated = false;
+    }
+    else {
+        log_debug("Update future appsync config");
+        applist_free(appsync_apps_next),
+            appsync_apps_next = applist;
+        appsync_apps_updated = true;
+    }
+
+    if( appsync_apps_curr ) {
+        log_debug("Sync list available");
+        /* set up session bus connection if app sync in use
+         * so we do not need to make the time consuming connect
+         * operation at enumeration time ... */
+#ifdef APP_SYNC_DBUS
+        dbusappsync_init_connection();
+#endif
+    }
+
+    APPSYNC_LOCKED_LEAVE;
+}
+
+/** Activate pre-enum applications for given mode
+ *
+ * Starts all configured applications that have matching
+ * mode trigger and are scheduled to occur before usb enumeration.
+ *
+ * @param mode  Name of usb-mode
+ *
+ * @return 0 on succes, or 1 in case of failures
+ */
+int appsync_activate_pre(const char *mode)
+{
+    LOG_REGISTER_CONTEXT;
+    int ret = 0; // assume success
     int count = 0;
 
-    log_debug("activate sync");
+    log_debug("activate-pre mode=%s", mode);
+
+    APPSYNC_LOCKED_ENTER;
 
 #ifdef APP_SYNC_DBUS
     /* Get start of activation timestamp */
     gettimeofday(&appsync_sync_tv, 0);
 #endif
 
-    if( appsync_sync_list == 0 )
+    if( appsync_apps_curr == 0 )
     {
         log_debug("No sync list!");
 #ifdef APP_SYNC_DBUS
         appsync_enumerate_usb();
 #endif
-        return 0;
+        goto cleanup;
     }
 
     /* Count apps that need to be activated for this mode and
      * mark them as currently inactive */
-    for( iter = appsync_sync_list; iter; iter = g_list_next(iter) )
+    for( GList *iter = appsync_apps_curr; iter; iter = g_list_next(iter) )
     {
-        list_elem_t *data = iter->data;
+        application_t *application = iter->data;
 
-        if(!strcmp(data->mode, mode))
+        if(!strcmp(application->mode, mode))
         {
             ++count;
-            data->state = APP_STATE_INACTIVE;
+            application->state = APP_STATE_INACTIVE;
         }
         else
         {
-            data->state = APP_STATE_DONTCARE;
+            application->state = APP_STATE_DONTCARE;
         }
     }
 
@@ -261,12 +475,12 @@ int appsync_activate_sync(const char *mode)
 #ifdef APP_SYNC_DBUS
         appsync_enumerate_usb();
 #endif
-        return 0;
+        goto cleanup;
     }
 
 #ifdef APP_SYNC_DBUS
     /* check dbus initialisation, skip dbus activated services if this fails */
-    if(!dbusappsync_init())
+    if(!appsync_no_dbus && !dbusappsync_init())
     {
         log_debug("dbus setup failed => skipping dbus launched apps");
         appsync_no_dbus = 1;
@@ -277,63 +491,85 @@ int appsync_activate_sync(const char *mode)
 #endif
 
     /* go through list and launch apps */
-    for( iter = appsync_sync_list; iter; iter = g_list_next(iter) )
+    for( GList *iter = appsync_apps_curr; iter; iter = g_list_next(iter) )
     {
-        list_elem_t *data = iter->data;
-        if(!strcmp(mode, data->mode))
+        application_t *application = iter->data;
+        if(!strcmp(mode, application->mode))
         {
             /* do not launch items marked as post, will be launched after usb is up */
-            if(data->post)
+            if(application->post)
             {
                 continue;
             }
-            log_debug("launching pre-enum-app %s\n", data->name);
-            if(data->systemd)
+            log_debug("launching pre-enum-app %s", application->name);
+            if(application->systemd)
             {
-                if(!systemd_control_service(data->name, SYSTEMD_START))
-                    goto error;
-                appsync_mark_active(data->name, 0);
+                if(!systemd_control_service(application->name, SYSTEMD_START)) {
+                    log_debug("systemd pre-enum-app %s failed", application->name);
+                    ret = 1;
+                    goto cleanup;
+                }
+                appsync_mark_active_locked(application->name, 0);
             }
-            else if(data->launch)
+            else if(application->launch)
             {
                 /* skipping if dbus session bus is not available,
                  * or not compiled in */
-                if(appsync_no_dbus)
-                    appsync_mark_active(data->name, 0);
+                if( appsync_no_dbus ) {
+                    log_debug("dbus pre-enum-app %s ignored", application->name);
+                    /* FIXME: feigning success here allows pre-enum actions
+                     *        to be "completed" despite of failures or lack
+                     *        of support for installed configuration items.
+                     *        Does that make any sense?
+                     */
+                    appsync_mark_active_locked(application->name, 0);
+                    continue;
+                }
 #ifdef APP_SYNC_DBUS
-                else if(!dbusappsync_launch_app(data->launch))
-                    appsync_mark_active(data->name, 0);
-                else
-                    goto error;
+                if( dbusappsync_launch_app(application->launch) != 0 ) {
+                    log_debug("dbus pre-enum-app %s failed", application->name);
+                    ret = 1;
+                    goto cleanup;
+                }
+                appsync_mark_active_locked(application->name, 0);
 #endif /* APP_SYNC_DBUS */
             }
         }
     }
 
-    return 0;
+cleanup:
+    APPSYNC_LOCKED_LEAVE;
 
-error:
-    log_warning("Error launching a service!\n");
-    return 1;
+    return ret;
 }
 
-int appsync_activate_sync_post(const char *mode)
+/** Activate post-enum applications for given mode
+ *
+ * Starts all configured applications that have matching
+ * mode trigger and are scheduled to occur after usb enumeration.
+ *
+ * @param mode  Name of usb-mode
+ *
+ * @return 0 on succes, or 1 in case of failures
+ */
+int appsync_activate_post(const char *mode)
 {
     LOG_REGISTER_CONTEXT;
 
-    GList *iter;
+    int ret = 0; // assume success
 
-    log_debug("activate post sync");
+    log_debug("activate-post mode=%s", mode);
 
-    if( appsync_sync_list == 0 )
-    {
-        log_debug("No sync list! skipping post sync\n");
-        return 0;
+    APPSYNC_LOCKED_ENTER;
+
+    if( !appsync_apps_curr ) {
+        log_debug("No sync list! skipping post sync");
+        goto cleanup;
     }
 
 #ifdef APP_SYNC_DBUS
     /* check dbus initialisation, skip dbus activated services if this fails */
-    if(!dbusappsync_init())
+    if(!appsync_no_dbus && !dbusappsync_init())
     {
         log_debug("dbus setup failed => skipping dbus launched apps");
         appsync_no_dbus = 1;
@@ -341,67 +577,83 @@ int appsync_activate_sync_post(const char *mode)
 #endif /* APP_SYNC_DBUS */
 
     /* go through list and launch apps */
-    for( iter = appsync_sync_list; iter; iter = g_list_next(iter) )
+    for( GList *iter = appsync_apps_curr; iter; iter = g_list_next(iter) )
     {
-        list_elem_t *data = iter->data;
-        if(!strcmp(mode, data->mode))
-        {
+        application_t *application = iter->data;
+
+        if( !strcmp(application->mode, mode) ) {
             /* launch only items marked as post, others are already running */
-            if(!data->post)
+            if(!application->post)
                 continue;
-            log_debug("launching post-enum-app %s\n", data->name);
-            if(data->systemd)
-            {
-                if(!systemd_control_service(data->name, SYSTEMD_START))
-                    goto error;
-                appsync_mark_active(data->name, 1);
+
+            log_debug("launching post-enum-app %s\n", application->name);
+            if( application->systemd ) {
+                if(!systemd_control_service(application->name, SYSTEMD_START)) {
+                    log_err("systemd post-enum-app %s failed", application->name);
+                    ret = 1;
+                    break;
+                }
+                appsync_mark_active_locked(application->name, 1);
             }
-            else if(data->launch)
-            {
+            else if( application->launch ) {
                 /* skipping if dbus session bus is not available,
                  * or not compiled in */
-                if(appsync_no_dbus)
+                if( appsync_no_dbus ) {
+                    log_debug("dbus pre-enum-app %s ignored", application->name);
                     continue;
+                }
 #ifdef APP_SYNC_DBUS
-                else if(dbusappsync_launch_app(data->launch) != 0)
-                    goto error;
+                if( dbusappsync_launch_app(application->launch) != 0 ) {
+                    log_err("dbus post-enum-app %s failed", application->name);
+                    ret = 1;
+                    break;
+                }
+                appsync_mark_active_locked(application->name, 1);
 #endif /* APP_SYNC_DBUS */
             }
         }
     }
 
-    return 0;
+cleanup:
+    APPSYNC_LOCKED_LEAVE;
 
-error:
-    log_warning("Error launching a service!\n");
-    return 1;
+    return ret;
 }
 
-int appsync_mark_active(const gchar *name, int post)
+/** Set application state as successfully started
+ *
+ * @param name  Application name
+ * @param post  0=pre-enum app, or 1=post-enum app
+ *
+ * @note Assumes that appsync configuration data is already locked.
+ *
+ * @see #appsync_mark_active() for details.
+ *
+ * @return 0 on success, or -1 on failure
+ */
+static int appsync_mark_active_locked(const char *name, int post)
 {
     LOG_REGISTER_CONTEXT;
 
     int ret = -1; // assume name not found
     int missing = 0;
 
-    GList *iter;
-
     log_debug("%s-enum-app %s is started\n", post ? "post" : "pre", name);
 
-    for( iter = appsync_sync_list; iter; iter = g_list_next(iter) )
+    for( GList *iter = appsync_apps_curr; iter; iter = g_list_next(iter) )
     {
-        list_elem_t *data = iter->data;
+        application_t *application = iter->data;
 
-        if(!strcmp(data->name, name))
+        if(!strcmp(application->name, name))
         {
             /* TODO: do we need to worry about duplicate names in the list? */
-            ret = (data->state != APP_STATE_ACTIVE);
-            data->state = APP_STATE_ACTIVE;
+            ret = (application->state != APP_STATE_ACTIVE);
+            application->state = APP_STATE_ACTIVE;
 
             /* updated + missing -> not going to enumerate */
             if( missing ) break;
         }
-        else if( data->state == APP_STATE_INACTIVE && data->post == post )
+        else if( application->state == APP_STATE_INACTIVE && application->post == post )
         {
             missing = 1;
 
@@ -418,6 +670,35 @@ int appsync_mark_active(const gchar *name, int post)
     }
 
     /* -1=not found, 0=already active, 1=activated now */
+    return ret;
+}
+
+/** Set application state as successfully started
+ *
+ * @param name  Application name
+ * @param post  0=pre-enum app, or 1=post-enum app
+ *
+ * Update bookkeeping so that applications that are started when a mode
+ * is activated can be stopped when the mode is deactivated later on.
+ *
+ * @see #appsync_deactivate_pre(),
+ *      #appsync_deactivate_post(), and
+ *      #appsync_deactivate_all()
+ *
+ * Note: If usb-moded is configured to use APP_SYNC_DBUS, usb enumeration
+ *       actions are triggered when the last pre-enum app gets marked as
+ *       active.
+ *
+ * @return 0 on success, or -1 on failure
+ */
+int appsync_mark_active(const char *name, int post)
+{
+    LOG_REGISTER_CONTEXT;
+
+    APPSYNC_LOCKED_ENTER;
+    int ret = appsync_mark_active_locked(name, post);
+    APPSYNC_LOCKED_LEAVE;
+
     return ret;
 }
 
@@ -482,41 +763,84 @@ static void appsync_enumerate_usb(void)
 }
 #endif /* APP_SYNC_DBUS */
 
-void appsync_stop_apps(int post)
+/* Internal helper for stopping pre/post apps
+ *
+ * @param post  0=stop pre-apps, or 1=stop post-apps
+ *
+ * @note Assumes that appsync configuration data is already locked.
+ */
+static void appsync_stop_apps(int post)
 {
     LOG_REGISTER_CONTEXT;
 
-    GList *iter = 0;
-
-    for( iter = appsync_sync_list; iter; iter = g_list_next(iter) )
+    for( GList *iter = appsync_apps_curr; iter; iter = g_list_next(iter) )
     {
-        list_elem_t *data = iter->data;
+        application_t *application = iter->data;
 
-        if(data->systemd && data->state == APP_STATE_ACTIVE && data->post == post)
-        {
-            log_debug("stopping %s-enum-app %s", post ? "post" : "pre", data->name);
-            if(!systemd_control_service(data->name, SYSTEMD_STOP))
-                log_debug("Failed to stop %s\n", data->name);
-            data->state = APP_STATE_DONTCARE;
+        if( application->post  == post &&
+            application->state == APP_STATE_ACTIVE ) {
+
+            log_debug("stopping %s-enum-app %s", post ? "post" : "pre",
+                      application->name);
+
+            if( application->systemd ) {
+                if( !systemd_control_service(application->name, SYSTEMD_STOP) )
+                    log_debug("Failed to stop %s\n", application->name);
+            }
+            else if( application->launch ) {
+                // NOP
+            }
+            application->state = APP_STATE_DONTCARE;
         }
     }
+
 }
 
-int appsync_stop(gboolean force)
+/** Stop all applications that were started in pre-enum phase
+ */
+void appsync_deactivate_pre(void)
+{
+    APPSYNC_LOCKED_ENTER;
+    appsync_stop_apps(0);
+    APPSYNC_LOCKED_LEAVE;
+}
+
+/** Stop all applications that were started in post-enum phase
+ */
+void appsync_deactivate_post(void)
+{
+    APPSYNC_LOCKED_ENTER;
+    appsync_stop_apps(1);
+    APPSYNC_LOCKED_LEAVE;
+}
+
+/** Stop all applications that (could) have been started by usb-moded
+ *
+ * @param force 0=started apps, 1=all configured apps
+ *
+ * Normally, when force=0 is used, this function is used on mode exit
+ * to stop applications that are known to have been started on mode entry.
+ *
+ * Using force=1 param is mainly useful during usb-moded startup, as
+ * a way to cleanup applications that might have been left running as
+ * a concequence of for example usb-moded crash.
+ */
+void appsync_deactivate_all(bool force)
 {
     LOG_REGISTER_CONTEXT;
+
+    APPSYNC_LOCKED_ENTER;
 
     /* If force arg is used, stop all applications that
      * could have been started by usb-moded */
     if(force)
     {
-        GList *iter;
         log_debug("assuming all applications are active");
 
-        for( iter = appsync_sync_list; iter; iter = g_list_next(iter) )
+        for( GList *iter = appsync_apps_curr; iter; iter = g_list_next(iter) )
         {
-            list_elem_t *data = iter->data;
-            data->state = APP_STATE_ACTIVE;
+            application_t *application = iter->data;
+            application->state = APP_STATE_ACTIVE;
         }
     }
 
@@ -530,5 +854,6 @@ int appsync_stop(gboolean force)
 #ifdef APP_SYNC_DBUS
     appsync_cancel_enumerate_usb_timer();
 #endif
-    return 0;
+
+    APPSYNC_LOCKED_LEAVE;
 }

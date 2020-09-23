@@ -29,7 +29,7 @@
 #ifndef  USB_MODED_APPSYNC_H_
 # define USB_MODED_APPSYNC_H_
 
-# include <glib.h>
+# include <stdbool.h>
 
 /* ========================================================================= *
  * Constants
@@ -46,34 +46,6 @@
 # define APP_INFO_POST          "post"     // integer
 
 /* ========================================================================= *
- * Types
- * ========================================================================= */
-
-/** Application activation state
- */
-typedef enum app_state_t {
-    /** Application is not relevant for the current mode */
-    APP_STATE_DONTCARE = 0,
-    /** Application should be started */
-    APP_STATE_INACTIVE = 1,
-    /** Application should be stopped when exiting the mode  */
-    APP_STATE_ACTIVE   = 2,
-} app_state_t;
-
-/**
- * keep all the needed info together for launching an app
- */
-typedef struct list_elem_t
-{
-    char *name;           /**< name of the app to launch */
-    char *mode;           /**< mode in which to launch the app */
-    char *launch;         /**< dbus launch command/address */
-    app_state_t state;    /**< marker to check if the app has started sucessfully */
-    int systemd;          /**< marker to know if we start it with systemd or not */
-    int post;             /**< marker to indicate when to start the app */
-} list_elem_t;
-
-/* ========================================================================= *
  * Prototypes
  * ========================================================================= */
 
@@ -81,12 +53,14 @@ typedef struct list_elem_t
  * APPSYNC
  * ------------------------------------------------------------------------- */
 
-void appsync_free_appsync_list (void);
-void appsync_read_list         (void);
-int  appsync_activate_sync     (const char *mode);
-int  appsync_activate_sync_post(const char *mode);
-int  appsync_mark_active       (const gchar *name, int post);
-void appsync_stop_apps         (int post);
-int  appsync_stop              (gboolean force);
+void appsync_switch_configuration(void);
+void appsync_free_configuration  (void);
+void appsync_load_configuration  (void);
+int  appsync_activate_pre        (const char *mode);
+int  appsync_activate_post       (const char *mode);
+int  appsync_mark_active         (const char *name, int post);
+void appsync_deactivate_pre      (void);
+void appsync_deactivate_post     (void);
+void appsync_deactivate_all      (bool force);
 
 #endif /* USB_MODED_APPSYNC_H_ */

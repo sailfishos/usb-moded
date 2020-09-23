@@ -630,11 +630,28 @@ void usbmoded_handle_signal(int signum)
     }
     else if( signum == SIGHUP )
     {
-        /* Reload mode list */
+        /* Reload mode list
+         *
+         * Note that copy of mode data related to the current
+         * mode is stored separately and that copy is used
+         * when making exit from current mode.
+         */
         log_debug("reloading dynamic mode configuration");
         usbmoded_free_modelist();
         usbmoded_load_modelist();
 
+        /* Reload appsync configuration files
+         *
+         * Updated configuration is loaded and set aside.
+         *
+         * Switch happens when applications started based
+         * on currently active configuration have been
+         * stopped.
+         */
+#ifdef APP_SYNC
+        log_debug("reloading appsync configuration");
+        appsync_load_configuration();
+#endif
         /* If default mode selection became invalid,
          * revert setting to "ask" */
         uid_t current_user = control_get_current_user();
@@ -752,7 +769,7 @@ static bool usbmoded_init(void)
     }
 
 #ifdef APP_SYNC
-    appsync_read_list();
+    appsync_load_configuration();
 #endif
 
     /* always read dyn modes even if appsync is not used */
@@ -809,7 +826,7 @@ static bool usbmoded_init(void)
     if( usbmoded_init_done_p() ) {
         log_warning("usb-moded started after init-done; "
                     "forcing appsync stop");
-        appsync_stop(true);
+        appsync_deactivate_all(true);
     }
 #endif
 
@@ -862,13 +879,13 @@ static void usbmoded_cleanup(void)
 
     /* Detach from SystemBus. Components that hold reference to the
      * shared bus connection can still perform cleanup tasks, but new
-     * references can't be obtained anymore and usb-moded method call
+     * references can't be obtained anymore and usb-moded myethod call
      * processing no longer occurs. */
     umdbus_cleanup();
 
     /* Stop appsync processes that have been started by usb-moded */
 #ifdef APP_SYNC
-    appsync_stop(false);
+    appsync_deactivate_all(false);
 #endif
 
     /* Deny making systemd control ipc */
@@ -899,8 +916,8 @@ static void usbmoded_cleanup(void)
     usbmoded_free_modelist();
 
 #ifdef APP_SYNC
-    /* Undo appsync_read_list() */
-    appsync_free_appsync_list();
+    /* Undo appsync_load_configuration() */
+    appsync_free_configuration();
 #endif
 
     /* Release dynamic memory */

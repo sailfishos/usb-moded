@@ -460,6 +460,7 @@ src/usb_moded-worker.o:\
 	src/usb_moded-worker.c\
 	config-static.h\
 	src/usb_moded-android.h\
+	src/usb_moded-appsync.h\
 	src/usb_moded-common.h\
 	src/usb_moded-configfs.h\
 	src/usb_moded-control.h\
@@ -475,6 +476,7 @@ src/usb_moded-worker.pic.o:\
 	src/usb_moded-worker.c\
 	config-static.h\
 	src/usb_moded-android.h\
+	src/usb_moded-appsync.h\
 	src/usb_moded-common.h\
 	src/usb_moded-configfs.h\
 	src/usb_moded-control.h\

@@ -32,6 +32,7 @@
 #include "usb_moded-modes.h"
 #include "usb_moded-modesetting.h"
 #include "usb_moded-modules.h"
+#include "usb_moded-appsync.h"
 
 // FIXME: worker thread should not depend on control functionality
 #include "usb_moded-control.h"
@@ -734,6 +735,11 @@ worker_switch_to_mode(const char *mode)
         modesetting_leave_dynamic_mode();
         worker_set_usb_mode_data(NULL);
     }
+
+    /* Mode specific applications have been stopped and we can
+     * take updated appsync configuration in use.
+     */
+    appsync_switch_configuration();
 
     log_debug("Setting %s\n", mode);
 
