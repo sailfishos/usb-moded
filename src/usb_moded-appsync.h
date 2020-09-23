@@ -82,7 +82,7 @@ typedef struct list_elem_t
  * ------------------------------------------------------------------------- */
 
 void appsync_free_appsync_list (void);
-void appsync_read_list         (int diag);
+void appsync_read_list         (void);
 int  appsync_activate_sync     (const char *mode);
 int  appsync_activate_sync_post(const char *mode);
 int  appsync_mark_active       (const gchar *name, int post);

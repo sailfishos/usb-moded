@@ -752,7 +752,7 @@ static bool usbmoded_init(void)
     }
 
 #ifdef APP_SYNC
-    appsync_read_list(usbmoded_get_diag_mode());
+    appsync_read_list();
 #endif
 
     /* always read dyn modes even if appsync is not used */

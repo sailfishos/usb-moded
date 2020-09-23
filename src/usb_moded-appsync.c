@@ -29,6 +29,7 @@
 
 #include "usb_moded-appsync.h"
 
+#include "usb_moded.h"
 #include "usb_moded-log.h"
 #include "usb_moded-systemd.h"
 
@@ -36,6 +37,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <glob.h>
 
 /* ========================================================================= *
  * Prototypes
@@ -49,8 +51,8 @@ static void         appsync_free_elem                 (list_elem_t *elem);
 static void         appsync_free_elem_cb              (gpointer elem, gpointer user_data);
 void                appsync_free_appsync_list         (void);
 static gint         appsync_list_sort_func            (gconstpointer a, gconstpointer b);
-void                appsync_read_list                 (int diag);
-static list_elem_t *appsync_read_file                 (const gchar *filename, int diag);
+void                appsync_read_list                 (void);
+static list_elem_t *appsync_read_file                 (const char *filename);
 int                 appsync_activate_sync             (const char *mode);
 int                 appsync_activate_sync_post        (const char *mode);
 int                 appsync_mark_active               (const gchar *name, int post);
@@ -120,79 +122,66 @@ static gint appsync_list_sort_func(gconstpointer a, gconstpointer b)
     return strcasecmp( (char*)a, (char*)b );
 }
 
-void appsync_read_list(int diag)
+void appsync_read_list(void)
 {
     LOG_REGISTER_CONTEXT;
 
-    GDir *confdir = 0;
-
-    const gchar *dirname;
-    list_elem_t *list_item;
+    gchar *pat = 0;
+    glob_t gb  = {};
 
     appsync_free_appsync_list();
 
-    if(diag)
-    {
-        if( !(confdir = g_dir_open(CONF_DIR_DIAG_PATH, 0, NULL)) )
-            goto cleanup;
-    }
-    else
-    {
-        if( !(confdir = g_dir_open(CONF_DIR_PATH, 0, NULL)) )
-            goto cleanup;
+    bool diag_mode = usbmoded_get_diag_mode();
+    const char *conf_dir = diag_mode ? CONF_DIR_DIAG_PATH : CONF_DIR_PATH;
+    if( !(pat = g_strdup_printf("%s/*.ini", conf_dir)) )
+        goto cleanup;
+
+    if( glob(pat, 0, 0, &gb) != 0 ) {
+        log_debug("no appsync ini-files found");
+        goto cleanup;
     }
 
-    while( (dirname = g_dir_read_name(confdir)) )
-    {
-        log_debug("Read file %s\n", dirname);
-        if( (list_item = appsync_read_file(dirname, diag)) )
+    for( size_t i = 0; i < gb.gl_pathc; ++i ) {
+        list_elem_t *list_item = appsync_read_file(gb.gl_pathv[i]);
+        if( list_item )
             appsync_sync_list = g_list_append(appsync_sync_list, list_item);
     }
 
-cleanup:
-    if( confdir ) g_dir_close(confdir);
+    if( appsync_sync_list ) {
+        /* sort list alphabetically so services for a mode
+         * can be run in a certain order */
+        appsync_sync_list = g_list_sort(appsync_sync_list, appsync_list_sort_func);
 
-    /* sort list alphabetically so services for a mode
-     * can be run in a certain order */
-    appsync_sync_list=g_list_sort(appsync_sync_list, appsync_list_sort_func);
-
-    /* set up session bus connection if app sync in use
-     * so we do not need to make the time consuming connect
-     * operation at enumeration time ... */
-
-    if( appsync_sync_list )
-    {
+        /* set up session bus connection if app sync in use
+         * so we do not need to make the time consuming connect
+         * operation at enumeration time ... */
         log_debug("Sync list valid\n");
 #ifdef APP_SYNC_DBUS
         dbusappsync_init_connection();
 #endif
     }
+
+cleanup:
+    globfree(&gb);
+    g_free(pat);
 }
 
-static list_elem_t *appsync_read_file(const gchar *filename, int diag)
+static list_elem_t *appsync_read_file(const char *filename)
 {
     LOG_REGISTER_CONTEXT;
 
-    gchar *full_filename = NULL;
-    GKeyFile *settingsfile = NULL;
-    list_elem_t *list_item = NULL;
+    list_elem_t *list_item    = NULL;
+    GKeyFile    *settingsfile = NULL;
 
-    if(diag)
-    {
-        if( !(full_filename = g_strconcat(CONF_DIR_DIAG_PATH, "/", filename, NULL)) )
-            goto cleanup;
-    }
-    else
-    {
-        if( !(full_filename = g_strconcat(CONF_DIR_PATH, "/", filename, NULL)) )
-            goto cleanup;
-    }
+    log_debug("loading appsync file: %s", filename);
 
     if( !(settingsfile = g_key_file_new()) )
         goto cleanup;
 
-    if( !g_key_file_load_from_file(settingsfile, full_filename, G_KEY_FILE_NONE, NULL) )
+    if( !g_key_file_load_from_file(settingsfile, filename, G_KEY_FILE_NONE, NULL) ) {
+        log_err("failed to load appsync file: %s", filename);
         goto cleanup;
+    }
 
     if( !(list_item = calloc(1, sizeof *list_item)) )
         goto cleanup;
@@ -212,12 +201,11 @@ cleanup:
 
     if(settingsfile)
         g_key_file_free(settingsfile);
-    g_free(full_filename);
 
     /* if a minimum set of required elements is not filled in we discard the list_item */
     if( list_item && !(list_item->name && list_item->mode) )
     {
-        log_debug("Element invalid, discarding\n");
+        log_err("discarding invalid appsync file: %s", filename);
         appsync_free_elem(list_item);
         list_item = 0;
     }

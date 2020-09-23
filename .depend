@@ -32,15 +32,21 @@ src/usb_moded-appsync-dbus.pic.o:\
 
 src/usb_moded-appsync.o:\
 	src/usb_moded-appsync.c\
+	config-static.h\
 	src/usb_moded-appsync.h\
+	src/usb_moded-dyn-config.h\
 	src/usb_moded-log.h\
 	src/usb_moded-systemd.h\
+	src/usb_moded.h\
 
 src/usb_moded-appsync.pic.o:\
 	src/usb_moded-appsync.c\
+	config-static.h\
 	src/usb_moded-appsync.h\
+	src/usb_moded-dyn-config.h\
 	src/usb_moded-log.h\
 	src/usb_moded-systemd.h\
+	src/usb_moded.h\
 
 src/usb_moded-common.o:\
 	src/usb_moded-common.c\
