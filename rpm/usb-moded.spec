@@ -1,5 +1,5 @@
 Name:     usb-moded
-Version:  0.86.0+mer47
+Version:  0.86.0+mer48
 Release:  2
 Summary:  USB mode controller
 License:  LGPLv2
