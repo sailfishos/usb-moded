@@ -161,6 +161,7 @@ src/usb_moded-control.pic.o:\
 src/usb_moded-dbus.o:\
 	src/usb_moded-dbus.c\
 	config-static.h\
+	dbus-gmain/dbus-gmain.h\
 	src/usb_moded-common.h\
 	src/usb_moded-config-private.h\
 	src/usb_moded-config.h\
@@ -176,6 +177,7 @@ src/usb_moded-dbus.o:\
 src/usb_moded-dbus.pic.o:\
 	src/usb_moded-dbus.c\
 	config-static.h\
+	dbus-gmain/dbus-gmain.h\
 	src/usb_moded-common.h\
 	src/usb_moded-config-private.h\
 	src/usb_moded-config.h\

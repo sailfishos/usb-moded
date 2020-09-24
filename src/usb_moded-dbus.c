@@ -45,7 +45,7 @@
 #include <string.h>
 #include <sys/stat.h>
 
-#include <dbus-gmain/dbus-gmain.h>
+#include "../dbus-gmain/dbus-gmain.h"
 
 #ifdef SAILFISH_ACCESS_CONTROL
 # include <sailfishaccesscontrol.h>
