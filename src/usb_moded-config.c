@@ -903,8 +903,33 @@ static bool config_load_legacy_config(GKeyFile *ini)
     LOG_REGISTER_CONTEXT;
 
     bool ack = false;
-    if( access(USB_MODED_STATIC_CONFIG_FILE, F_OK) != -1 )
-        ack = config_merge_from_file(ini, USB_MODED_STATIC_CONFIG_FILE);
+
+    /* If the legacy config file does not exist, there is
+     * no need to do anything about it.
+     */
+    if( access(USB_MODED_STATIC_CONFIG_FILE, F_OK) == -1 )
+        goto EXIT;
+
+    /* If we have also dynamic settings file, it means that
+     * the legacy config file has re-appeared after migration.
+     *
+     * This could happen e.g. during sw upgrades as long as
+     * there are packages that contain the legacy config file.
+     *
+     * The content must be ignored to avoid overriding user
+     * settings, but emit a warning to help diagnosing when
+     * and why it might be happening (the legacy file will be
+     * removed later on - when there are settings changes to
+     * commit).
+     */
+    if( access(USB_MODED_DYNAMIC_CONFIG_FILE, F_OK) == 0 ) {
+        log_warning("%s: has reappeared after settings migration",
+                    USB_MODED_STATIC_CONFIG_FILE);
+        goto EXIT;
+    }
+
+    if( !config_merge_from_file(ini, USB_MODED_STATIC_CONFIG_FILE) )
+        goto EXIT;
 
     /* A mode=ask setting in legacy config can be either
      * something user has selected, or merely configured
@@ -922,6 +947,9 @@ static bool config_load_legacy_config(GKeyFile *ini)
         g_free(val);
     }
 
+    ack = true;
+
+EXIT:
     return ack;
 }
 
