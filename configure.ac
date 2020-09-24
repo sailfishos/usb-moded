@@ -1,7 +1,10 @@
 AC_INIT([usb_moded], [0.86.0+mer47])
-AM_INIT_AUTOMAKE([-Wall -Werror foreign])
+AM_INIT_AUTOMAKE([-Wall -Werror foreign subdir-objects])
+AM_EXTRA_RECURSIVE_TARGETS([dbus-gmain])
 
 AM_CONFIG_HEADER([config.h])
+
+AM_PROG_AR
 
 AC_PROG_CC
 AC_PROG_INSTALL
@@ -10,7 +13,6 @@ AC_PROG_LIBTOOL
 AC_C_CONST
 AC_HEADER_STDC
 
-AM_PROG_CC_C_O
 
 test_gcc_flag() {
 #    AC_LANG_CONFTEST([int main() {}])
@@ -97,10 +99,10 @@ AC_ARG_ENABLE([ofono], AS_HELP_STRING([--enable-ofono], [Enable ofono DBUS inter
    esac],[ofono=false])
 AM_CONDITIONAL([OFONO], [test x$ofono = xtrue])
 
+PKG_CHECK_MODULES([DBUS], dbus-1 >= 1.8)
+PKG_CHECK_MODULES([GLIB], glib-2.0 >= 2.24.0)
 PKG_CHECK_MODULES([USB_MODED], [
- glib-2.0 >= 2.24.0
- dbus-1 >= 1.2.1
- dbus-glib-1 >= 0.78
+ glib-2.0 >= 2.40.0
  gobject-2.0 >= 2.16.6
  gio-2.0
  libudev
@@ -136,6 +138,7 @@ AC_SUBST(USB_MODED_CFLAGS)
 
 AC_CONFIG_FILES([
 	Makefile
+        dbus-gmain/Makefile
 	src/Makefile
 	usb_moded.pc
 	docs/usb_moded-doxygen.conf

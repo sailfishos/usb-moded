@@ -1,4 +1,4 @@
-SUBDIRS = src
+SUBDIRS = dbus-gmain src
 
 EXTRA_DIST = \
 	autogen.sh \

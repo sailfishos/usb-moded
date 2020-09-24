@@ -15,6 +15,7 @@
  * @author Simo Piiroinen <simo.piiroinen@jollamobile.com>
  * @author Andrew den Exter <andrew.den.exter@jolla.com>
  * @author Andrew den Exter <andrew.den.exter@jollamobile.com>
+ * @author Björn Bidar <bjorn.bidar@jolla.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the Lesser GNU General Public License
@@ -44,7 +45,7 @@
 #include <string.h>
 #include <sys/stat.h>
 
-#include <dbus/dbus-glib-lowlevel.h>
+#include <dbus-gmain/dbus-gmain.h>
 
 #ifdef SAILFISH_ACCESS_CONTROL
 # include <sailfishaccesscontrol.h>
@@ -1366,7 +1367,7 @@ gboolean umdbus_init_connection(void)
     usbmoded_probe_init_done();
 
     /* Connect D-Bus to the mainloop */
-    dbus_connection_setup_with_g_main(umdbus_connection, NULL);
+    dbus_gmain_set_up_connection(umdbus_connection, NULL);
 
     /* everything went fine */
     status = TRUE;

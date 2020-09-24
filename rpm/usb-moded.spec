@@ -7,9 +7,8 @@ URL:      https://git.merproject.org/mer-core/usb-moded
 Source0:  %{name}-%{version}.tar.bz2
 Source1:  usb_moded.conf
 
-BuildRequires: pkgconfig(dbus-1)
-BuildRequires: pkgconfig(dbus-glib-1)
-BuildRequires: pkgconfig(glib-2.0)
+BuildRequires: pkgconfig(dbus-1) >= 1.8
+BuildRequires: pkgconfig(glib-2.0) >= 2.40
 BuildRequires: pkgconfig(libudev)
 BuildRequires: pkgconfig(libkmod)
 BuildRequires: doxygen
