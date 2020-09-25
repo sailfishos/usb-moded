@@ -143,7 +143,6 @@ LDLIBS   += -ldl
 # Flags from pkg-config
 # ----------------------------------------------------------------------------
 PKG_NAMES += dbus-1
-PKG_NAMES += dbus-glib-1
 PKG_NAMES += glib-2.0
 PKG_NAMES += libudev
 PKG_NAMES += libkmod
@@ -173,6 +172,12 @@ CFLAGS   += $(PKG_CFLAGS)
 LDLIBS   += $(PKG_LDLIBS)
 
 # ----------------------------------------------------------------------------
+# dbus-gmain
+# ----------------------------------------------------------------------------
+
+dbus-gmain/%.o: CPPFLAGS += -I.
+
+# ----------------------------------------------------------------------------
 # usb_moded
 # ----------------------------------------------------------------------------
 
@@ -199,6 +204,8 @@ usb_moded-OBJS += src/usb_moded-systemd.o
 usb_moded-OBJS += src/usb_moded-trigger.o
 usb_moded-OBJS += src/usb_moded-udev.o
 usb_moded-OBJS += src/usb_moded-worker.o
+
+usb_moded-OBJS += dbus-gmain/dbus-gmain.o
 
 usb_moded : $(usb_moded-OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS) $(LDLIBS)

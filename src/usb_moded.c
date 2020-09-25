@@ -327,11 +327,16 @@ void usbmoded_set_rescue_mode(bool rescue_mode)
  * In diag mode usb-moded uses separate mode configuration which
  * should have exactly one mode defined / available.
  */
-static bool usbmoded_diag_mode = false;
+static int usbmoded_diag_mode = -1;
 
 bool usbmoded_get_diag_mode(void)
 {
     LOG_REGISTER_CONTEXT;
+
+    if( usbmoded_diag_mode == -1 ) {
+        usbmoded_diag_mode = false;
+        log_info("diag_mode: locked to %d", usbmoded_diag_mode);
+    }
 
     return usbmoded_diag_mode;
 }
@@ -341,8 +346,13 @@ void usbmoded_set_diag_mode(bool diag_mode)
     LOG_REGISTER_CONTEXT;
 
     if( usbmoded_diag_mode != diag_mode ) {
-        log_info("diag_mode: %d -> %d",  usbmoded_diag_mode, diag_mode);
-        usbmoded_diag_mode = diag_mode;
+        if( usbmoded_diag_mode == -1 ) {
+            usbmoded_diag_mode = diag_mode;
+            log_info("diag_mode: set to %d", usbmoded_diag_mode);
+        }
+        else {
+            log_err("dig_mode: already locked to %d", usbmoded_diag_mode);
+        }
     }
 }
 
@@ -620,11 +630,28 @@ void usbmoded_handle_signal(int signum)
     }
     else if( signum == SIGHUP )
     {
-        /* Reload mode list */
+        /* Reload mode list
+         *
+         * Note that copy of mode data related to the current
+         * mode is stored separately and that copy is used
+         * when making exit from current mode.
+         */
         log_debug("reloading dynamic mode configuration");
         usbmoded_free_modelist();
         usbmoded_load_modelist();
 
+        /* Reload appsync configuration files
+         *
+         * Updated configuration is loaded and set aside.
+         *
+         * Switch happens when applications started based
+         * on currently active configuration have been
+         * stopped.
+         */
+#ifdef APP_SYNC
+        log_debug("reloading appsync configuration");
+        appsync_load_configuration();
+#endif
         /* If default mode selection became invalid,
          * revert setting to "ask" */
         uid_t current_user = control_get_current_user();
@@ -742,7 +769,7 @@ static bool usbmoded_init(void)
     }
 
 #ifdef APP_SYNC
-    appsync_read_list(usbmoded_get_diag_mode());
+    appsync_load_configuration();
 #endif
 
     /* always read dyn modes even if appsync is not used */
@@ -799,7 +826,7 @@ static bool usbmoded_init(void)
     if( usbmoded_init_done_p() ) {
         log_warning("usb-moded started after init-done; "
                     "forcing appsync stop");
-        appsync_stop(true);
+        appsync_deactivate_all(true);
     }
 #endif
 
@@ -852,13 +879,13 @@ static void usbmoded_cleanup(void)
 
     /* Detach from SystemBus. Components that hold reference to the
      * shared bus connection can still perform cleanup tasks, but new
-     * references can't be obtained anymore and usb-moded method call
+     * references can't be obtained anymore and usb-moded myethod call
      * processing no longer occurs. */
     umdbus_cleanup();
 
     /* Stop appsync processes that have been started by usb-moded */
 #ifdef APP_SYNC
-    appsync_stop(false);
+    appsync_deactivate_all(false);
 #endif
 
     /* Deny making systemd control ipc */
@@ -889,8 +916,8 @@ static void usbmoded_cleanup(void)
     usbmoded_free_modelist();
 
 #ifdef APP_SYNC
-    /* Undo appsync_read_list() */
-    appsync_free_appsync_list();
+    /* Undo appsync_load_configuration() */
+    appsync_free_configuration();
 #endif
 
     /* Release dynamic memory */

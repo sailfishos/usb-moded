@@ -753,7 +753,7 @@ bool modesetting_enter_dynamic_mode(void)
 #ifdef APP_SYNC
     if( data->appsync ) {
         log_debug("Dynamic mode is appsync: do pre actions");
-        if( appsync_activate_sync(data->mode_name) != 0 ) {
+        if( appsync_activate_pre(data->mode_name) != 0 ) {
             log_debug("Appsync failure");
             goto EXIT;
         }
@@ -850,7 +850,7 @@ bool modesetting_enter_dynamic_mode(void)
         log_debug("Dynamic mode is appsync: do post actions");
         /* let's sleep for a bit (350ms) to allow interfaces to settle before running postsync */
         common_msleep(350);
-        appsync_activate_sync_post(data->mode_name);
+        appsync_activate_post(data->mode_name);
     }
 
     /* - - - - - - - - - - - - - - - - - - - *
@@ -924,7 +924,7 @@ void modesetting_leave_dynamic_mode(void)
     if(data->appsync ) {
         log_debug("Dynamic mode was appsync: undo post actions");
         /* Just stop post enum appsync apps */
-        appsync_stop_apps(1);
+        appsync_deactivate_post();
     }
 
     /* - - - - - - - - - - - - - - - - - - - *
@@ -965,7 +965,7 @@ void modesetting_leave_dynamic_mode(void)
     if( data->appsync ) {
         log_debug("Dynamic mode was appsync: undo all actions");
         /* Do full appsync cleanup */
-        appsync_stop(false);
+        appsync_deactivate_all(false);
     }
 #endif
 
