@@ -642,7 +642,7 @@ configfs_write_file(const char *path, const char *text)
         goto EXIT;
     }
 
-    int rc = write(fd, text, size);
+    int rc = write(fd, buff, size);
     if( rc == -1 ) {
         log_err("%s: write failure: %m", path);
         goto EXIT;
