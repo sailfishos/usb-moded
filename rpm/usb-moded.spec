@@ -1,5 +1,5 @@
 Name:     usb-moded
-Version:  0.86.0+mer51
+Version:  0.86.0+mer52
 Release:  2
 Summary:  USB mode controller
 License:  LGPLv2
@@ -17,6 +17,7 @@ BuildRequires: pkgconfig(ssu-sysinfo)
 BuildRequires: pkgconfig(dsme) >= 0.65.0
 BuildRequires: pkgconfig(sailfishaccesscontrol)
 BuildRequires: systemd
+BuildRequires: libtool
 
 Requires: lsof
 Requires: usb-moded-configs

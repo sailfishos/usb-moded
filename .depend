@@ -488,6 +488,22 @@ src/usb_moded-worker.pic.o:\
 	src/usb_moded-worker.h\
 	src/usb_moded.h\
 
+src/usb_moded-user.o:\
+	src/usb_moded-user.c\
+	src/usb_moded-user.h\
+	config-static.h\
+	src/usb_moded-log.h\
+	src/usb_moded-modes.h\
+	src/usb_moded-control.h\
+
+src/usb_moded-user.pic.o:\
+	src/usb_moded-user.c\
+	src/usb_moded-user.h\
+	config-static.h\
+	src/usb_moded-log.h\
+	src/usb_moded-modes.h\
+	src/usb_moded-control.h\
+
 src/usb_moded.o:\
 	src/usb_moded.c\
 	config-static.h\
@@ -514,6 +530,7 @@ src/usb_moded.o:\
 	src/usb_moded-trigger.h\
 	src/usb_moded-udev.h\
 	src/usb_moded-worker.h\
+	src/usb_moded-user.h\
 	src/usb_moded.h\
 
 src/usb_moded.pic.o:\
@@ -542,6 +559,7 @@ src/usb_moded.pic.o:\
 	src/usb_moded-trigger.h\
 	src/usb_moded-udev.h\
 	src/usb_moded-worker.h\
+	src/usb_moded-user.h\
 	src/usb_moded.h\
 
 utils/udev-search.o:\

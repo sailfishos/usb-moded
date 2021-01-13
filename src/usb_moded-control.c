@@ -30,6 +30,7 @@
 #include "usb_moded-log.h"
 #include "usb_moded-modes.h"
 #include "usb_moded-worker.h"
+#include "usb_moded-user.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -52,6 +53,7 @@
  * ------------------------------------------------------------------------- */
 
 void           control_rethink_usb_charging_fallback(void);
+void           control_user_changed                 (void);
 const char    *control_get_external_mode            (void);
 static void    control_set_external_mode            (const char *mode);
 void           control_clear_external_mode          (void);
@@ -64,11 +66,14 @@ void           control_clear_internal_mode          (void);
 void           control_set_usb_mode                 (const char *mode);
 void           control_mode_switched                (const char *mode);
 void           control_select_usb_mode              (void);
+void           control_select_usb_mode_ex           (bool user_changed);
 void           control_set_cable_state              (cable_state_t cable_state);
 cable_state_t  control_get_cable_state              (void);
 void           control_clear_cable_state            (void);
 bool           control_get_connection_state         (void);
 uid_t          control_get_current_user             (void);
+uid_t          control_get_user_for_mode            (void);
+void           control_set_user_for_mode            (uid_t uid);
 
 /* ========================================================================= *
  * Data
@@ -100,9 +105,55 @@ static char *control_internal_mode = NULL;
  */
 static cable_state_t control_cable_state = CABLE_STATE_UNKNOWN;
 
+/** Uid of the user that has set current USB mode
+ */
+static uid_t control_user_for_mode = UID_UNKNOWN;
+
 /* ========================================================================= *
  * Functions
  * ========================================================================= */
+
+/** Get uid of the user that set the current mode
+ *
+ *  @return uid of user when current mode was set
+ */
+uid_t
+control_get_user_for_mode(void)
+{
+    return control_user_for_mode;
+}
+
+/** Set the uid of the user that set the current mode
+ *
+ *  @param uid of current user
+ */
+void
+control_set_user_for_mode(uid_t uid)
+{
+    LOG_REGISTER_CONTEXT;
+
+    log_debug("control_user_for_mode: %d -> %d",
+              (int)control_user_for_mode, (int)uid);
+    control_user_for_mode = uid;
+}
+
+/** Check if we can/should enable charging fallback mode
+ *
+ * Called when user is changed
+ */
+void
+control_user_changed(void)
+{
+    LOG_REGISTER_CONTEXT;
+
+    /* Cable must be connected to a pc */
+    if( control_get_cable_state() != CABLE_STATE_PC_CONNECTED )
+        return;
+    bool user_changed = (control_get_current_user() != control_get_user_for_mode());
+    log_debug("control_user_changed: user_changed %d", user_changed);
+    if (user_changed)
+        control_select_usb_mode_ex(user_changed);
+}
 
 /** Check if we can/should leave charging fallback mode
  *
@@ -281,6 +332,9 @@ void control_set_usb_mode(const char *mode)
     /* Invalidate current mode for the duration of mode transition */
     control_set_external_mode(MODE_BUSY);
 
+    /* Set mode owner to unknown until it has been changed */
+    control_set_user_for_mode(UID_UNKNOWN);
+
     /* Propagate down to gadget config */
     worker_request_hardware_mode(control_internal_mode);
 
@@ -307,6 +361,7 @@ void control_mode_switched(const char *mode)
 
     /* Propagate up to D-Bus */
     control_update_external_mode();
+    control_set_user_for_mode(control_get_current_user());
 
     return;
 }
@@ -316,7 +371,7 @@ void control_mode_switched(const char *mode)
  * gauge what mode to enter and then call control_set_usb_mode()
  *
  */
-void control_select_usb_mode(void)
+void control_select_usb_mode_ex(bool user_changed)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -366,18 +421,23 @@ void control_select_usb_mode(void)
         }
     }
 
-    if( mode_to_set && usbmoded_can_export() ) {
+    if( mode_to_set && usbmoded_can_export() && !user_changed ) {
         control_set_usb_mode(mode_to_set);
     }
     else {
         /* config is corrupted or we do not have a mode configured, fallback to charging
          * We also fall back here in case the device is locked and we do not
-         * export the system contents. Or if we are in acting dead mode.
+         * export the system contents, if we are in acting dead mode or changing user.
          */
         control_set_usb_mode(MODE_CHARGING_FALLBACK);
     }
 EXIT:
     free(mode_to_set);
+}
+
+void control_select_usb_mode(void)
+{
+    control_select_usb_mode_ex(false);
 }
 
 /** set the usb connection status
@@ -463,11 +523,5 @@ bool control_get_connection_state(void)
  */
 uid_t control_get_current_user(void)
 {
-#ifdef SAILFISH_ACCESS_CONTROL
-    uid_t uid = UID_UNKNOWN;
-    sd_seat_get_active("seat0", 0, &uid);
-    return uid;
-#else
-    return 0;
-#endif
+    return user_get_current_user();
 }

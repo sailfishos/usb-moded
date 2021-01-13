@@ -58,6 +58,7 @@
 
 #ifdef MEEGOLOCK
 # include "usb_moded-dsme.h"
+# include "usb_moded-user.h"
 #endif
 
 #include <unistd.h>
@@ -757,6 +758,12 @@ static bool usbmoded_init(void)
         log_crit("devicelock tracking could not be started");
         goto EXIT;
     }
+
+    /* Initialize watching for user changes */
+    if ( !user_watch_init() ) {
+        log_crit("user watch init failed");
+        goto EXIT;
+    }
 #endif
 
     /* Set daemon config/state data to sane state */
@@ -899,6 +906,11 @@ static void usbmoded_cleanup(void)
     /* Stop tracking device state */
 #ifdef MEEGOLOCK
     dsme_stop_listener();
+#endif
+
+    /* Stop user change listener */
+#ifdef MEEGOLOCK
+    user_watch_stop();
 #endif
 
     /* Stop udev listener */
