@@ -1,7 +1,7 @@
 /**
  * @file usb_moded-configfs.c
  *
- * Copyright (c) 2018 - 2020 Jolla Ltd.
+ * Copyright (c) 2018 - 2021 Jolla Ltd.
  * Copyright (c) 2020 Open Mobile Platform LLC.
  *
  * @author Simo Piiroinen <simo.piiroinen@jollamobile.com>
@@ -23,7 +23,6 @@
 
 #include "usb_moded-configfs.h"
 
-#include "usb_moded.h"
 #include "usb_moded-android.h"
 #include "usb_moded-common.h"
 #include "usb_moded-config-private.h"
@@ -32,12 +31,8 @@
 
 #include <sys/stat.h>
 
-#include <string.h>
-#include <stdlib.h>
-#include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <limits.h>
 
 /* ========================================================================= *
  * Constants

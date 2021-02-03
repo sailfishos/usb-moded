@@ -1,7 +1,7 @@
 /**
  * @file usb_moded-android.c
  *
- * Copyright (c) 2013 - 2020 Jolla Ltd.
+ * Copyright (c) 2013 - 2021 Jolla Ltd.
  * Copyright (c) 2020 Open Mobile Platform LLC.
  *
  * @author Philippe De Swert <philippe.deswert@jollamobile.com>
@@ -31,8 +31,6 @@
 
 #include <unistd.h>
 #include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
 
 /* ========================================================================= *
  * Prototypes

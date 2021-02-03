@@ -1,7 +1,7 @@
 /**
  * @file usb_moded-control.c
  *
- * Copyright (c) 2013 - 2020 Jolla Ltd.
+ * Copyright (c) 2013 - 2021 Jolla Ltd.
  * Copyright (c) 2020 Open Mobile Platform LLC.
  *
  * @author Philippe De Swert <philippe.deswert@jollamobile.com>
@@ -24,25 +24,33 @@
 
 #include "usb_moded-control.h"
 
+#include "usb_moded.h"
 #include "usb_moded-config-private.h"
 #include "usb_moded-dbus-private.h"
-#include "usb_moded-dyn-config.h"
 #include "usb_moded-log.h"
 #include "usb_moded-modes.h"
 #include "usb_moded-worker.h"
-#include "usb_moded-user.h"
-
-#include <string.h>
-#include <stdlib.h>
-
-#ifdef SYSTEMD
-# include <systemd/sd-login.h>
-#endif
 
 /* Sanity check, configure should take care of this */
 #if defined SAILFISH_ACCESS_CONTROL && !defined SYSTEMD
 # error if SAILFISH_ACCESS_CONTROL is defined, SYSTEMD must be defined as well
 #endif
+
+/* ========================================================================= *
+ * Constants
+ * ========================================================================= */
+
+/** How long to wait for device lock after user change [ms]
+ *
+ * If device lock code is in use, the wait time needs to be long enough
+ * to cover user session change and subsequent device locking (ballpark
+ * 500 ms) and reasonable amount of variance caused by slower devices etc.
+ *
+ * If device lock code is not in use, the wait is not terminated by device
+ * lock status changes and thus the time needs to be short enough not to
+ * cause confusion at user end.
+ */
+#define CONTROL_PENDING_USER_CHANGE_TIMEOUT (3000)
 
 /* ========================================================================= *
  * Prototypes
@@ -52,28 +60,40 @@
  * CONTROL
  * ------------------------------------------------------------------------- */
 
-void           control_rethink_usb_charging_fallback(void);
-void           control_user_changed                 (void);
-const char    *control_get_external_mode            (void);
-static void    control_set_external_mode            (const char *mode);
-void           control_clear_external_mode          (void);
-static void    control_update_external_mode         (void);
-const char    *control_get_target_mode              (void);
-static void    control_set_target_mode              (const char *mode);
-void           control_clear_target_mode            (void);
-const char    *control_get_usb_mode                 (void);
-void           control_clear_internal_mode          (void);
-void           control_set_usb_mode                 (const char *mode);
-void           control_mode_switched                (const char *mode);
-void           control_select_usb_mode              (void);
-void           control_select_usb_mode_ex           (bool user_changed);
-void           control_set_cable_state              (cable_state_t cable_state);
-cable_state_t  control_get_cable_state              (void);
-void           control_clear_cable_state            (void);
-bool           control_get_connection_state         (void);
-uid_t          control_get_current_user             (void);
-uid_t          control_get_user_for_mode            (void);
-void           control_set_user_for_mode            (uid_t uid);
+uid_t            control_get_user_for_mode        (void);
+void             control_set_user_for_mode        (uid_t uid);
+const char      *control_get_external_mode        (void);
+static void      control_set_external_mode        (const char *mode);
+void             control_clear_external_mode      (void);
+static void      control_update_external_mode     (void);
+const char      *control_get_target_mode          (void);
+static void      control_set_target_mode          (const char *mode);
+void             control_clear_target_mode        (void);
+const char      *control_get_selected_mode        (void);
+void             control_set_selected_mode        (const char *mode);
+bool             control_select_mode              (const char *mode);
+const char      *control_get_usb_mode             (void);
+void             control_clear_internal_mode      (void);
+static void      control_set_usb_mode             (const char *mode);
+void             control_mode_switched            (const char *mode);
+static gboolean  control_pending_user_change_cb   (gpointer aptr);
+static bool      control_have_pending_user_change (void);
+static void      control_begin_pending_user_change(void);
+static void      control_end_pending_user_change  (void);
+void             control_user_changed             (void);
+void             control_device_lock_changed      (void);
+void             control_device_state_changed     (void);
+void             control_settings_changed         (void);
+void             control_init_done_changed        (void);
+static bool      control_get_enabled              (void);
+void             control_set_enabled              (bool enable);
+static bool      control_get_in_rescue_mode       (void);
+static void      control_set_in_rescue_mode       (bool in_rescue_mode);
+static void      control_rethink_usb_mode         (void);
+void             control_set_cable_state          (cable_state_t cable_state);
+cable_state_t    control_get_cable_state          (void);
+void             control_clear_cable_state        (void);
+bool             control_get_connection_state     (void);
 
 /* ========================================================================= *
  * Data
@@ -97,6 +117,10 @@ static char *control_target_mode = NULL;
  */
 static char *control_internal_mode = NULL;
 
+/** The mode selected by user / via udev trigger
+ */
+static char *control_selected_mode = NULL;
+
 /** Connection status
  *
  * Access only via:
@@ -108,6 +132,18 @@ static cable_state_t control_cable_state = CABLE_STATE_UNKNOWN;
 /** Uid of the user that has set current USB mode
  */
 static uid_t control_user_for_mode = UID_UNKNOWN;
+
+/** Id for user change delay timer
+ */
+static guint control_pending_user_change_id = 0;
+
+/** Flag for: Rescue mode has been activated
+ */
+static bool control_in_rescue_mode = false;
+
+/** Flag for: control functionality has been enabled
+ */
+static bool control_is_enabled = false;
 
 /* ========================================================================= *
  * Functions
@@ -132,61 +168,11 @@ control_set_user_for_mode(uid_t uid)
 {
     LOG_REGISTER_CONTEXT;
 
-    log_debug("control_user_for_mode: %d -> %d",
-              (int)control_user_for_mode, (int)uid);
-    control_user_for_mode = uid;
-}
-
-/** Check if we can/should enable charging fallback mode
- *
- * Called when user is changed
- */
-void
-control_user_changed(void)
-{
-    LOG_REGISTER_CONTEXT;
-
-    /* Cable must be connected to a pc */
-    if( control_get_cable_state() != CABLE_STATE_PC_CONNECTED )
-        return;
-    bool user_changed = (control_get_current_user() != control_get_user_for_mode());
-    log_debug("control_user_changed: user_changed %d", user_changed);
-    if (user_changed)
-        control_select_usb_mode_ex(user_changed);
-}
-
-/** Check if we can/should leave charging fallback mode
- *
- * Called when device lock status, or device status (dsme)
- * changes.
- */
-void
-control_rethink_usb_charging_fallback(void)
-{
-    LOG_REGISTER_CONTEXT;
-
-    /* Cable must be connected to a pc */
-    if( control_get_cable_state() != CABLE_STATE_PC_CONNECTED )
-        goto EXIT;
-
-    /* Switching can happen only from MODE_UNDEFINED
-     * or MODE_CHARGING_FALLBACK */
-    const char *usb_mode = control_get_usb_mode();
-
-    if( strcmp(usb_mode, MODE_UNDEFINED) &&
-        strcmp(usb_mode, MODE_CHARGING_FALLBACK) )
-        goto EXIT;
-
-    if( !usbmoded_can_export() ) {
-        log_notice("exporting data not allowed; stay in %s", usb_mode);
-        goto EXIT;
+    if( control_user_for_mode != uid ) {
+        log_debug("control_user_for_mode: %d -> %d",
+                  (int)control_user_for_mode, (int)uid);
+        control_user_for_mode = uid;
     }
-
-    log_debug("attempt to leave %s", usb_mode);
-    control_select_usb_mode();
-
-EXIT:
-    return;
 }
 
 const char *control_get_external_mode(void)
@@ -288,6 +274,50 @@ void control_clear_target_mode(void)
         control_target_mode = 0;
 }
 
+/** get mode selected by user
+ *
+ * @return selected mode, or NULL in case nothing is selected
+ */
+const char *control_get_selected_mode(void)
+{
+    LOG_REGISTER_CONTEXT;
+    return control_selected_mode;
+}
+
+/** set mode selected by user
+ *
+ * @param mode selected mode, or NULL to reset selection
+ */
+void control_set_selected_mode(const char *mode)
+{
+    LOG_REGISTER_CONTEXT;
+    char *prev = control_selected_mode;
+    if( g_strcmp0(prev, mode) ) {
+        log_debug("requested: %s -> %s", prev, mode);
+        control_selected_mode = mode ? g_strdup(mode) : 0;
+        g_free(prev);
+    }
+}
+
+/** handle mode request from client / udev trigger
+ *
+ * @param mode The requested USB mode
+ * @return true if mode was accepted, false otherwise
+ */
+bool control_select_mode(const char *mode)
+{
+    LOG_REGISTER_CONTEXT;
+
+    /* Update selected mode */
+    control_set_selected_mode(mode);
+
+    /* Re-evaluate active mode */
+    control_rethink_usb_mode();
+
+    /* Return true if active mode matches the requested one */
+    return !g_strcmp0(control_get_usb_mode(), mode);
+}
+
 /** get the usb mode
  *
  * @return the currently set mode
@@ -312,9 +342,12 @@ void control_clear_internal_mode(void)
  *
  * @param mode The requested USB mode
  */
-void control_set_usb_mode(const char *mode)
+static void control_set_usb_mode(const char *mode)
 {
     LOG_REGISTER_CONTEXT;
+
+    /* Bookkeeping: Who activated this mode */
+    control_set_user_for_mode(usbmoded_get_current_user());
 
     gchar *previous = control_internal_mode;
     if( !g_strcmp0(previous, mode) )
@@ -331,9 +364,6 @@ void control_set_usb_mode(const char *mode)
 
     /* Invalidate current mode for the duration of mode transition */
     control_set_external_mode(MODE_BUSY);
-
-    /* Set mode owner to unknown until it has been changed */
-    control_set_user_for_mode(UID_UNKNOWN);
 
     /* Propagate down to gadget config */
     worker_request_hardware_mode(control_internal_mode);
@@ -361,9 +391,159 @@ void control_mode_switched(const char *mode)
 
     /* Propagate up to D-Bus */
     control_update_external_mode();
-    control_set_user_for_mode(control_get_current_user());
 
     return;
+}
+
+/** Timer callback for terminating pending user change
+ */
+static gboolean control_pending_user_change_cb(gpointer aptr)
+{
+    (void)aptr;
+
+    if( control_pending_user_change_id ) {
+        log_debug("pending user change timeout");
+        control_pending_user_change_id = 0;
+        control_rethink_usb_mode();
+    }
+
+    return G_SOURCE_REMOVE;
+}
+
+/** User change in progress predicate
+ */
+static bool control_have_pending_user_change(void)
+{
+    return control_pending_user_change_id != 0;
+}
+
+/** Start pending user change delay
+ */
+static void control_begin_pending_user_change(void)
+{
+    if(  !control_pending_user_change_id ) {
+        log_debug("pending user change started");
+        control_pending_user_change_id =
+            g_timeout_add(CONTROL_PENDING_USER_CHANGE_TIMEOUT,
+                          control_pending_user_change_cb, 0);
+    }
+}
+
+/** End pending user change delay
+ */
+static void control_end_pending_user_change(void)
+{
+    if( control_pending_user_change_id ) {
+        log_debug("pending user change stopped");
+        g_source_remove(control_pending_user_change_id),
+            control_pending_user_change_id = 0;
+    }
+}
+
+/** React to current user change
+ */
+void control_user_changed(void)
+{
+    log_debug("user = %d", (int)usbmoded_get_current_user());
+
+    /* We need to mask false positive "user is known and
+     * device is unlocked" blib arising from usb-moded
+     * getting user change notification before device lock
+     * status change -> start timer on user change and
+     * act as if device were locked until timer expires
+     * or device lock notification is received.
+     *
+     * But only for user changes that happen after the
+     * device bootup has been finished.
+     */
+    if( usbmoded_init_done_p() )
+        control_begin_pending_user_change();
+    else
+        control_end_pending_user_change();
+
+    /* Clear any mode selection done by the previous user
+     */
+    control_set_selected_mode(0);
+
+    control_rethink_usb_mode();
+}
+
+/** React to device lock state changes
+ */
+void control_device_lock_changed(void)
+{
+    log_debug("can_export = %d", usbmoded_can_export());
+
+    /* Device lock status change finalizes user change
+     */
+    control_end_pending_user_change();
+
+    control_rethink_usb_mode();
+}
+
+/** React to device state changes
+ */
+void control_device_state_changed(void)
+{
+    log_debug("in_usermode = %d; in_shutdown = %d",
+              usbmoded_in_usermode(), usbmoded_in_shutdown());
+
+    control_rethink_usb_mode();
+}
+
+/** React to settings changes
+ */
+void control_settings_changed(void)
+{
+    log_debug("settings changed");
+
+    control_rethink_usb_mode();
+}
+
+/** React to init-done changes
+ */
+void control_init_done_changed(void)
+{
+    log_debug("init_done = %d", usbmoded_init_done_p());
+
+    control_rethink_usb_mode();
+}
+
+/** Mode changes allowed predicate
+ */
+static bool control_get_enabled(void)
+{
+    return control_is_enabled;
+}
+
+/** Enable/disable mode changes
+ */
+void control_set_enabled(bool enable)
+{
+    if( control_is_enabled != enable ) {
+        control_is_enabled = enable;
+        log_debug("control_enabled = %d", control_is_enabled);
+
+        control_rethink_usb_mode();
+    }
+}
+
+/** Rescue mode is active predicate
+ */
+static bool control_get_in_rescue_mode(void)
+{
+    return control_in_rescue_mode;
+}
+
+/** Set/clear rescue mode activation state
+ */
+static void control_set_in_rescue_mode(bool in_rescue_mode)
+{
+    if( control_in_rescue_mode != in_rescue_mode ) {
+        log_debug("in_rescue_mode: %d -> %d",
+                  control_in_rescue_mode, in_rescue_mode);
+        control_in_rescue_mode = in_rescue_mode;
+    }
 }
 
 /** set the chosen usb state
@@ -371,73 +551,268 @@ void control_mode_switched(const char *mode)
  * gauge what mode to enter and then call control_set_usb_mode()
  *
  */
-void control_select_usb_mode_ex(bool user_changed)
+static void control_rethink_usb_mode(void)
 {
     LOG_REGISTER_CONTEXT;
 
-    char *mode_to_set = 0;
+    uid_t          current_user = usbmoded_get_current_user();
+    const char    *current_mode = control_get_usb_mode();
+    cable_state_t  cable_state  = control_get_cable_state();
+    const char    *mode_to_use  = 0;
+    char          *mode_to_free = 0;
 
-    if( usbmoded_get_rescue_mode() ) {
-        log_debug("Entering rescue mode!\n");
-        control_set_usb_mode(MODE_DEVELOPER);
-        goto EXIT;
+    /* Local setter function, to ease debugging */
+    auto const char *use_mode(const char *mode) {
+        if( g_strcmp0(mode_to_use, mode) ) {
+            log_debug("mode_to_use: %s -> %s",
+                      mode_to_use ?: "unset",
+                      mode        ?: "unset");
+            mode_to_use = mode;
+        }
+        return mode_to_use;
     }
 
+    log_debug("re-evaluating usb mode ...");
+
+    /* Local setter function, for dynamically allocated mode names */
+    auto const char *use_allocated_mode(char *mode) {
+        g_free(mode_to_free), mode_to_free = mode;
+        return use_mode(mode_to_free);
+    }
+
+    /* Defer mode selection until all noise resulting from
+     * usb-moded startup is over, we know that a suitable
+     * backend has been selected, etc.
+     */
+    if( !control_get_enabled() ) {
+        log_debug("starting up; mode changes blocked");
+        goto BAILOUT;
+    }
+
+    /* Handle cable disconnect / charger connect
+     *
+     * Only one mode is applicable regardless of things like current
+     * user, device lock status, etc.
+     */
+    if( cable_state != CABLE_STATE_PC_CONNECTED ) {
+        /* Reset bookkeeping that is relevant only for pc connection */
+        control_set_selected_mode(0);
+        control_set_in_rescue_mode(false);
+
+        if( cable_state == CABLE_STATE_CHARGER_CONNECTED ) {
+            /* Charger connected
+             * -> CHARGER is the only options */
+            use_mode(MODE_CHARGER);
+        }
+        else {
+            /* Disconnected / unknown
+             * -> UNDEFINED is the only option */
+            use_mode(MODE_UNDEFINED);
+        }
+        goto MODESET;
+    }
+
+    /* Handle rescue mode override
+     *
+     * When booting up connected to a pc with rescue mode enabled,
+     * lock on to rescue mode until something else is explicitly
+     * requested / cable is detached.
+     */
+    if( usbmoded_get_rescue_mode() || control_get_in_rescue_mode() ) {
+        if( !control_get_selected_mode() ) {
+            /* Rescue mode active
+             * -> DEVELOPER is the only option
+             *
+             */
+            use_mode(MODE_DEVELOPER);
+            control_set_in_rescue_mode(true);
+            goto MODESET;
+        }
+    }
+    control_set_in_rescue_mode(false);
+
+    /* Handle diagnostic mode override
+     */
     if( usbmoded_get_diag_mode() ) {
         /* Assumption is that in diag-mode there is only
          * one mode configured i.e. list head is diag-mode. */
         GList *iter = usbmoded_get_modelist();
         if( !iter ) {
             log_err("Diagnostic mode is not configured!");
+            use_mode(MODE_CHARGING_FALLBACK);
         }
         else {
-            modedata_t *data = iter->data;
             log_debug("Entering diagnostic mode!");
-            control_set_usb_mode(data->mode_name);
+            modedata_t *data = iter->data;
+            use_mode(data->mode_name);
         }
-        goto EXIT;
+        goto MODESET;
     }
 
-    uid_t current_user = control_get_current_user();
-    /* If current user could not be determined, assume that device is
-     * booting up or between sessions. Therefore we either must use whatever
-     * is configured as global mode or let device lock to prevent the mode
-     * so that it can be set again once the device is unlocked */
-    mode_to_set = config_get_mode_setting((current_user == UID_UNKNOWN) ? 0 : current_user);
+    /* Handle bootup override
+     *
+     * Some modes (e.g. mtp) can require system to be in a
+     * state where external services can be started/stopped.
+     *
+     * Normalize situation by blocking all dynamic modes until
+     * bootup has been finished.
+     */
+    if( !usbmoded_init_done_p() ) {
+        log_debug("in bootup; dynamic modes blocked");
+        use_mode(MODE_CHARGING_FALLBACK);
+        goto MODESET;
+    }
 
-    /* If there is only one allowed mode, use it without
-     * going through ask-mode */
-    if( !strcmp(MODE_ASK, mode_to_set) ) {
+    /* Handle shutdown override
+     *
+     * In general initiating mode changes during shutdown
+     * makes little sense.
+     *
+     * Also, if developer mode is active, we want to keep it
+     * working as long as possible for debugging purposes.
+     *
+     * DSME reports shutdown intent before we are going to
+     * see user changes due to user session getting stopped.
+     * Once that happens
+     * -> ignore all changes and retain current mode
+     */
+    if( usbmoded_in_shutdown() ) {
+        log_debug("in shutdown, retaining '%s' mode", current_mode);
+        goto BAILOUT;
+    }
+
+    /* The rest of the mode selection logic must be subjected
+     * to filtering based on device lock status, current user, etc
+     */
+
+    /* By default use whatever user has selected
+     */
+    if( use_mode(control_get_selected_mode()) ) {
+        if( common_valid_mode(mode_to_use) ) {
+            /* Mode does not exist
+             * -> try setting */
+            log_debug("mode '%s' is not valid", mode_to_use);
+            use_mode(0);
+        }
+        else if( !usbmoded_is_mode_permitted(mode_to_use, current_user) ) {
+            /* Mode is not allowed
+             * -> try setting */
+            log_debug("mode '%s' is not permitted", mode_to_use);
+            use_mode(0);
+        }
+    }
+
+    /* If user has not selected anything, apply setting value */
+    if( !mode_to_use ) {
+        /* If current user is not determined, assume that device is
+         * booting up or in between two user sessions. Therefore we
+         * either must use whatever is configured as global default
+         * mode or let device lock to prevent the mode so that it can
+         * be set again once the device is unlocked */
+        uid_t uid = (current_user == UID_UNKNOWN) ? 0 : current_user;
+        use_allocated_mode(config_get_mode_setting(uid));
+    }
+
+    /* In case of ASK and only one mode from which to select,
+     * apply the only possibility available without prompting
+     * user.
+     */
+    if( !g_strcmp0(mode_to_use, MODE_ASK) ) {
         if( current_user == UID_UNKNOWN ) {
-            /* Use charging only if no user has been seen */
-            free(mode_to_set), mode_to_set = 0;
+            /* ASK is valid only when there is user
+             * -> use fallback charging when user is not known */
+            log_debug("mode '%s' is not applicable", mode_to_use);
+            use_mode(MODE_CHARGING_FALLBACK);
         } else {
             // FIXME free() vs g_free() conflict
             gchar *available = common_get_mode_list(AVAILABLE_MODES_LIST, current_user);
             if( *available && !strchr(available, ',') ) {
-                free(mode_to_set), mode_to_set = available, available = 0;
+                use_allocated_mode(available), available = 0;
             }
             g_free(available);
         }
     }
 
-    if( mode_to_set && usbmoded_can_export() && !user_changed ) {
-        control_set_usb_mode(mode_to_set);
+    /* After dealing with user selection and settings, check
+     * that we have mode that user is permitted to activate.
+     */
+    if( !mode_to_use ) {
+        /* Nothing selected -> silently choose fallback charging */
+        use_mode(MODE_CHARGING_FALLBACK);
     }
-    else {
-        /* config is corrupted or we do not have a mode configured, fallback to charging
-         * We also fall back here in case the device is locked and we do not
-         * export the system contents, if we are in acting dead mode or changing user.
+    else if( !strcmp(mode_to_use, MODE_CHARGING_FALLBACK) ) {
+        /* Fallback charging is not user selectable mode.
+         * As it is still expected to occur here, we need to skip
+         * the permission checks below to avoid logging noise.
          */
-        control_set_usb_mode(MODE_CHARGING_FALLBACK);
     }
-EXIT:
-    free(mode_to_set);
-}
+    else if( !usbmoded_is_mode_permitted(mode_to_use, current_user) ) {
+        log_debug("mode '%s' is not permitted", mode_to_use);
+        use_mode(MODE_CHARGING_FALLBACK);
+    }
 
-void control_select_usb_mode(void)
-{
-    control_select_usb_mode_ex(false);
+    /* Handle user change without mode change
+     *
+     * For example in case of mtp mode: we must terminate ongoing
+     * mtp session that exposes home directory of the previously
+     * active user -> activating fallback charging takes care of that.
+     *
+     * Assumption is that if we ever hit this condition, it will be
+     * followed by device lock state changes that will trigger exit
+     * from fallback charging.
+     */
+    if( control_get_user_for_mode() != current_user ) {
+        /* User did change */
+        if( !g_strcmp0(current_mode, mode_to_use) ) {
+            /* Mode to select did not change */
+            if( !common_modename_is_static(mode_to_use) ) {
+                /* Selected mode is dynamic
+                 * -> redirect to fallback charging */
+                log_debug("mode '%s' must be terminated", mode_to_use);
+                use_mode(MODE_CHARGING_FALLBACK);
+            }
+        }
+    }
+
+    /* Blocking activation of dynamic modes
+     *
+     * Mode that is alreay active must be retained, but activating
+     * new dynamic modes while e.g. device is locked is not allowed.
+     */
+    if( control_have_pending_user_change() || !usbmoded_can_export() ) {
+        /* Device is locked / in ACT_DEAD / similar */
+        if( !g_strcmp0(mode_to_use, MODE_ASK) ) {
+            /* ASK is not valid while device is locked
+             * -> redirect to fallback charging */
+            log_debug("mode '%s' is not applicable", mode_to_use);
+            use_mode(MODE_CHARGING_FALLBACK);
+        }
+        else if( g_strcmp0(current_mode, mode_to_use) ) {
+            /* Mode to select did change */
+            if( !common_modename_is_static(mode_to_use) ) {
+                /* Selected mode is dynamic
+                 * -> redirect to fallback charging */
+                log_debug("mode '%s' is not applicable", mode_to_use);
+                use_mode(MODE_CHARGING_FALLBACK);
+            }
+        }
+    }
+
+MODESET:
+    /* If no mode was selected, opt for fallback charging */
+    if( !mode_to_use )
+        use_mode(MODE_CHARGING_FALLBACK);
+
+    /* Activate the mode */
+    log_debug("selected mode = %s", mode_to_use);
+    control_set_usb_mode(mode_to_use);
+
+    /* Forget client request once it can't be honored */
+    if( g_strcmp0(control_get_selected_mode(), mode_to_use) )
+        control_set_selected_mode(0);
+
+BAILOUT:
+    g_free(mode_to_free);
 }
 
 /** set the usb connection status
@@ -458,18 +833,7 @@ void control_set_cable_state(cable_state_t cable_state)
               cable_state_repr(prev),
               cable_state_repr(control_cable_state));
 
-    switch( control_cable_state ) {
-    default:
-    case CABLE_STATE_DISCONNECTED:
-        control_set_usb_mode(MODE_UNDEFINED);
-        break;
-    case CABLE_STATE_CHARGER_CONNECTED:
-        control_set_usb_mode(MODE_CHARGER);
-        break;
-    case CABLE_STATE_PC_CONNECTED:
-        control_select_usb_mode();
-        break;
-    }
+    control_rethink_usb_mode();
 
 EXIT:
     return;
@@ -511,17 +875,4 @@ bool control_get_connection_state(void)
         break;
     }
     return connected;
-}
-
-/**
- * Get the user using the device
- *
- * When built without Sailfish access control support,
- * this returns root's uid (0) unconditionally.
- *
- * @return current user on seat0 or UID_UNKNOWN if it can not be determined
- */
-uid_t control_get_current_user(void)
-{
-    return user_get_current_user();
 }

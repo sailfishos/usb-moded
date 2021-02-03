@@ -2,7 +2,7 @@
  * @file usb_moded.h
  *
  * Copyright (c) 2010 Nokia Corporation. All rights reserved.
- * Copyright (c) 2012 - 2020 Jolla Ltd.
+ * Copyright (c) 2012 - 2021 Jolla Ltd.
  * Copyright (c) 2020 Open Mobile Platform LLC.
  *
  * @author Philippe De Swert <philippe.de-swert@nokia.com>
@@ -36,11 +36,6 @@
 # endif
 
 # include "usb_moded-dyn-config.h"
-
-# include <stdbool.h>
-# include <stdio.h>
-
-# include <glib.h>
 
 /* ========================================================================= *
  * Constants
@@ -83,6 +78,9 @@ void              usbmoded_set_cable_connection_delay(int delay_ms);
 int               usbmoded_get_cable_connection_delay(void);
 void              usbmoded_allow_suspend             (void);
 void              usbmoded_delay_suspend             (void);
+bool              usbmoded_in_usermode               (void);
+bool              usbmoded_in_shutdown               (void);
+uid_t             usbmoded_get_current_user          (void);
 bool              usbmoded_can_export                (void);
 bool              usbmoded_init_done_p               (void);
 void              usbmoded_set_init_done             (bool reached);

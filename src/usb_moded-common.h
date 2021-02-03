@@ -2,7 +2,7 @@
  * @file usb_moded-common.h
  *
  * Copyright (c) 2010 Nokia Corporation. All rights reserved.
- * Copyright (c) 2012 - 2020 Jolla Ltd.
+ * Copyright (c) 2012 - 2021 Jolla Ltd.
  * Copyright (c) 2020 Open Mobile Platform LLC.
  *
  * @author Philippe De Swert <philippe.de-swert@nokia.com>
@@ -86,6 +86,7 @@ FILE       *common_popen_                       (const char *file, int line, con
 waitres_t   common_wait                         (unsigned tot_ms, bool (*ready_cb)(void *aptr), void *aptr);
 bool        common_msleep_                      (const char *file, int line, const char *func, unsigned msec);
 bool        common_modename_is_internal         (const char *modename);
+bool        common_modename_is_static           (const char *modename);
 int         common_valid_mode                   (const char *mode);
 gchar      *common_get_mode_list                (mode_list_type_t type, uid_t uid);
 

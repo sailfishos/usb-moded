@@ -1,7 +1,7 @@
 /**
  * @file usb_moded-dsme.c
  *
- * Copyright (c) 2013 - 2020 Jolla Ltd.
+ * Copyright (c) 2013 - 2021 Jolla Ltd.
  * Copyright (c) 2020 Open Mobile Platform LLC.
  *
  * @author Philippe De Swert <philippe.deswert@jollamobile.com>
@@ -30,7 +30,6 @@
 #include "usb_moded-log.h"
 #include "usb_moded-modesetting.h"
 
-#include <stdlib.h>
 #include <unistd.h>
 
 #include <dsme/state.h>
@@ -73,8 +72,8 @@
 static const char   *dsme_state_repr       (dsme_state_t state);
 static dsme_state_t  dsme_state_parse      (const char *name);
 static void          dsme_state_update     (dsme_state_t state);
-static bool          dsme_state_is_shutdown(void);
-static bool          dsme_state_is_user    (void);
+bool                 dsme_state_is_shutdown(void);
+bool                 dsme_state_is_user    (void);
 
 /* ------------------------------------------------------------------------- *
  * DSME_SOCKET
@@ -113,9 +112,8 @@ static void              dsme_dbus_quit                 (void);
  * DSME
  * ------------------------------------------------------------------------- */
 
-gboolean dsme_start_listener(void);
-void     dsme_stop_listener(void);
-gboolean dsme_in_user_state(void);
+bool dsme_start_listener(void);
+void dsme_stop_listener (void);
 
 /* ========================================================================= *
  * DSME_STATE_TRACKING
@@ -195,14 +193,15 @@ dsme_state_update(dsme_state_t state)
         dsme_state_val = state;
     }
 
+    bool device_state_changed = false;
+
     /* Handle entry to / exit from USER state */
     bool user_state = (state == DSME_STATE_USER);
 
     if( dsme_user_state != user_state ) {
         dsme_user_state = user_state;
         log_debug("in user state: %s", dsme_user_state ? "true" : "false");
-
-        control_rethink_usb_charging_fallback();
+        device_state_changed = true;
     }
 
     /* Handle entry to / exit from SHUTDOWN / REBOOT state */
@@ -216,14 +215,19 @@ dsme_state_update(dsme_state_t state)
         /* Re-evaluate dsmesock connection */
         if( !dsme_shutdown_state )
             dsme_socket_connect();
+
+        device_state_changed = true;
     }
+
+    if( device_state_changed )
+        control_device_state_changed();
 }
 
 /** Checks if the device is shutting down (or rebooting)
  *
  * @return true if device is shutting down, false otherwise
  */
-static bool
+bool
 dsme_state_is_shutdown(void)
 {
     LOG_REGISTER_CONTEXT;
@@ -235,7 +239,7 @@ dsme_state_is_shutdown(void)
  *
  * @return true if device is in USER-state, false otherwise
  */
-static bool
+bool
 dsme_state_is_user(void)
 {
     LOG_REGISTER_CONTEXT;
@@ -853,7 +857,7 @@ dsme_dbus_quit(void)
  * MODULE_API
  * ========================================================================= */
 
-gboolean
+bool
 dsme_start_listener(void)
 {
     LOG_REGISTER_CONTEXT;
@@ -868,16 +872,4 @@ dsme_stop_listener(void)
 
     dsme_dbus_quit();
     dsme_socket_disconnect();
-}
-
-/** Checks if the device is is USER-state.
- *
- * @return 1 if it is in USER-state, 0 for not
- */
-gboolean
-dsme_in_user_state(void)
-{
-    LOG_REGISTER_CONTEXT;
-
-    return dsme_state_is_user();
 }

@@ -2,7 +2,7 @@
  * @file usb_moded-config.c
  *
  * Copyright (c) 2010 Nokia Corporation. All rights reserved.
- * Copyright (c) 2012 - 2020 Jolla Ltd.
+ * Copyright (c) 2012 - 2021 Jolla Ltd.
  * Copyright (c) 2020 Open Mobile Platform LLC.
  *
  * @author Philippe De Swert <philippe.de-swert@nokia.com>
@@ -34,9 +34,9 @@
 
 #include "usb_moded-config-private.h"
 
+#include "usb_moded.h"
 #include "usb_moded-control.h"
 #include "usb_moded-dbus-private.h"
-#include "usb_moded-dyn-config.h"
 #include "usb_moded-log.h"
 #include "usb_moded-modes.h"
 #include "usb_moded-worker.h"
@@ -47,12 +47,9 @@
 
 #include <sys/stat.h>
 
-#include <stdlib.h>
 #include <unistd.h>
-#include <string.h>
 #include <fcntl.h>
 #include <glob.h>
-#include <errno.h>
 
 /* ========================================================================= *
  * Prototypes
@@ -607,24 +604,13 @@ set_config_result_t config_set_mode_whitelist(const char *whitelist)
     set_config_result_t ret = config_set_config_setting(MODE_SETTING_ENTRY, MODE_WHITELIST_KEY, whitelist);
 
     if(ret == SET_CONFIG_UPDATED) {
-        char *mode_setting;
-        const char *current_mode;
-
-        uid_t current_user = control_get_current_user();
-        mode_setting = config_get_mode_setting(current_user);
+        uid_t current_user = usbmoded_get_current_user();
+        char *mode_setting = config_get_mode_setting(current_user);
         if (strcmp(mode_setting, MODE_ASK) && common_valid_mode(mode_setting))
             config_set_mode_setting(MODE_ASK, current_user);
         g_free(mode_setting);
 
-        current_mode = control_get_usb_mode();
-        if (!strcmp(current_mode, MODE_UNDEFINED)) {
-            /* Disconnected -> do nothing */
-        }
-        else if (strcmp(current_mode, MODE_CHARGING_FALLBACK) && strcmp(current_mode, MODE_ASK) && common_valid_mode(current_mode)) {
-            /* Invalid mode that is not MODE_ASK or MODE_CHARGING_FALLBACK
-             * -> switch to MODE_CHARGING_FALLBACK */
-            control_set_usb_mode(MODE_CHARGING_FALLBACK);
-        }
+        control_settings_changed();
 
         umdbus_send_whitelisted_modes_signal(whitelist);
         common_send_available_modes_signal();

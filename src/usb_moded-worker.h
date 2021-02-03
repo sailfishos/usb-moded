@@ -1,7 +1,7 @@
 /**
  * @file usb_moded-worker.h
  *
- * Copyright (c) 2013 - 2020 Jolla Ltd.
+ * Copyright (c) 2013 - 2021 Jolla Ltd.
  * Copyright (c) 2020 Open Mobile Platform LLC.
  *
  * @author Philippe De Swert <philippe.deswert@jollamobile.com>
@@ -24,8 +24,6 @@
 
 #ifndef  USB_MODED_WORKER_H_
 # define USB_MODED_WORKER_H_
-
-# include <stdbool.h>
 
 # include "usb_moded-dyn-config.h"
 

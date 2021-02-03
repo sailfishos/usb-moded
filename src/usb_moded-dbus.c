@@ -2,7 +2,7 @@
  * @file usb_moded-dbus.c
  *
  * Copyright (c) 2010 Nokia Corporation. All rights reserved.
- * Copyright (c) 2012 - 2020 Jolla Ltd.
+ * Copyright (c) 2012 - 2021 Jolla Ltd.
  * Copyright (c) 2020 Open Mobile Platform LLC.
  *
  * @author Philippe De Swert <philippe.de-swert@nokia.com>
@@ -35,14 +35,13 @@
 #include "usb_moded-dbus-private.h"
 #include "usb_moded-dbus.h"
 
+#include "usb_moded.h"
 #include "usb_moded-config-private.h"
 #include "usb_moded-control.h"
 #include "usb_moded-log.h"
 #include "usb_moded-modes.h"
 #include "usb_moded-network.h"
 
-#include <stdlib.h>
-#include <string.h>
 #include <sys/stat.h>
 
 #include "../dbus-gmain/dbus-gmain.h"
@@ -221,11 +220,11 @@ static void usb_moded_mode_unhide_cb             (umdbus_context_t *context);
 static void usb_moded_hidden_get_cb              (umdbus_context_t *context);
 static void usb_moded_whitelisted_modes_get_cb   (umdbus_context_t *context);
 static void usb_moded_whitelisted_modes_set_cb   (umdbus_context_t *context);
+static void usb_moded_user_config_clear_cb       (umdbus_context_t *context);
 static void usb_moded_whitelisted_set_cb         (umdbus_context_t *context);
 static void usb_moded_network_set_cb             (umdbus_context_t *context);
 static void usb_moded_network_get_cb             (umdbus_context_t *context);
 static void usb_moded_rescue_off_cb              (umdbus_context_t *context);
-static void usb_moded_user_config_clear_cb       (umdbus_context_t *context);
 
 /* ------------------------------------------------------------------------- *
  * UMDBUS
@@ -583,10 +582,13 @@ usb_moded_state_set_cb(umdbus_context_t *context)
         /* In middle of a pending mode switch */
         log_warning("Mode '%s' requested while busy", use);
     }
+    else if( !control_select_mode(use) ) {
+        /* Requested mode could not be activated */
+        log_warning("Mode '%s' was rejected", use);
+    }
     else {
+        /* Mode switch initiated (or requested mode already active) */
         log_debug("Mode '%s' requested", use);
-        /* Initiate mode switch */
-        control_set_usb_mode(use);
 
         /* Acknowledge that the mode request was accepted */
         if( (context->rsp = dbus_message_new_method_return(context->msg)) )
@@ -1271,12 +1273,6 @@ static DBusHandlerResult umdbus_msg_handler(DBusConnection *const connection, DB
         if( !strcmp(context.interface, INIT_DONE_INTERFACE) && !strcmp(context.member, INIT_DONE_SIGNAL) ) {
             /* Update the cached state value */
             usbmoded_set_init_done(true);
-
-            /* Auto-disable rescue mode when bootup is finished */
-            if( usbmoded_get_rescue_mode() ) {
-                usbmoded_set_rescue_mode(false);
-                log_debug("init done reached - rescue mode disabled");
-            }
         }
         goto EXIT;
     }

@@ -2,8 +2,10 @@
  * @file usb_moded-user.h
  *
  * Copyright (c) 2021 Open Mobile Platform LLC.
+ * Copyright (c) 2021 Jolla Ltd.
  *
  * @author Mike Salmela <mike.salmela@jolla.com>
+ * @author Simo Piiroinen <simo.piiroinen@jolla.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the Lesser GNU General Public License
@@ -23,11 +25,28 @@
 #ifndef  USB_MODED_USER_H_
 # define USB_MODED_USER_H_
 
+# ifndef MEEGOLOCK
+#  warning usb_moded-user.h used without enabling MEEGOLOCK
+# endif
+
 # include <stdbool.h>
-# include "usb_moded-common.h"
+# include <unistd.h>
+
+/* ========================================================================= *
+ * Prototypes
+ * ========================================================================= */
+
+/* ------------------------------------------------------------------------- *
+ * USER
+ * ------------------------------------------------------------------------- */
+
+uid_t user_get_current_user(void);
+
+/* ------------------------------------------------------------------------- *
+ * USER_WATCH
+ * ------------------------------------------------------------------------- */
 
 bool user_watch_init(void);
 void user_watch_stop(void);
-uid_t user_get_current_user(void);
 
 #endif /* USB_MODED_USER_H_ */

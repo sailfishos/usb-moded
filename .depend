@@ -110,29 +110,23 @@ src/usb_moded-config.pic.o:\
 
 src/usb_moded-configfs.o:\
 	src/usb_moded-configfs.c\
-	config-static.h\
 	src/usb_moded-android.h\
 	src/usb_moded-common.h\
 	src/usb_moded-config-private.h\
 	src/usb_moded-config.h\
 	src/usb_moded-configfs.h\
-	src/usb_moded-dyn-config.h\
 	src/usb_moded-log.h\
 	src/usb_moded-mac.h\
-	src/usb_moded.h\
 
 src/usb_moded-configfs.pic.o:\
 	src/usb_moded-configfs.c\
-	config-static.h\
 	src/usb_moded-android.h\
 	src/usb_moded-common.h\
 	src/usb_moded-config-private.h\
 	src/usb_moded-config.h\
 	src/usb_moded-configfs.h\
-	src/usb_moded-dyn-config.h\
 	src/usb_moded-log.h\
 	src/usb_moded-mac.h\
-	src/usb_moded.h\
 
 src/usb_moded-control.o:\
 	src/usb_moded-control.c\
@@ -198,53 +192,41 @@ src/usb_moded-dbus.pic.o:\
 
 src/usb_moded-devicelock.o:\
 	src/usb_moded-devicelock.c\
-	config-static.h\
 	src/usb_moded-common.h\
 	src/usb_moded-control.h\
 	src/usb_moded-dbus-private.h\
 	src/usb_moded-dbus.h\
 	src/usb_moded-devicelock.h\
-	src/usb_moded-dyn-config.h\
 	src/usb_moded-log.h\
-	src/usb_moded.h\
 
 src/usb_moded-devicelock.pic.o:\
 	src/usb_moded-devicelock.c\
-	config-static.h\
 	src/usb_moded-common.h\
 	src/usb_moded-control.h\
 	src/usb_moded-dbus-private.h\
 	src/usb_moded-dbus.h\
 	src/usb_moded-devicelock.h\
-	src/usb_moded-dyn-config.h\
 	src/usb_moded-log.h\
-	src/usb_moded.h\
 
 src/usb_moded-dsme.o:\
 	src/usb_moded-dsme.c\
-	config-static.h\
 	src/usb_moded-common.h\
 	src/usb_moded-control.h\
 	src/usb_moded-dbus-private.h\
 	src/usb_moded-dbus.h\
 	src/usb_moded-dsme.h\
-	src/usb_moded-dyn-config.h\
 	src/usb_moded-log.h\
 	src/usb_moded-modesetting.h\
-	src/usb_moded.h\
 
 src/usb_moded-dsme.pic.o:\
 	src/usb_moded-dsme.c\
-	config-static.h\
 	src/usb_moded-common.h\
 	src/usb_moded-control.h\
 	src/usb_moded-dbus-private.h\
 	src/usb_moded-dbus.h\
 	src/usb_moded-dsme.h\
-	src/usb_moded-dyn-config.h\
 	src/usb_moded-log.h\
 	src/usb_moded-modesetting.h\
-	src/usb_moded.h\
 
 src/usb_moded-dyn-config.o:\
 	src/usb_moded-dyn-config.c\
@@ -276,7 +258,6 @@ src/usb_moded-mac.pic.o:\
 
 src/usb_moded-modesetting.o:\
 	src/usb_moded-modesetting.c\
-	config-static.h\
 	src/usb_moded-android.h\
 	src/usb_moded-appsync.h\
 	src/usb_moded-common.h\
@@ -291,11 +272,9 @@ src/usb_moded-modesetting.o:\
 	src/usb_moded-modules.h\
 	src/usb_moded-network.h\
 	src/usb_moded-worker.h\
-	src/usb_moded.h\
 
 src/usb_moded-modesetting.pic.o:\
 	src/usb_moded-modesetting.c\
-	config-static.h\
 	src/usb_moded-android.h\
 	src/usb_moded-appsync.h\
 	src/usb_moded-common.h\
@@ -310,7 +289,6 @@ src/usb_moded-modesetting.pic.o:\
 	src/usb_moded-modules.h\
 	src/usb_moded-network.h\
 	src/usb_moded-worker.h\
-	src/usb_moded.h\
 
 src/usb_moded-modules.o:\
 	src/usb_moded-modules.c\
@@ -324,7 +302,6 @@ src/usb_moded-modules.pic.o:\
 
 src/usb_moded-network.o:\
 	src/usb_moded-network.c\
-	config-static.h\
 	src/usb_moded-common.h\
 	src/usb_moded-config-private.h\
 	src/usb_moded-config.h\
@@ -336,11 +313,9 @@ src/usb_moded-network.o:\
 	src/usb_moded-modesetting.h\
 	src/usb_moded-network.h\
 	src/usb_moded-worker.h\
-	src/usb_moded.h\
 
 src/usb_moded-network.pic.o:\
 	src/usb_moded-network.c\
-	config-static.h\
 	src/usb_moded-common.h\
 	src/usb_moded-config-private.h\
 	src/usb_moded-config.h\
@@ -352,7 +327,6 @@ src/usb_moded-network.pic.o:\
 	src/usb_moded-modesetting.h\
 	src/usb_moded-network.h\
 	src/usb_moded-worker.h\
-	src/usb_moded.h\
 
 src/usb_moded-sigpipe.o:\
 	src/usb_moded-sigpipe.c\
@@ -446,6 +420,20 @@ src/usb_moded-udev.pic.o:\
 	src/usb_moded-udev.h\
 	src/usb_moded.h\
 
+src/usb_moded-user.o:\
+	src/usb_moded-user.c\
+	src/usb_moded-common.h\
+	src/usb_moded-control.h\
+	src/usb_moded-log.h\
+	src/usb_moded-user.h\
+
+src/usb_moded-user.pic.o:\
+	src/usb_moded-user.c\
+	src/usb_moded-common.h\
+	src/usb_moded-control.h\
+	src/usb_moded-log.h\
+	src/usb_moded-user.h\
+
 src/usb_moded-util.o:\
 	src/usb_moded-util.c\
 	src/usb_moded-dbus-private.h\
@@ -488,22 +476,6 @@ src/usb_moded-worker.pic.o:\
 	src/usb_moded-worker.h\
 	src/usb_moded.h\
 
-src/usb_moded-user.o:\
-	src/usb_moded-user.c\
-	src/usb_moded-user.h\
-	config-static.h\
-	src/usb_moded-log.h\
-	src/usb_moded-modes.h\
-	src/usb_moded-control.h\
-
-src/usb_moded-user.pic.o:\
-	src/usb_moded-user.c\
-	src/usb_moded-user.h\
-	config-static.h\
-	src/usb_moded-log.h\
-	src/usb_moded-modes.h\
-	src/usb_moded-control.h\
-
 src/usb_moded.o:\
 	src/usb_moded.c\
 	config-static.h\
@@ -524,13 +496,12 @@ src/usb_moded.o:\
 	src/usb_moded-modes.h\
 	src/usb_moded-modesetting.h\
 	src/usb_moded-modules.h\
-	src/usb_moded-network.h\
 	src/usb_moded-sigpipe.h\
 	src/usb_moded-systemd.h\
 	src/usb_moded-trigger.h\
 	src/usb_moded-udev.h\
-	src/usb_moded-worker.h\
 	src/usb_moded-user.h\
+	src/usb_moded-worker.h\
 	src/usb_moded.h\
 
 src/usb_moded.pic.o:\
@@ -553,13 +524,12 @@ src/usb_moded.pic.o:\
 	src/usb_moded-modes.h\
 	src/usb_moded-modesetting.h\
 	src/usb_moded-modules.h\
-	src/usb_moded-network.h\
 	src/usb_moded-sigpipe.h\
 	src/usb_moded-systemd.h\
 	src/usb_moded-trigger.h\
 	src/usb_moded-udev.h\
-	src/usb_moded-worker.h\
 	src/usb_moded-user.h\
+	src/usb_moded-worker.h\
 	src/usb_moded.h\
 
 utils/udev-search.o:\

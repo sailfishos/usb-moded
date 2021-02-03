@@ -1,8 +1,10 @@
 /**
  * @file usb_moded-sigpipe.c
  *
- * Copyright (C) 2010 Nokia Corporation. All rights reserved.
- * Copyright (C) 2012-2019 Jolla. All rights reserved.
+ * Copyright (c) 2010 Nokia Corporation. All rights reserved.
+ * Copyright (c) 2012 - 2021 Jolla Ltd.
+ *
+ * @author  Simo Piiroinen <simo.piiroinen@jollamobile.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the Lesser GNU General Public License
@@ -24,9 +26,7 @@
 #include "usb_moded.h"
 #include "usb_moded-log.h"
 
-#include <stdlib.h>
 #include <unistd.h>
-#include <errno.h>
 #include <fcntl.h>
 
 /* ========================================================================= *

@@ -2,7 +2,7 @@
  * @file usb_moded-modesetting.c
  *
  * Copyright (c) 2010 Nokia Corporation. All rights reserved.
- * Copyright (c) 2013 - 2020 Jolla Ltd.
+ * Copyright (c) 2013 - 2021 Jolla Ltd.
  * Copyright (c) 2020 Open Mobile Platform LLC.
  *
  * @author Philippe De Swert <philippe.de-swert@nokia.com>
@@ -31,8 +31,6 @@
 
 #include "usb_moded-modesetting.h"
 
-#include "usb_moded.h"
-
 #include "usb_moded-android.h"
 #include "usb_moded-appsync.h"
 #include "usb_moded-common.h"
@@ -46,9 +44,6 @@
 
 #include <unistd.h>
 #include <fcntl.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <string.h>
 #include <mntent.h>
 
 /* ========================================================================= *

@@ -2,7 +2,7 @@
  * @file usb_moded-log.c
  *
  * Copyright (c) 2010 Nokia Corporation. All rights reserved.
- * Copyright (c) 2016 - 2020 Jolla Ltd.
+ * Copyright (c) 2016 - 2021 Jolla Ltd.
  * Copyright (c) 2020 Open Mobile Platform LLC.
  *
  * @author Philippe De Swert <philippe.de-swert@nokia.com>
@@ -31,10 +31,11 @@
 #include <sys/time.h>
 
 #include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
 #include <errno.h>
-#include <assert.h>
+
+#if LOG_ENABLE_CONTEXT
+# include <assert.h> // NOTRIM
+#endif
 
 /* ========================================================================= *
  * Prototypes
@@ -167,7 +168,7 @@ context_leave(void *aptr)
     }
     assert( context_stack->stk[context_stack->sp].func == func );
 }
-#endif
+#endif // LOG_ENABLE_CONTEXT
 
 /* ========================================================================= *
  * Functions

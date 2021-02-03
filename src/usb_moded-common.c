@@ -2,7 +2,7 @@
  * @file usb_moded-common.c
  *
  * Copyright (c) 2010 Nokia Corporation. All rights reserved.
- * Copyright (c) 2012 - 2020 Jolla Ltd.
+ * Copyright (c) 2012 - 2021 Jolla Ltd.
  * Copyright (c) 2020 Open Mobile Platform LLC.
  *
  * @author Philippe De Swert <philippe.de-swert@nokia.com>
@@ -29,18 +29,14 @@
 #include "usb_moded.h"
 #include "usb_moded-config-private.h"
 #include "usb_moded-dbus-private.h"
-#include "usb_moded-dyn-config.h"
 #include "usb_moded-log.h"
 #include "usb_moded-modes.h"
 #include "usb_moded-worker.h"
 
 #include <sys/wait.h>
 
-#include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <errno.h>
 
 /* ========================================================================= *
  * Types
@@ -88,6 +84,7 @@ waitres_t    common_wait                         (unsigned tot_ms, bool (*ready_
 bool         common_msleep_                      (const char *file, int line, const char *func, unsigned msec);
 static bool  common_mode_in_list                 (const char *mode, char *const *modes);
 bool         common_modename_is_internal         (const char *modename);
+bool         common_modename_is_static           (const char *modename);
 int          common_valid_mode                   (const char *mode);
 gchar       *common_get_mode_list                (mode_list_type_t type, uid_t uid);
 
@@ -507,12 +504,26 @@ common_modename_is_internal(const char *modename)
 {
     LOG_REGISTER_CONTEXT;
 
+    return (common_modename_is_static(modename) ||
+            !g_strcmp0(modename, MODE_ASK) ||
+            !g_strcmp0(modename, MODE_BUSY));
+}
+
+/** Check if given usb mode is static
+ *
+ * @param modename name of a more
+ *
+ * @return true if mode is static, false otherwise
+ */
+bool
+common_modename_is_static(const char *modename)
+{
+    LOG_REGISTER_CONTEXT;
+
     return (!g_strcmp0(modename, MODE_UNDEFINED) ||
             !g_strcmp0(modename, MODE_CHARGER) ||
             !g_strcmp0(modename, MODE_CHARGING_FALLBACK) ||
-            !g_strcmp0(modename, MODE_ASK) ||
-            !g_strcmp0(modename, MODE_CHARGING) ||
-            !g_strcmp0(modename, MODE_BUSY));
+            !g_strcmp0(modename, MODE_CHARGING));
 }
 
 /** check if a given usb_mode exists

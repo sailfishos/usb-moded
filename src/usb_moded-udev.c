@@ -2,7 +2,7 @@
  * @file usb_moded-udev.c
  *
  * Copyright (c) 2011 Nokia Corporation. All rights reserved.
- * Copyright (c) 2013 - 2020 Jolla Ltd.
+ * Copyright (c) 2013 - 2021 Jolla Ltd.
  * Copyright (c) 2020 Open Mobile Platform LLC.
  *
  * @author Philippe De Swert <philippe.de-swert@nokia.com>
@@ -30,12 +30,11 @@
 
 #include "usb_moded-udev.h"
 
+#include "usb_moded.h"
 #include "usb_moded-config-private.h"
 #include "usb_moded-control.h"
 #include "usb_moded-dbus-private.h"
 #include "usb_moded-log.h"
-
-#include <string.h>
 
 #include <libudev.h>
 

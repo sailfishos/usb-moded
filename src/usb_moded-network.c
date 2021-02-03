@@ -4,7 +4,7 @@
  * (De)activates network depending on the network setting system.
  *
  * Copyright (c) 2011 Nokia Corporation. All rights reserved.
- * Copyright (c) 2012 - 2020 Jolla Ltd.
+ * Copyright (c) 2012 - 2021 Jolla Ltd.
  * Copyright (c) 2020 Open Mobile Platform LLC.
  *
  * @author Philippe De Swert <philippe.de-swert@nokia.com>
@@ -42,10 +42,7 @@
 
 #include <sys/stat.h>
 
-#include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
-#include <errno.h>
 
 /* ========================================================================= *
  * Constants

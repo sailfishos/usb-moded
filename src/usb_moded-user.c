@@ -2,8 +2,10 @@
  * @file usb_moded-user.c
  *
  * Copyright (c) 2021 Open Mobile Platform LLC.
+ * Copyright (c) 2021 Jolla Ltd.
  *
  * @author Mike Salmela <mike.salmela@jolla.com>
+ * @author Simo Piiroinen <simo.piiroinen@jolla.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the Lesser GNU General Public License
@@ -23,20 +25,30 @@
 #include "usb_moded-user.h"
 #include "usb_moded-control.h"
 #include "usb_moded-log.h"
-#include "usb_moded-modes.h"
-#include <glib.h>
+
 #include <systemd/sd-login.h>
 
 /* ========================================================================= *
  * Prototypes
  * ========================================================================= */
 
-static bool     user_watch_connect             (void);
-static void     user_watch_disconnect          (void);
-static void     user_set_current_user          (uid_t uid);
-static void     user_update_current_user       (void);
-static gboolean user_watch_monitor_event_cb    (GIOChannel *iochannel G_GNUC_UNUSED, GIOCondition cond,
-                                                gpointer data G_GNUC_UNUSED);
+/* ------------------------------------------------------------------------- *
+ * USER
+ * ------------------------------------------------------------------------- */
+
+static void user_update_current_user(void);
+static void user_set_current_user   (uid_t uid);
+uid_t       user_get_current_user   (void);
+
+/* ------------------------------------------------------------------------- *
+ * USER_WATCH
+ * ------------------------------------------------------------------------- */
+
+static gboolean user_watch_monitor_event_cb(GIOChannel *iochannel, GIOCondition cond, gpointer data);
+static bool     user_watch_connect         (void);
+static void     user_watch_disconnect      (void);
+bool            user_watch_init            (void);
+void            user_watch_stop            (void);
 
 /* ========================================================================= *
  * Data
@@ -78,6 +90,17 @@ static void user_set_current_user(uid_t uid)
     }
 }
 
+/** Get the user using the device
+ *
+ * When built without Sailfish access control support,
+ * this returns root's uid (0) unconditionally.
+ *
+ * Note: Whether this function is available or not depends on
+ *       configure options -> #usbmoded_get_current_user()
+ *       can be used to avoid excessive ifdef blocks.
+ *
+ * @return current user on seat0 or UID_UNKNOWN if it can not be determined
+ */
 uid_t user_get_current_user(void)
 {
     return user_current_uid;
