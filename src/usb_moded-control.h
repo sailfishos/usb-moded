@@ -37,6 +37,7 @@
  * ------------------------------------------------------------------------- */
 
 void           control_rethink_usb_charging_fallback(void);
+void           control_user_changed                 (void);
 const char    *control_get_external_mode            (void);
 void           control_clear_external_mode          (void);
 const char    *control_get_target_mode              (void);

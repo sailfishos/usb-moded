@@ -52,7 +52,9 @@ usb_moded_SOURCES = \
 	usb_moded-sigpipe.h \
 	usb_moded-sigpipe.c \
 	usb_moded-control.h \
-	usb_moded-control.c
+	usb_moded-control.c \
+	usb_moded-user.h \
+	usb_moded-user.c
 
 if USE_MER_SSU
 usb_moded_SOURCES += \

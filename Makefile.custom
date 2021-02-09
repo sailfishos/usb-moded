@@ -204,6 +204,7 @@ usb_moded-OBJS += src/usb_moded-systemd.o
 usb_moded-OBJS += src/usb_moded-trigger.o
 usb_moded-OBJS += src/usb_moded-udev.o
 usb_moded-OBJS += src/usb_moded-worker.o
+usb_moded-OBJS += src/usb_moded-user.o
 
 usb_moded-OBJS += dbus-gmain/dbus-gmain.o
 
@@ -273,6 +274,7 @@ CLEAN_SOURCES += src/usb_moded-trigger.c
 CLEAN_SOURCES += src/usb_moded-udev.c
 CLEAN_SOURCES += src/usb_moded-util.c
 CLEAN_SOURCES += src/usb_moded-worker.c
+CLEAN_SOURCES += src/usb_moded-user.c
 CLEAN_SOURCES += src/usb_moded.c
 CLEAN_SOURCES += utils/udev-search.c
 
@@ -302,6 +304,7 @@ CLEAN_HEADERS += src/usb_moded-systemd.h
 CLEAN_HEADERS += src/usb_moded-trigger.h
 CLEAN_HEADERS += src/usb_moded-udev.h
 CLEAN_HEADERS += src/usb_moded-worker.h
+CLEAN_HEADERS += src/usb_moded-user.h
 CLEAN_HEADERS += src/usb_moded.h
 
 # Files with whitespace issues
