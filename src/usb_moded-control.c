@@ -149,6 +149,12 @@ control_user_changed(void)
     /* Cable must be connected to a pc */
     if( control_get_cable_state() != CABLE_STATE_PC_CONNECTED )
         return;
+
+    /* Don't leave developer mode if keep developer mode is set */
+    if( !strcmp(control_get_usb_mode(), MODE_DEVELOPER) &&
+        usbmoded_get_keep_developer_mode() )
+        return;
+
     bool user_changed = (control_get_current_user() != control_get_user_for_mode());
     log_debug("control_user_changed: user_changed %d", user_changed);
     if (user_changed)

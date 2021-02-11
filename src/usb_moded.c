@@ -122,6 +122,8 @@ bool              usbmoded_get_rescue_mode           (void);
 void              usbmoded_set_rescue_mode           (bool rescue_mode);
 bool              usbmoded_get_diag_mode             (void);
 void              usbmoded_set_diag_mode             (bool diag_mode);
+bool              usbmoded_get_keep_developer_mode   (void);
+void              usbmoded_set_keep_developer_mode   (bool keep_mode);
 bool              usbmoded_is_mode_permitted         (const char *modename, uid_t uid);
 void              usbmoded_set_cable_connection_delay(int delay_ms);
 int               usbmoded_get_cable_connection_delay(void);
@@ -353,6 +355,42 @@ void usbmoded_set_diag_mode(bool diag_mode)
         }
         else {
             log_err("dig_mode: already locked to %d", usbmoded_diag_mode);
+        }
+    }
+}
+
+/* ------------------------------------------------------------------------- *
+ * KEEP_DEVELOPER_MODE
+ * ------------------------------------------------------------------------- */
+
+/** Keep developer mode on
+ *
+ * Keeps on developer mode after user logout to allow debugging.
+ */
+static int usbmoded_keep_developer_mode = -1;
+
+bool usbmoded_get_keep_developer_mode(void)
+{
+    LOG_REGISTER_CONTEXT;
+
+    if( usbmoded_keep_developer_mode == -1 ) {
+        usbmoded_keep_developer_mode = false;
+    }
+
+    return usbmoded_keep_developer_mode;
+}
+
+void usbmoded_set_keep_developer_mode(bool keep_mode)
+{
+    LOG_REGISTER_CONTEXT;
+
+    if( usbmoded_keep_developer_mode != keep_mode ) {
+        if( usbmoded_keep_developer_mode == -1 ) {
+            usbmoded_keep_developer_mode = keep_mode;
+            log_info("keep developer mode: set to %d", usbmoded_keep_developer_mode);
+        }
+        else {
+            log_err("keep developer mode already locked to %d", usbmoded_keep_developer_mode);
         }
     }
 }
@@ -990,6 +1028,8 @@ static const char usbmoded_usage_info[] =
 #endif
 "  -v,  --version\n"
 "      output version information and exit\n"
+"  -k,  --keep-developer-mode\n"
+"      keep developer mode on user change\n"
 "  -m,  --max-cable-delay=<ms>\n"
 "      maximum delay before accepting cable connection\n"
 "  -b,  --android-bootup-function=<function>\n"
@@ -1016,6 +1056,7 @@ static const struct option usbmoded_long_options[] =
     { "rescue",                         no_argument,       0, 'r' },
     { "systemd",                        no_argument,       0, 'n' },
     { "version",                        no_argument,       0, 'v' },
+    { "keep-developer-mode",            no_argument,       0, 'k' },
     { "max-cable-delay",                required_argument, 0, 'm' },
     { "android-bootup-function",        required_argument, 0, 'b' },
     { "auto-exit",                      no_argument,       0, 'Q' },
@@ -1024,7 +1065,7 @@ static const struct option usbmoded_long_options[] =
     { 0, 0, 0, 0 }
 };
 
-static const char usbmoded_short_options[] = "aifsTlDdhrnvm:b:QIB";
+static const char usbmoded_short_options[] = "aifsTlDdhrnvkm:b:QIB";
 
 /* Display usbmoded_usage information */
 static void usbmoded_usage(void)
@@ -1094,6 +1135,10 @@ static void usbmoded_parse_options(int argc, char* argv[])
         case 'v':
             printf("USB mode daemon version: %s\n", VERSION);
             exit(EXIT_SUCCESS);
+
+        case 'k':
+            usbmoded_set_keep_developer_mode(true);
+            break;
 
         case 'm':
             usbmoded_set_cable_connection_delay(strtol(optarg, 0, 0));
