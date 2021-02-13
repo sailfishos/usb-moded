@@ -98,6 +98,8 @@ static gboolean user_watch_monitor_event_cb(GIOChannel *iochannel G_GNUC_UNUSED,
     }
     user_update_current_user();
 
+    sd_login_monitor_flush(user_watch_monitor);
+
 EXIT:
     if ( !success ) {
         user_change_watch_id = 0;
