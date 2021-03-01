@@ -795,6 +795,10 @@ static bool usbmoded_init(void)
      * not be already in there when usb-moded starts up.
      * Retry few times unless init done is / gets reached
      * while waiting.
+     *
+     * Note that waiting here delays also systemd notification
+     * -> changes in wait time might require adjustemnts to
+     *    startup timeout value in usb-moded.service file.
      */
     for( int i = 10; ; ) {
         if( configfs_init() )
@@ -812,7 +816,7 @@ static bool usbmoded_init(void)
             break;
         }
 
-        common_msleep(1000);
+        common_msleep(2000);
     }
 
     /* Allow making systemd control ipc */
