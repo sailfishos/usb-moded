@@ -8,7 +8,7 @@ Conflicts=shutdown.target
 
 [Service]
 Type=notify
-TimeoutSec=15
+TimeoutSec=25
 EnvironmentFile=-/var/lib/environment/usb-moded/*.conf
 EnvironmentFile=-/run/usb-moded/*.conf
 ExecStart=/usr/sbin/usb_moded --systemd --force-syslog $USB_MODED_ARGS $USB_MODED_HW_ADAPTATION_ARGS
