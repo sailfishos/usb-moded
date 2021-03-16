@@ -2,7 +2,7 @@
  * @file usb_moded.c
  *
  * Copyright (c) 2010 Nokia Corporation. All rights reserved.
- * Copyright (c) 2012 - 2020 Jolla Ltd.
+ * Copyright (c) 2012 - 2021 Jolla Ltd.
  * Copyright (c) 2020 Open Mobile Platform LLC.
  *
  * @author Philippe De Swert <philippe.de-swert@nokia.com>
@@ -48,7 +48,6 @@
 #include "usb_moded-mac.h"
 #include "usb_moded-modesetting.h"
 #include "usb_moded-modules.h"
-#include "usb_moded-network.h"
 #include "usb_moded-sigpipe.h"
 #include "usb_moded-systemd.h"
 #include "usb_moded-trigger.h"
@@ -61,11 +60,7 @@
 # include "usb_moded-user.h"
 #endif
 
-#include <unistd.h>
 #include <getopt.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <string.h>
 
 #ifdef SAILFISH_ACCESS_CONTROL
 # include <sailfishaccesscontrol.h>
@@ -128,6 +123,9 @@ int               usbmoded_get_cable_connection_delay(void);
 static gboolean   usbmoded_allow_suspend_timer_cb    (gpointer aptr);
 void              usbmoded_allow_suspend             (void);
 void              usbmoded_delay_suspend             (void);
+bool              usbmoded_in_usermode               (void);
+bool              usbmoded_in_shutdown               (void);
+uid_t             usbmoded_get_current_user          (void);
 bool              usbmoded_can_export                (void);
 bool              usbmoded_init_done_p               (void);
 void              usbmoded_set_init_done             (bool reached);
@@ -523,6 +521,65 @@ void usbmoded_delay_suspend(void)
 }
 
 /* ------------------------------------------------------------------------- *
+ * DEVICE_STATE
+ * ------------------------------------------------------------------------- */
+
+/** Checks if the device is in USER state
+ *
+ * @return true if device is in USER state, false otherwise
+ */
+bool
+usbmoded_in_usermode(void)
+{
+    LOG_REGISTER_CONTEXT;
+
+#ifdef MEEGOLOCK
+    return dsme_state_is_user();
+#else
+    return true;
+#endif
+}
+
+/** Checks if the device is shutting down
+ *
+ * @return true if device is in SHUTDOWN or REBOOT state, false otherwise
+ */
+bool
+usbmoded_in_shutdown(void)
+{
+    LOG_REGISTER_CONTEXT;
+
+#ifdef MEEGOLOCK
+    return dsme_state_is_shutdown();
+#else
+    return false;
+#endif
+}
+
+/* ------------------------------------------------------------------------- *
+ * CURRENT_USER
+ * ------------------------------------------------------------------------- */
+
+/** Return current user id
+ *
+ * If MEEGOLOCK and SAILFISH_ACCESS_CONTROL are selected,
+ * returns uid of user session at seat0 / UID_UNKNOWN.
+ *
+ * Otherwise always returns 0 (root user).
+ */
+uid_t
+usbmoded_get_current_user(void)
+{
+    LOG_REGISTER_CONTEXT;
+
+#ifdef MEEGOLOCK
+    return user_get_current_user();
+#else
+    return 0;
+#endif
+}
+
+/* ------------------------------------------------------------------------- *
  * CAN_EXPORT
  * ------------------------------------------------------------------------- */
 
@@ -539,7 +596,7 @@ bool usbmoded_can_export(void)
 #ifdef MEEGOLOCK
     /* Modes that potentially expose data are allowed only when
      * device is running in user mode and device is unlocked */
-    can_export = (dsme_in_user_state() &&
+    can_export = (usbmoded_in_usermode() &&
                   devicelock_have_export_permission());
 
     /* Having bootup rescue mode active is an exception */
@@ -580,6 +637,12 @@ void usbmoded_set_init_done(bool reached)
         usbmoded_init_done_reached = reached;
         log_warning("init_done -> %s",
                     usbmoded_init_done_reached ? "reached" : "not reached");
+
+        /* Auto-disable rescue mode when bootup is finished */
+        if( usbmoded_init_done_reached )
+            usbmoded_set_rescue_mode(false);
+
+        control_init_done_changed();
     }
 }
 
@@ -655,7 +718,7 @@ void usbmoded_handle_signal(int signum)
 #endif
         /* If default mode selection became invalid,
          * revert setting to "ask" */
-        uid_t current_user = control_get_current_user();
+        uid_t current_user = usbmoded_get_current_user();
         gchar *config = config_get_mode_setting(current_user);
         if( g_strcmp0(config, MODE_ASK) &&
             common_valid_mode(config) ) {
@@ -684,7 +747,7 @@ void usbmoded_handle_signal(int signum)
              * something else. */
             log_warning("current mode '%s' is not valid, re-evaluating",
                         current);
-            control_select_usb_mode();
+            control_settings_changed();
         }
         else {
             /* Dynamic mode that is still valid - do nothing.
@@ -756,12 +819,6 @@ static bool usbmoded_init(void)
 #ifdef MEEGOLOCK
     if( !devicelock_start_listener() ) {
         log_crit("devicelock tracking could not be started");
-        goto EXIT;
-    }
-
-    /* Initialize watching for user changes */
-    if ( !user_watch_init() ) {
-        log_crit("user watch init failed");
         goto EXIT;
     }
 #endif
@@ -858,6 +915,14 @@ static bool usbmoded_init(void)
         goto EXIT;
     }
 
+#ifdef MEEGOLOCK
+    /* Initialize current user tracking. Can cause mode changes */
+    if ( !user_watch_init() ) {
+        log_crit("user watch init failed");
+        goto EXIT;
+    }
+#endif
+
     /* Broadcast supported / hidden modes */
     // TODO: should this happen before umudev_init()?
     common_send_supported_modes_signal();
@@ -883,6 +948,11 @@ EXIT:
 static void usbmoded_cleanup(void)
 {
     LOG_REGISTER_CONTEXT;
+
+    /* Stop user change listener */
+#ifdef MEEGOLOCK
+    user_watch_stop();
+#endif
 
     /* Stop the worker thread first to avoid confusion about shared
      * resources we are just about to release. */
@@ -910,11 +980,6 @@ static void usbmoded_cleanup(void)
     /* Stop tracking device state */
 #ifdef MEEGOLOCK
     dsme_stop_listener();
-#endif
-
-    /* Stop user change listener */
-#ifdef MEEGOLOCK
-    user_watch_stop();
 #endif
 
     /* Stop udev listener */
@@ -1183,6 +1248,8 @@ int main(int argc, char* argv[])
 
     /* init succesful, run main loop */
     usbmoded_exitcode = EXIT_SUCCESS;
+
+    control_set_enabled(true);
 
     if( usbmoded_auto_exit )
         goto EXIT;

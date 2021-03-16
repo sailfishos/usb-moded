@@ -1,7 +1,7 @@
 /**
  * @file usb_moded-dsme.h
  *
- * Copyright (c) 2013 - 2020 Jolla Ltd.
+ * Copyright (c) 2013 - 2021 Jolla Ltd.
  * Copyright (c) 2020 Open Mobile Platform LLC.
  *
  * @author Philippe De Swert <philippe.deswert@jollamobile.com>
@@ -29,18 +29,24 @@
 #ifndef  USB_MODED_DSME_H_
 # define USB_MODED_DSME_H_
 
-# include <glib.h>
+# include <stdbool.h>
 
 /* ========================================================================= *
  * Prototypes
  * ========================================================================= */
 
 /* ------------------------------------------------------------------------- *
+ * DSME_STATE
+ * ------------------------------------------------------------------------- */
+
+bool dsme_state_is_shutdown(void);
+bool dsme_state_is_user    (void);
+
+/* ------------------------------------------------------------------------- *
  * DSME
  * ------------------------------------------------------------------------- */
 
-gboolean dsme_start_listener(void);
-void     dsme_stop_listener(void);
-gboolean dsme_in_user_state(void);
+bool dsme_start_listener(void);
+void dsme_stop_listener (void);
 
 #endif /* USB_MODED_DSME_H_ */

@@ -2,7 +2,7 @@
  * @file usb_moded-dyn-config.c
  *
  * Copyright (c) 2011 Nokia Corporation. All rights reserved.
- * Copyright (c) 2013 - 2020 Jolla Ltd.
+ * Copyright (c) 2013 - 2021 Jolla Ltd.
  * Copyright (c) 2020 Open Mobile Platform LLC.
  *
  * @author Philippe De Swert <philippe.de-swert@nokia.com>
@@ -31,7 +31,6 @@
 
 #include "usb_moded-log.h"
 
-#include <stdlib.h>
 #include <glob.h>
 
 /* ========================================================================= *

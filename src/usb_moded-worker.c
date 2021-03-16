@@ -1,7 +1,7 @@
 /**
  * @file usb_moded-worker.c
  *
- * Copyright (c) 2013 - 2020 Jolla Ltd.
+ * Copyright (c) 2013 - 2021 Jolla Ltd.
  * Copyright (c) 2020 Open Mobile Platform LLC.
  *
  * @author Philippe De Swert <philippe.deswert@jollamobile.com>
@@ -24,27 +24,20 @@
 
 #include "usb_moded-worker.h"
 
+#include "usb_moded.h"
 #include "usb_moded-android.h"
 #include "usb_moded-configfs.h"
 #include "usb_moded-control.h"
-#include "usb_moded-dyn-config.h"
 #include "usb_moded-log.h"
 #include "usb_moded-modes.h"
 #include "usb_moded-modesetting.h"
 #include "usb_moded-modules.h"
 #include "usb_moded-appsync.h"
 
-// FIXME: worker thread should not depend on control functionality
-#include "usb_moded-control.h"
-
-#include <sys/types.h>
 #include <sys/eventfd.h>
 
 #include <pthread.h> // NOTRIM
 #include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
 #include <pwd.h>
 
 /* ========================================================================= *
@@ -247,7 +240,7 @@ worker_mount_mtp_device(void)
     /* Probe currently active user for uid/gid info. In case these
      * can't be obtained, use values for default user as fallback. */
     gid_t gid = 100000;
-    uid_t uid = control_get_current_user();
+    uid_t uid = usbmoded_get_current_user();
     if( uid == UID_UNKNOWN )
         uid = 100000;
 

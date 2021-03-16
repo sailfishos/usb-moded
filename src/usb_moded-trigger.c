@@ -2,7 +2,7 @@
  * @file usb_moded-trigger.c
  *
  * Copyright (c) 2011 Nokia Corporation. All rights reserved.
- * Copyright (c) 2014 - 2020 Jolla Ltd.
+ * Copyright (c) 2014 - 2021 Jolla Ltd.
  * Copyright (c) 2020 Open Mobile Platform LLC.
  *
  * @author Philippe De Swert <philippedeswert@gmail.com>
@@ -28,12 +28,10 @@
 
 #include "usb_moded-trigger.h"
 
+#include "usb_moded.h"
 #include "usb_moded-config-private.h"
 #include "usb_moded-control.h"
 #include "usb_moded-log.h"
-
-#include <stdlib.h>
-#include <string.h>
 
 #include <libudev.h>
 
@@ -260,7 +258,7 @@ static void trigger_parse_udev_properties(struct udev_device *dev)
             goto EXIT;
     }
 
-    control_set_usb_mode(trigger_mode);
+    control_select_mode(trigger_mode);
 
 EXIT:
     free(trigger_value);

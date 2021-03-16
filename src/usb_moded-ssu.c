@@ -1,7 +1,7 @@
 /**
  * @file usb_moded-ssu.c
  *
- * Copyright (c) 2016 - 2020 Jolla Ltd.
+ * Copyright (c) 2016 - 2021 Jolla Ltd.
  * Copyright (c) 2020 Open Mobile Platform LLC.
  *
  * @author Simo Piiroinen <simo.piiroinen@jollamobile.com>
@@ -24,9 +24,6 @@
 #include "usb_moded-ssu.h"
 
 #include "usb_moded-log.h"
-
-#include <stdlib.h>
-#include <string.h>
 
 #include <ssusysinfo.h>
 

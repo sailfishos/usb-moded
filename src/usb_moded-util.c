@@ -1,7 +1,7 @@
 /**
  * @file usb_moded-util.c
  *
- * Copyright (c) 2013 - 2020 Jolla Ltd.
+ * Copyright (c) 2013 - 2021 Jolla Ltd.
  * Copyright (c) 2020 Open Mobile Platform LLC.
  *
  * @author Philippe De Swert <philippe.deswert@jollamobile.com>
@@ -27,9 +27,7 @@
 #include "usb_moded-dbus-private.h"
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <getopt.h>
-#include <string.h>
 
 /* ========================================================================= *
  * Prototypes

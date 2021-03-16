@@ -1,7 +1,7 @@
 /**
  * @file usb_moded-control.h
  *
- * Copyright (c) 2013 - 2020 Jolla Ltd.
+ * Copyright (c) 2013 - 2021 Jolla Ltd.
  * Copyright (c) 2020 Open Mobile Platform LLC.
  *
  * @author Philippe De Swert <philippe.deswert@jollamobile.com>
@@ -25,7 +25,6 @@
 #ifndef  USB_MODED_CONTROL_H_
 # define USB_MODED_CONTROL_H_
 
-# include "usb_moded.h"
 # include "usb_moded-common.h"
 
 /* ========================================================================= *
@@ -36,21 +35,27 @@
  * CONTROL
  * ------------------------------------------------------------------------- */
 
-void           control_rethink_usb_charging_fallback(void);
-void           control_user_changed                 (void);
-const char    *control_get_external_mode            (void);
-void           control_clear_external_mode          (void);
-const char    *control_get_target_mode              (void);
-void           control_clear_target_mode            (void);
-const char    *control_get_usb_mode                 (void);
-void           control_clear_internal_mode          (void);
-void           control_set_usb_mode                 (const char *mode);
-void           control_mode_switched                (const char *mode);
-void           control_select_usb_mode              (void);
-void           control_set_cable_state              (cable_state_t cable_state);
-cable_state_t  control_get_cable_state              (void);
-void           control_clear_cable_state            (void);
-bool           control_get_connection_state         (void);
-uid_t          control_get_current_user             (void);
+uid_t          control_get_user_for_mode   (void);
+void           control_set_user_for_mode   (uid_t uid);
+const char    *control_get_external_mode   (void);
+void           control_clear_external_mode (void);
+const char    *control_get_target_mode     (void);
+void           control_clear_target_mode   (void);
+const char    *control_get_selected_mode   (void);
+void           control_set_selected_mode   (const char *mode);
+bool           control_select_mode         (const char *mode);
+const char    *control_get_usb_mode        (void);
+void           control_clear_internal_mode (void);
+void           control_mode_switched       (const char *mode);
+void           control_user_changed        (void);
+void           control_device_lock_changed (void);
+void           control_device_state_changed(void);
+void           control_settings_changed    (void);
+void           control_init_done_changed   (void);
+void           control_set_enabled         (bool enable);
+void           control_set_cable_state     (cable_state_t cable_state);
+cable_state_t  control_get_cable_state     (void);
+void           control_clear_cable_state   (void);
+bool           control_get_connection_state(void);
 
 #endif /* USB_MODED_CONTROL_H_ */

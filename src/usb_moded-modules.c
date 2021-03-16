@@ -2,7 +2,7 @@
  * @file usb_moded-modules.c
  *
  * Copyright (c) 2010 Nokia Corporation. All rights reserved.
- * Copyright (c) 2012 - 2020 Jolla Ltd.
+ * Copyright (c) 2012 - 2021 Jolla Ltd.
  * Copyright (c) 2020 Open Mobile Platform LLC.
  *
  * @author Philippe De Swert <philippe.de-swert@nokia.com>
@@ -31,9 +31,6 @@
 #include "usb_moded-modules.h"
 
 #include "usb_moded-log.h"
-
-#include <stdlib.h>
-#include <string.h>
 
 #include <libkmod.h>
 

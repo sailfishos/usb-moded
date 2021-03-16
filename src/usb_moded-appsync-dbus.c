@@ -2,7 +2,7 @@
  * @file usb_moded-appsync-dbus.c
  *
  * Copyright (c) 2010 Nokia Corporation. All rights reserved.
- * Copyright (c) 2013 - 2020 Jolla Ltd.
+ * Copyright (c) 2013 - 2021 Jolla Ltd.
  * Copyright (c) 2020 Open Mobile Platform LLC.
  *
  * @author Philippe De Swert <philippe.de-swert@nokia.com>
@@ -30,8 +30,6 @@
 
 #include "usb_moded-appsync.h"
 #include "usb_moded-log.h"
-
-#include <string.h>
 
 #include <dbus/dbus.h>
 
