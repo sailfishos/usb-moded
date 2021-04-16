@@ -61,6 +61,7 @@
 #endif
 
 #include <getopt.h>
+#include <unistd.h>
 
 #ifdef SAILFISH_ACCESS_CONTROL
 # include <sailfishaccesscontrol.h>
