@@ -1061,6 +1061,16 @@ char * config_get_android_manufacturer(void)
     {
         return ssu_name;
     }
+#else
+    /*Trying use /etc/hw-release to get MANUFACTURER_ID*/
+    GKeyFile *hwReleaseFile;
+    GError *error = NULL;
+
+    // Create a new GKeyFile object and a bitwise list of flags.
+    hwReleaseFile = g_key_file_new();
+    if (g_key_file_load_from_file(hwReleaseFile, "/etc/hw-release", G_KEY_FILE_NONE, &error)) {
+        return g_key_file_get_string(hwReleaseFile, NULL, "MANUFACTURER", NULL);
+    }
 #endif
 
     return config_get_conf_string(ANDROID_ENTRY, ANDROID_MANUFACTURER_KEY);
@@ -1084,6 +1094,15 @@ char * config_get_android_product(void)
     if( ssu_name )
     {
         return ssu_name;
+    }
+#else
+    /*Trying use /etc/hw-release to get NAME*/
+    GKeyFile *hwReleaseFile;
+    GError *error = NULL;
+
+    hwReleaseFile = g_key_file_new();
+    if (g_key_file_load_from_file(hwReleaseFile, "/etc/hw-release", G_KEY_FILE_NONE, &error)) {
+        return g_key_file_get_string(hwReleaseFile, NULL, "NAME", NULL);
     }
 #endif
 
