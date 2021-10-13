@@ -16,7 +16,6 @@ BuildRequires: pkgconfig(libsystemd)
 BuildRequires: pkgconfig(ssu-sysinfo)
 BuildRequires: pkgconfig(dsme) >= 0.65.0
 BuildRequires: pkgconfig(sailfishaccesscontrol)
-BuildRequires: systemd
 BuildRequires: libtool
 
 Requires: lsof
