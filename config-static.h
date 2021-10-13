@@ -11,7 +11,7 @@
 #define PACKAGE_NAME "usb_moded"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "usb_moded 0.86.0+mer55"
+#define PACKAGE_STRING "usb_moded 0.86.0+mer56"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "usb_moded"
