@@ -1067,9 +1067,16 @@ char * config_get_android_manufacturer(void)
     GError *error = NULL;
 
     // Create a new GKeyFile object and a bitwise list of flags.
+    char *hw_name = NULL;
     hwReleaseFile = g_key_file_new();
-    if (g_key_file_load_from_file(hwReleaseFile, "/etc/hw-release", G_KEY_FILE_NONE, &error)) {
-        return g_key_file_get_string(hwReleaseFile, NULL, "MANUFACTURER", NULL);
+    if (g_key_file_load_from_file(hwReleaseFile, "/etc/hw-release", G_KEY_FILE_NONE, &error))
+    {
+        hw_name = g_key_file_get_string(hwReleaseFile, NULL, "MANUFACTURER", NULL);
+    }
+
+    if(hw_name)
+    {
+        return hw_name;
     }
 #endif
 
