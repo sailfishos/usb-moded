@@ -1,7 +1,7 @@
 /**
  * @file usb_moded-worker.c
  *
- * Copyright (c) 2013 - 2021 Jolla Ltd.
+ * Copyright (c) 2013 - 2022 Jolla Ltd.
  * Copyright (c) 2020 Open Mobile Platform LLC.
  *
  * @author Philippe De Swert <philippe.deswert@jollamobile.com>
@@ -34,6 +34,8 @@
 #include "usb_moded-modules.h"
 #include "usb_moded-appsync.h"
 
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <sys/eventfd.h>
 
 #include <pthread.h> // NOTRIM
@@ -234,6 +236,12 @@ worker_mount_mtp_device(void)
     /* Fail if control endpoint is already present */
     if( worker_get_mtp_device_state() != DEVSTATE_UNMOUNTED ) {
         log_err("mtp device already mounted");
+        goto EXIT;
+    }
+
+    /* Ensure that device directory exists */
+    if( mkdir("/dev/mtp", 0755) == -1 && errno != EEXIST ) {
+        log_err("failed to create /dev/mtp directory: %m");
         goto EXIT;
     }
 
