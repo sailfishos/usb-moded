@@ -132,10 +132,10 @@ EXIT:
 
     dbus_error_free(&err);
 
+    log_debug("%s(%s) -> %s", method, name, res ?: "N/A");
+
     if( rsp ) dbus_message_unref(rsp);
     if( req ) dbus_message_unref(req);
-
-    log_debug("%s(%s) -> %s", method, name, res ?: "N/A");
 
     return res != 0;
 }
