@@ -8,7 +8,7 @@ Before=adbd.service
 PartOf=adbd.service
 
 [Service]
-Type=notify
+Type=oneshot
 RemainAfterExit=yes
 ExecStart=/usr/sbin/adbd-functionfs.sh
 ExecStop=/bin/umount adb
