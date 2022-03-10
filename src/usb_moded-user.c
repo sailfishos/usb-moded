@@ -71,9 +71,56 @@ static uid_t                user_current_uid = UID_UNKNOWN;
 static void user_update_current_user(void)
 {
 #ifdef SAILFISH_ACCESS_CONTROL
-    uid_t uid = UID_UNKNOWN;
-    sd_seat_get_active("seat0", 0, &uid);
-    user_set_current_user(uid);
+    uid_t  active_uid = UID_UNKNOWN;
+    char **sessions   = NULL;
+
+    int rc;
+
+    if( (rc = sd_get_sessions(&sessions)) < 0 ) {
+        log_warning("sd_get_sessions: %s", strerror(-rc));
+        goto EXIT;
+    }
+
+    if( rc < 1 || !sessions )
+        goto EXIT;
+
+    for( size_t i = 0; active_uid == UID_UNKNOWN && sessions[i]; ++i ) {
+        uid_t  uid    = UID_UNKNOWN;
+        char  *seat   = NULL;
+        char  *state  = NULL;
+
+        if( (rc = sd_session_get_uid(sessions[i], &uid)) < 0 ) {
+            log_warning("sd_session_get_uid(%s): %s",
+                        sessions[i], strerror(-rc));
+        }
+        else if( (rc = sd_session_get_state(sessions[i], &state)) < 0 ) {
+            log_warning("sd_session_get_state(%s): %s",
+                        sessions[i], strerror(-rc));
+        }
+        else if( (rc = sd_session_get_seat(sessions[i], &seat)) < 0 ) {
+            /* NB: It is normal to have sessions without a seat, but
+             *     sd_session_get_seat() reports error on such cases
+             *     and we do not want that to cause logging noise.
+             */
+        }
+        else if( state && seat && !strcmp(seat, "seat0") ) {
+            log_debug("session: seat=%s uid=%d state=%s",  seat, (int)uid, state);
+            if( !strcmp(state, "active") || !strcmp(state, "online") )
+                active_uid = uid;
+        }
+
+        free(state);
+        free(seat);
+    }
+
+EXIT:
+    if( sessions ) {
+        for( size_t i = 0; sessions[i]; ++i )
+            free(sessions[i]);
+        free(sessions);
+    }
+
+    user_set_current_user(active_uid);
 #else
     user_set_current_user(0);
 #endif
@@ -139,7 +186,7 @@ static bool user_watch_connect(void)
     bool success = false;
     GIOChannel *iochan = NULL;
 
-    if ( sd_login_monitor_new("uid", &user_watch_monitor) < 0 ) {
+    if ( sd_login_monitor_new("session", &user_watch_monitor) < 0 ) {
         log_err("Failed to create login monitor\n");
         goto EXIT;
     }
