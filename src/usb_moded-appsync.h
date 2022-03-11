@@ -30,6 +30,9 @@
 # define USB_MODED_APPSYNC_H_
 
 # include <stdbool.h>
+#ifdef APP_SYNC_DBUS
+# include <sys/time.h>
+#endif
 
 /* ========================================================================= *
  * Constants
