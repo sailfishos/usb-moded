@@ -11,7 +11,7 @@
 #define PACKAGE_NAME "usb_moded"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "usb_moded 0.86.0+mer58"
+#define PACKAGE_STRING "usb_moded 0.86.0+mer59"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "usb_moded"
@@ -20,13 +20,13 @@
 #define PACKAGE_URL ""
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "0.86.0+mer58"
+#define PACKAGE_VERSION "0.86.0+mer59"
 
 /* Define to 1 if you have the ANSI C header files. */
 #define STDC_HEADERS 1
 
 /* Version number of package */
-#define VERSION "0.86.0+mer58"
+#define VERSION "0.86.0+mer59"
 
 /* Define to empty if `const' does not conform to ANSI C. */
 /* #undef const */
