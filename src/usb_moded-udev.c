@@ -421,6 +421,7 @@ static void umudev_parse_properties(struct udev_device *dev, bool initial)
         log_debug("CONNECTED - POWER_SUPPLY_TYPE = %s", power_supply_type);
 
         if( !strcmp(power_supply_type, "USB") ||
+            !strcmp(power_supply_type, "USB_PD") ||
             !strcmp(power_supply_type, "USB_CDP") ) {
             umudev_cable_state_from_udev(CABLE_STATE_PC_CONNECTED);
         }
