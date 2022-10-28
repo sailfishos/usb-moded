@@ -429,6 +429,26 @@ static void umudev_parse_properties(struct udev_device *dev, bool initial)
                  !strcmp(power_supply_type, "USB_HVDCP_3") ) {
             umudev_cable_state_from_udev(CABLE_STATE_CHARGER_CONNECTED);
         }
+        else  if( !strcmp(power_supply_type, "USB_PD") ) {
+            /* Looks like it is impossible to tell apart PD connections to
+             * pc and chargers based on stable state property values.
+             *
+             * However, it seems that PD capable power banks and chargers
+             * are 1st reported as chargers, then a switch to PD type occurs
+             * i.e. we can expect to see sequences like:
+             *   Unknown -> USB_DCP -> USB_PD
+             *
+             * Whereas e.g. a laptop connection is expected to report only
+             * non-charger types, or directly:
+             *   Unknown -> USB_PD
+             *
+             * -> Differentiation should be possible by retaining the "this
+             *    is a charger" info obtained from transient USB_DCP/similar
+             *    states.
+             */
+            if( umudev_cable_state_current != CABLE_STATE_CHARGER_CONNECTED )
+                umudev_cable_state_from_udev(CABLE_STATE_PC_CONNECTED);
+        }
         else if( !strcmp(power_supply_type, "USB_FLOAT")) {
             if( !umudev_cable_state_connected() )
                 log_warning("connection type detection failed, assuming charger");
