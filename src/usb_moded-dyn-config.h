@@ -122,6 +122,13 @@ typedef struct modedata_t
 # ifdef CONNMAN
     gchar *connman_tethering;              /**< Connman's tethering technology path */
 # endif
+
+    gchar *cached_ip;                      /**< Cached NETWORK_IP_KEY setting */
+    gchar *cached_interface;               /**< Cached NETWORK_INTERFACE_KEY setting */
+    gchar *cached_gateway;                 /**< Cached NETWORK_GATEWAY_KEY setting */
+    gchar *cached_nat_interface;           /**< Cached NETWORK_NAT_INTERFACE_KEY setting */
+    gchar *cached_netmask;                 /**< Cached NETWORK_NETMASK_KEY setting */
+
 } modedata_t;
 
 /* ========================================================================= *
@@ -132,8 +139,9 @@ typedef struct modedata_t
  * MODEDATA
  * ------------------------------------------------------------------------- */
 
-void        modedata_free(modedata_t *self);
-modedata_t *modedata_copy(const modedata_t *that);
+void        modedata_free          (modedata_t *self);
+modedata_t *modedata_copy          (const modedata_t *that);
+void        modedata_cache_settings(modedata_t *self);
 
 /* ------------------------------------------------------------------------- *
  * MODELIST

@@ -68,6 +68,7 @@ GList            *usbmoded_get_modelist              (void);
 void              usbmoded_load_modelist             (void);
 void              usbmoded_free_modelist             (void);
 const modedata_t *usbmoded_get_modedata              (const char *modename);
+void              usbmoded_refresh_modedata          (const char *modename);
 modedata_t       *usbmoded_dup_modedata              (const char *modename);
 bool              usbmoded_get_rescue_mode           (void);
 void              usbmoded_set_rescue_mode           (bool rescue_mode);

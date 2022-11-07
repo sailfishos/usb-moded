@@ -725,7 +725,9 @@ bool modesetting_enter_dynamic_mode(void)
 #endif
     log_debug("data->appsync = %d", data->appsync);
     log_debug("data->network = %d", data->network);
-    log_debug("data->network_interface = %s", data->network_interface ?: "n/a");
+    log_debug("data->network_interface = %s%s", data->network_interface,
+              g_strcmp0(data->network_interface, data->cached_interface) ?
+              " (ignored)" : "");
     log_debug("data->idProduct = %s", data->idProduct ?: "n/a");
     log_debug("data->idVendorOverride = %s", data->idVendorOverride ?: "n/a");
     log_debug("data->nat = %d", data->nat);
@@ -803,7 +805,7 @@ bool modesetting_enter_dynamic_mode(void)
 #ifdef DEBIAN
         char command[256];
 
-        g_snprintf(command, sizeof command, "ifdown %s ; ifup %s", data->network_interface, data->network_interface);
+        g_snprintf(command, sizeof command, "ifdown %s ; ifup %s", data->cached_interface, data->cached_interface);
         common_system(command);
 #else
         network_down(data);

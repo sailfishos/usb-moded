@@ -109,34 +109,36 @@
  * USBMODED
  * ------------------------------------------------------------------------- */
 
-GList            *usbmoded_get_modelist              (void);
-void              usbmoded_load_modelist             (void);
-void              usbmoded_free_modelist             (void);
-const modedata_t *usbmoded_get_modedata              (const char *modename);
-modedata_t       *usbmoded_dup_modedata              (const char *modename);
-bool              usbmoded_get_rescue_mode           (void);
-void              usbmoded_set_rescue_mode           (bool rescue_mode);
-bool              usbmoded_get_diag_mode             (void);
-void              usbmoded_set_diag_mode             (bool diag_mode);
-bool              usbmoded_is_mode_permitted         (const char *modename, uid_t uid);
-void              usbmoded_set_cable_connection_delay(int delay_ms);
-int               usbmoded_get_cable_connection_delay(void);
-static gboolean   usbmoded_allow_suspend_timer_cb    (gpointer aptr);
-void              usbmoded_allow_suspend             (void);
-void              usbmoded_delay_suspend             (void);
-bool              usbmoded_in_usermode               (void);
-bool              usbmoded_in_shutdown               (void);
-uid_t             usbmoded_get_current_user          (void);
-bool              usbmoded_can_export                (void);
-bool              usbmoded_init_done_p               (void);
-void              usbmoded_set_init_done             (bool reached);
-void              usbmoded_probe_init_done           (void);
-void              usbmoded_exit_mainloop             (int exitcode);
-void              usbmoded_handle_signal             (int signum);
-static bool       usbmoded_init                      (void);
-static void       usbmoded_cleanup                   (void);
-static void       usbmoded_usage                     (void);
-static void       usbmoded_parse_options             (int argc, char *argv[]);
+GList             *usbmoded_get_modelist              (void);
+void               usbmoded_load_modelist             (void);
+void               usbmoded_free_modelist             (void);
+static modedata_t *usbmoded_lookup_modedata           (const char *modename);
+const modedata_t  *usbmoded_get_modedata              (const char *modename);
+void               usbmoded_refresh_modedata          (const char *modename);
+modedata_t        *usbmoded_dup_modedata              (const char *modename);
+bool               usbmoded_get_rescue_mode           (void);
+void               usbmoded_set_rescue_mode           (bool rescue_mode);
+bool               usbmoded_get_diag_mode             (void);
+void               usbmoded_set_diag_mode             (bool diag_mode);
+bool               usbmoded_is_mode_permitted         (const char *modename, uid_t uid);
+void               usbmoded_set_cable_connection_delay(int delay_ms);
+int                usbmoded_get_cable_connection_delay(void);
+static gboolean    usbmoded_allow_suspend_timer_cb    (gpointer aptr);
+void               usbmoded_allow_suspend             (void);
+void               usbmoded_delay_suspend             (void);
+bool               usbmoded_in_usermode               (void);
+bool               usbmoded_in_shutdown               (void);
+uid_t              usbmoded_get_current_user          (void);
+bool               usbmoded_can_export                (void);
+bool               usbmoded_init_done_p               (void);
+void               usbmoded_set_init_done             (bool reached);
+void               usbmoded_probe_init_done           (void);
+void               usbmoded_exit_mainloop             (int exitcode);
+void               usbmoded_handle_signal             (int signum);
+static bool        usbmoded_init                      (void);
+static void        usbmoded_cleanup                   (void);
+static void        usbmoded_usage                     (void);
+static void        usbmoded_parse_options             (int argc, char *argv[]);
 
 /* ------------------------------------------------------------------------- *
  * MAIN
@@ -242,14 +244,14 @@ usbmoded_free_modelist(void)
 
 /** Lookup dynamic mode data by name
  *
- * Note: This function should be called only from the main thread.
+ * Note: Helper for local use only
  *
  * @param modename  Name of mode to lookup
  *
  * @return Mode data object, or NULL
  */
-const modedata_t *
-usbmoded_get_modedata(const char *modename)
+static modedata_t *
+usbmoded_lookup_modedata(const char *modename)
 {
     LOG_REGISTER_CONTEXT;
 
@@ -263,6 +265,40 @@ usbmoded_get_modedata(const char *modename)
         }
     }
     return modedata;
+}
+
+/** Lookup dynamic mode data by name
+ *
+ * Note: This function should be called only from the main thread.
+ *
+ * @param modename  Name of mode to lookup
+ *
+ * @return Mode data object, or NULL
+ */
+const modedata_t *
+usbmoded_get_modedata(const char *modename)
+{
+    LOG_REGISTER_CONTEXT;
+
+    return usbmoded_lookup_modedata(modename);
+}
+
+/** Refresh settings cached in dynamic mode
+ *
+ * Note: This function should be called only from the main thread.
+ *
+ * @param modename  Name of mode to update
+ *
+ * @return Mode data object, or NULL
+ */
+void
+usbmoded_refresh_modedata(const char *modename)
+{
+    LOG_REGISTER_CONTEXT;
+
+    modedata_t *modedata = usbmoded_lookup_modedata(modename);
+    if( modedata )
+        modedata_cache_settings(modedata);
 }
 
 /** Lookup and clone dynamic mode data by name

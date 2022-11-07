@@ -29,6 +29,7 @@
 
 #include "usb_moded-dyn-config.h"
 
+#include "usb_moded-config-private.h"
 #include "usb_moded-log.h"
 
 #include <glob.h>
@@ -41,11 +42,13 @@
  * MODEDATA
  * ------------------------------------------------------------------------- */
 
-static void        modedata_free_cb(gpointer self);
-void               modedata_free   (modedata_t *self);
-modedata_t        *modedata_copy   (const modedata_t *that);
-static gint        modedata_sort_cb(gconstpointer a, gconstpointer b);
-static modedata_t *modedata_load   (const gchar *filename);
+static void        modedata_free_cb       (gpointer self);
+void               modedata_free          (modedata_t *self);
+modedata_t        *modedata_copy          (const modedata_t *that);
+static void        modedata_flush_settings(modedata_t *self);
+void               modedata_cache_settings(modedata_t *self);
+static gint        modedata_sort_cb       (gconstpointer a, gconstpointer b);
+static modedata_t *modedata_load          (const gchar *filename);
 
 /* ------------------------------------------------------------------------- *
  * MODELIST
@@ -97,6 +100,7 @@ modedata_free(modedata_t *self)
 #ifdef CONNMAN
         g_free(self->connman_tethering);
 #endif
+        modedata_flush_settings(self);
         free(self);
     }
 }
@@ -142,9 +146,57 @@ modedata_copy(const modedata_t *that)
 #ifdef CONNMAN
     self->connman_tethering          = g_strdup(that->connman_tethering);
 #endif
+    self->cached_ip                  = g_strdup(that->cached_ip);
+    self->cached_interface           = g_strdup(that->cached_interface);
+    self->cached_gateway             = g_strdup(that->cached_gateway);
+    self->cached_nat_interface       = g_strdup(that->cached_nat_interface);
+    self->cached_netmask             = g_strdup(that->cached_netmask);
 
 EXIT:
     return self;
+}
+
+static void
+modedata_flush_settings(modedata_t *self)
+{
+    g_free(self->cached_ip),
+        self->cached_ip = NULL;
+    g_free(self->cached_interface),
+        self->cached_interface = NULL;
+    g_free(self->cached_gateway),
+        self->cached_gateway = NULL;
+    g_free(self->cached_nat_interface),
+        self->cached_nat_interface = NULL;
+    g_free(self->cached_netmask),
+        self->cached_netmask = NULL;
+}
+
+void
+modedata_cache_settings(modedata_t *self)
+{
+    modedata_flush_settings(self);
+
+    if( !(self->cached_ip = config_get_network_setting(NETWORK_IP_KEY)) )
+        self->cached_ip = config_get_network_fallback(NETWORK_IP_KEY);
+
+    if( !(self->cached_interface = config_get_network_setting(NETWORK_INTERFACE_KEY)) )
+        if( !(self->cached_interface = g_strdup(self->network_interface)) )
+            self->cached_interface = config_get_network_fallback(NETWORK_INTERFACE_KEY);
+
+    if( !(self->cached_gateway = config_get_network_setting(NETWORK_GATEWAY_KEY)) )
+        self->cached_gateway = config_get_network_fallback(NETWORK_GATEWAY_KEY);
+
+    if( !(self->cached_nat_interface = config_get_network_setting(NETWORK_NAT_INTERFACE_KEY)) )
+        self->cached_nat_interface = config_get_network_fallback(NETWORK_NAT_INTERFACE_KEY);
+
+    if( !(self->cached_netmask = config_get_network_setting(NETWORK_NETMASK_KEY)) )
+        self->cached_netmask = config_get_network_fallback(NETWORK_NETMASK_KEY);
+
+    log_debug("%s: %s = %s", self->mode_name, "cached_ip", self->cached_ip);
+    log_debug("%s: %s = %s", self->mode_name, "cached_interface", self->cached_interface);
+    log_debug("%s: %s = %s", self->mode_name, "cached_gateway", self->cached_gateway);
+    log_debug("%s: %s = %s", self->mode_name, "cached_nat_interface", self->cached_nat_interface);
+    log_debug("%s: %s = %s", self->mode_name, "cached_netmask", self->cached_netmask);
 }
 
 /** Callback for sorting mode list alphabetically
@@ -235,8 +287,22 @@ modedata_load(const gchar *filename)
     }
 
     if( self->network && self->network_interface == NULL) {
-        log_err("%s: network not fully defined", filename);
-        goto EXIT;
+        /* Original behavior was such that mode configuration files that
+         * declare network=1 without also defining network_interface were
+         * rejected. This makes little sense as:
+         * - the interface value is very likely to get overridden by
+         *   kernel command line / usb-moded settings
+         * - there is fallback strategy in case no explicit value is set
+         * - one could argue that all this requirement manages to do is
+         *   that mode configuration files have a meaningless, confusing
+         *   line present
+         *
+         * Ignoring the value altogether could cause problems with some
+         * existing configurations out in the wild. But at least we can
+         * relax future requirements and demote diagnostic logging to
+         * debug level.
+         */
+        log_debug("%s: network_interface not defined", filename);
     }
 
     if( (self->sysfs_path && !self->sysfs_value) ||
