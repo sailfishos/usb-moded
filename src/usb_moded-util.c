@@ -300,72 +300,64 @@ static int util_get_hiddenlist (void)
 
 static int util_handle_network(char *network)
 {
-    char *operation = 0, *setting = 0, *value = 0;
-    DBusMessage *req = NULL, *reply = NULL;
-    char *ret = 0;
+    int result = EXIT_FAILURE;
+    DBusMessage *req = NULL;
+    DBusMessage *reply = NULL;
+    const char  *ret = NULL;
 
-    operation = strtok(network, ":");
+    const char *operation = strtok(network, ":");
+    const char *setting = strtok(NULL, ",");
     printf("Operation = %s\n", operation);
-    setting =  strtok(NULL, ",");
     printf("Setting = %s\n", setting);
-    value =  strtok(NULL, ",");
-    printf("Value = %s\n", value);
+
     if(operation == NULL || setting == NULL )
     {
         printf("Argument list is wrong. Please use get:$setting or set:$setting,$value\n");
-        return 1;
     }
-    if(!strcmp(operation, "set"))
+    else if(!strcmp(operation, "set"))
     {
+        const char *value = strtok(NULL, ",");
+        printf("Value = %s\n", value);
         if(value == NULL)
         {
             printf("Argument list is wrong. Please use set:$setting,$value\n");
-            return 1;
         }
-        if ((req = dbus_message_new_method_call(USB_MODE_SERVICE, USB_MODE_OBJECT, USB_MODE_INTERFACE, USB_MODE_NETWORK_SET)) != NULL)
+        else if ((req = dbus_message_new_method_call(USB_MODE_SERVICE, USB_MODE_OBJECT, USB_MODE_INTERFACE, USB_MODE_NETWORK_SET)) != NULL)
         {
             dbus_message_append_args (req, DBUS_TYPE_STRING, &setting, DBUS_TYPE_STRING, &value, DBUS_TYPE_INVALID);
             if ((reply = dbus_connection_send_with_reply_and_block(conn, req, -1, NULL)) != NULL)
             {
                 dbus_message_get_args(reply, NULL, DBUS_TYPE_STRING, &setting, DBUS_TYPE_STRING, &ret, DBUS_TYPE_INVALID);
-                dbus_message_unref(reply);
+                if(ret)
+                {
+                    printf("The following USB network setting %s = %s has been set\n", setting, ret);
+                    result = EXIT_SUCCESS;
+                }
             }
-            dbus_message_unref(req);
         }
-
-        if(ret)
-        {
-            printf("The following USB network setting %s = %s has been set\n", setting, ret);
-            return 0;
-        }
-        else
-            return 1;
     }
     else if(!strcmp(operation, "get"))
     {
-
         if ((req = dbus_message_new_method_call(USB_MODE_SERVICE, USB_MODE_OBJECT, USB_MODE_INTERFACE, USB_MODE_NETWORK_GET)) != NULL)
         {
             dbus_message_append_args (req, DBUS_TYPE_STRING, &setting, DBUS_TYPE_INVALID);
             if ((reply = dbus_connection_send_with_reply_and_block(conn, req, -1, NULL)) != NULL)
             {
                 dbus_message_get_args(reply, NULL, DBUS_TYPE_STRING, &setting, DBUS_TYPE_STRING, &ret, DBUS_TYPE_INVALID);
-                dbus_message_unref(reply);
+                if(ret)
+                {
+                    printf("USB network setting %s = %s\n", setting, ret);
+                    result = EXIT_SUCCESS;
+                }
             }
-            dbus_message_unref(req);
         }
 
-        if(ret)
-        {
-            printf("USB network setting %s = %s\n", setting, ret);
-            return 0;
-        }
-        else
-            return 1;
     }
-    else
-        /* unknown operation */
-        return 1;
+    if(reply)
+        dbus_message_unref(reply);
+    if(req)
+        dbus_message_unref(req);
+    return result;
 }
 
 static int util_clear_user_config(char *uid)
