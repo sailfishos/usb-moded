@@ -222,9 +222,11 @@ static char * config_get_network_ip(void)
     LOG_REGISTER_CONTEXT;
 
     char * ip = config_get_kcmdline_string(NETWORK_IP_KEY);
-    if (ip != NULL)
+    if (ip != NULL) {
         if(!config_validate_ip(ip))
             return ip;
+        g_free(ip);
+    }
 
     return config_get_conf_string(NETWORK_ENTRY, NETWORK_IP_KEY);
 }
