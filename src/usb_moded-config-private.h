@@ -90,6 +90,7 @@ char                *config_get_group_for_mode      (const char *mode);
 #endif
 set_config_result_t  config_set_network_setting     (const char *config, const char *setting);
 char                *config_get_network_setting     (const char *config);
+char                *config_get_network_fallback    (const char *config);
 bool                 config_init                    (void);
 char                *config_get_android_manufacturer(void);
 char                *config_get_android_vendor_id   (void);

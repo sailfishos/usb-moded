@@ -118,6 +118,9 @@ static bool legacy_get_connection_data(ipforward_data_t *ipforward);
 
 static bool  network_interface_exists     (char *interface);
 static char *network_get_interface        (const modedata_t *data);
+static char *network_get_nat_interface    (const modedata_t *data);
+static char *network_get_ip               (const modedata_t *data);
+static char *network_get_netmask          (const modedata_t *data);
 static int   network_setup_ip_forwarding  (const modedata_t *data, ipforward_data_t *ipforward);
 static void  network_cleanup_ip_forwarding(void);
 static int   network_check_udhcpd_symlink (void);
@@ -126,12 +129,6 @@ int          network_update_udhcpd_config (const modedata_t *data);
 int          network_up                   (const modedata_t *data);
 void         network_down                 (const modedata_t *data);
 void         network_update               (void);
-
-/* ========================================================================= *
- * Data
- * ========================================================================= */
-
-static const char default_interface[] = "usb0";
 
 /* ========================================================================= *
  * IPFORWARD_DATA
@@ -817,7 +814,7 @@ network_interface_exists(char *interface)
 
 /** Get network interface to use
  *
- * @param data  Dynamic mode data (not used)
+ * @param data  Dynamic mode data
  *
  * @return interface name, or NULL
  */
@@ -826,33 +823,86 @@ network_get_interface(const modedata_t *data)
 {
     LOG_REGISTER_CONTEXT;
 
-    (void)data; // FIXME: why is this passed in the 1st place?
+    gchar *interface = g_strdup(data->cached_interface);
 
-    char *interface = 0;
-    char *setting   = config_get_network_setting(NETWORK_INTERFACE_KEY);
-
-    if( network_interface_exists(setting) )
-    {
-        /* Use the configured value */
-        interface = setting, setting = 0;
+    if( !interface ) {
+        log_warning("mode %s: network interface not specified",
+                    data->mode_name);
     }
-    else
-    {
-        /* Fall back to default value */
-        interface = strdup(default_interface);
-        if( !network_interface_exists(interface) )
-        {
-            log_warning("Neither configured %s nor fallback %s interface exists."
-                        " Check your config!",
-                        setting   ?: "NULL",
-                        interface ?: "NULL");
-            free(interface), interface = 0;
-        }
+    else if( !network_interface_exists(interface) ) {
+        log_warning("mode %s: network interface %s does not exist",
+                    data->mode_name, interface);
+        g_free(interface), interface = NULL;
     }
 
-    log_debug("interface = %s", interface ?: "NULL");
-    free(setting);
     return interface;
+}
+
+/** Get network nat interface to use
+ *
+ * @param data  Dynamic mode data
+ *
+ * @return nat interface name, or NULL
+ */
+static char *
+network_get_nat_interface(const modedata_t *data)
+{
+    LOG_REGISTER_CONTEXT;
+
+    gchar *interface = g_strdup(data->cached_nat_interface);
+
+    if( !interface ) {
+        log_warning("mode %s: network nat interface not specified",
+                    data->mode_name);
+    }
+    else if( !network_interface_exists(interface) ) {
+        log_warning("mode %s: network nat interface %s does not exist",
+                    data->mode_name, interface);
+        g_free(interface), interface = NULL;
+    }
+
+    return interface;
+}
+
+/** Get network ip address to use
+ *
+ * @param data  Dynamic mode data
+ *
+ * @return ip address, or NULL
+ */
+static char *
+network_get_ip(const modedata_t *data)
+{
+    LOG_REGISTER_CONTEXT;
+
+    gchar *ip = g_strdup(data->cached_ip);
+    if( !ip ) {
+        log_warning("mode %s: network ip address not specified",
+                    data->mode_name);
+    }
+
+    return ip;
+}
+
+/** Get network netmask to use
+ *
+ * @param data  Dynamic mode data
+ *
+ * @return netmask name, or NULL
+ */
+static char *
+network_get_netmask(const modedata_t *data)
+{
+    LOG_REGISTER_CONTEXT;
+
+    gchar *netmask = g_strdup(data->cached_netmask);
+
+    if( !netmask ) {
+        log_warning("mode %s: network netmask not specified",
+                    data->mode_name);
+    }
+
+    return netmask;
 }
 
 /** Turn on ip forwarding on the usb interface
@@ -877,7 +927,7 @@ network_setup_ip_forwarding(const modedata_t *data, ipforward_data_t *ipforward)
     if( !(interface = network_get_interface(data)) )
         goto EXIT;
 
-    nat_interface = config_get_network_setting(NETWORK_NAT_INTERFACE_KEY);
+    nat_interface = network_get_nat_interface(data);
     if( !nat_interface ) {
         if( !ipforward->nat_interface ) {
             log_debug("No nat interface available!");
@@ -972,7 +1022,7 @@ network_write_udhcpd_config(const modedata_t *data, ipforward_data_t *ipforward)
     }
 
     /* generate start and end ip based on the setting */
-    if( !(ip = config_get_network_setting(NETWORK_IP_KEY)) ) {
+    if( !(ip = network_get_ip(data)) ) {
         log_err("no network address");
         goto EXIT;
     }
@@ -983,7 +1033,7 @@ network_write_udhcpd_config(const modedata_t *data, ipforward_data_t *ipforward)
         goto EXIT;
     }
 
-    if( !(netmask = config_get_network_setting(NETWORK_NETMASK_KEY)) ) {
+    if( !(netmask = network_get_netmask(data)) ) {
         log_err("no network address mask");
         goto EXIT;
     }
@@ -1130,12 +1180,12 @@ network_up(const modedata_t *data)
         goto EXIT;
     }
 
-    if( !(address = config_get_network_setting(NETWORK_IP_KEY)) ) {
+    if( !(address = network_get_ip(data)) ) {
         log_err("no network address");
         goto EXIT;
     }
 
-    if( !(netmask = config_get_network_setting(NETWORK_NETMASK_KEY)) ) {
+    if( !(netmask = network_get_netmask(data)) ) {
         log_err("no network address mask");
         goto EXIT;
     }
@@ -1225,7 +1275,14 @@ network_update(void)
     if( control_get_cable_state() == CABLE_STATE_PC_CONNECTED ) {
         modedata_t *data = worker_dup_usb_mode_data();
         if( data && data->network ) {
+            /* Bring down using old config */
             network_down(data);
+
+            /* Update config */
+            modedata_cache_settings(data);
+            worker_set_usb_mode_data(data);
+
+            /* Bring up using old config */
             network_up(data);
         }
         modedata_free(data);

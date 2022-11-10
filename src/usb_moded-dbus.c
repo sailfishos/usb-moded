@@ -917,22 +917,23 @@ usb_moded_network_get_cb(umdbus_context_t *context)
     LOG_REGISTER_CONTEXT;
 
     char      *config  = 0;
-    char      *setting = 0;
     DBusError  err     = DBUS_ERROR_INIT;
 
     if( !dbus_message_get_args(context->msg, &err, DBUS_TYPE_STRING, &config, DBUS_TYPE_INVALID) ) {
         context->rsp = dbus_message_new_error(context->msg, DBUS_ERROR_INVALID_ARGS, context->member);
     }
     else {
-        setting = config_get_network_setting(config);
+        gchar *setting = config_get_network_setting(config);
+        if( !setting )
+            setting = config_get_network_fallback(config);
         if( setting ) {
             if( (context->rsp = dbus_message_new_method_return(context->msg)) )
                 dbus_message_append_args(context->rsp, DBUS_TYPE_STRING, &config, DBUS_TYPE_STRING, &setting, DBUS_TYPE_INVALID);
-            free(setting);
         }
         else {
             context->rsp = dbus_message_new_error(context->msg, DBUS_ERROR_INVALID_ARGS, config);
         }
+        g_free(setting);
     }
     dbus_error_free(&err);
 }
@@ -1699,6 +1700,9 @@ umdbus_append_mode_details(DBusMessage *msg, const char *mode_name)
      * is no dynamic config / dynamic config does not define some value.
      */
 
+#define ADD_STR_EX(name, memb) \
+     if( !umdbus_append_string_entry(&dict, #name, data ? data->memb : 0) )\
+             goto bailout_dict;
 #define ADD_STR(name) \
      if( !umdbus_append_string_entry(&dict, #name, data ? data->name : 0) )\
              goto bailout_dict;
@@ -1709,7 +1713,7 @@ umdbus_append_mode_details(DBusMessage *msg, const char *mode_name)
     /* Attributes that we presume to be needed */
     ADD_INT(appsync);
     ADD_INT(network);
-    ADD_STR(network_interface);
+    ADD_STR_EX(network_interface, cached_interface);
     ADD_INT(nat);
     ADD_INT(dhcp_server);
 #ifdef CONNMAN

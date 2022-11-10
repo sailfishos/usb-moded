@@ -94,6 +94,7 @@ char                *config_get_group_for_mode       (const char *mode);
 #endif
 set_config_result_t  config_set_network_setting      (const char *config, const char *setting);
 char                *config_get_network_setting      (const char *config);
+char                *config_get_network_fallback     (const char *config);
 static void          config_merge_key                (GKeyFile *dest, GKeyFile *srce, const char *grp, const char *key);
 static void          config_merge_group              (GKeyFile *dest, GKeyFile *srce, const char *grp);
 static void          config_merge_data               (GKeyFile *dest, GKeyFile *srce);
@@ -222,9 +223,11 @@ static char * config_get_network_ip(void)
     LOG_REGISTER_CONTEXT;
 
     char * ip = config_get_kcmdline_string(NETWORK_IP_KEY);
-    if (ip != NULL)
+    if (ip != NULL) {
         if(!config_validate_ip(ip))
             return ip;
+        g_free(ip);
+    }
 
     return config_get_conf_string(NETWORK_ENTRY, NETWORK_IP_KEY);
 }
@@ -668,49 +671,58 @@ set_config_result_t config_set_network_setting(const char *config, const char *s
     return SET_CONFIG_ERROR;
 }
 
+/** Get network setting value
+ *
+ * @param config  setting key
+ *
+ * @return setting value string, or NULL
+ */
 char *config_get_network_setting(const char *config)
 {
     LOG_REGISTER_CONTEXT;
 
     char *ret = 0;
 
-    modedata_t *data = 0;
-
-    if( !g_strcmp0(config, NETWORK_IP_KEY) ) {
-        if( !(ret = config_get_network_ip()) )
-            ret = g_strdup("192.168.2.15");
-    }
-    else if( !g_strcmp0(config, NETWORK_INTERFACE_KEY)) {
-        /* check main configuration before using
-         * the information from the specific mode */
-        if( (ret = config_get_network_interface()) )
-            goto EXIT;
-
-        /* no interface override specified, let's use the one
-         * from the mode config */
-        if( (data = worker_dup_usb_mode_data()) ) {
-            if( (ret = g_strdup(data->network_interface)) )
-                goto EXIT;
-        }
-
-        ret = g_strdup("usb0");
-    }
-    else if( !g_strcmp0(config, NETWORK_GATEWAY_KEY) ) {
+    if( !g_strcmp0(config, NETWORK_IP_KEY) )
+        ret = config_get_network_ip();
+    else if( !g_strcmp0(config, NETWORK_INTERFACE_KEY))
+        ret = config_get_network_interface();
+    else if( !g_strcmp0(config, NETWORK_GATEWAY_KEY) )
         ret = config_get_network_gateway();
-    }
-    else if( !g_strcmp0(config, NETWORK_NETMASK_KEY) ) {
-        if( !(ret = config_get_network_netmask()) )
-            ret = g_strdup("255.255.255.0");
-    }
-    else if( !g_strcmp0(config, NETWORK_NAT_INTERFACE_KEY) ) {
+    else if( !g_strcmp0(config, NETWORK_NETMASK_KEY) )
+        ret = config_get_network_netmask();
+    else if( !g_strcmp0(config, NETWORK_NAT_INTERFACE_KEY) )
         ret = config_get_network_nat_interface();
-    }
-    else {
-        /* no matching keys, return error */
-    }
+    else
+        log_warning("unknown network setting '%s' queried", config);
 
-EXIT:
-    modedata_free(data);
+    return ret;
+}
+
+/** Get network setting fallback value
+ *
+ * @param config  setting key
+ *
+ * @return setting value string, or NULL
+ */
+char *config_get_network_fallback(const char *config)
+{
+    LOG_REGISTER_CONTEXT;
+
+    char *ret = 0;
+
+    if( !g_strcmp0(config, NETWORK_IP_KEY) )
+        ret = g_strdup(NETWORK_IP_FALLBACK);
+    else if( !g_strcmp0(config, NETWORK_INTERFACE_KEY))
+        ret = g_strdup(NETWORK_INTERFACE_FALLBACK);
+    else if( !g_strcmp0(config, NETWORK_GATEWAY_KEY) )
+        ret = g_strdup(NETWORK_GATEWAY_FALLBACK);
+    else if( !g_strcmp0(config, NETWORK_NETMASK_KEY) )
+        ret = g_strdup(NETWORK_NETMASK_FALLBACK);
+    else if( !g_strcmp0(config, NETWORK_NAT_INTERFACE_KEY) )
+        ret = g_strdup(NETWORK_NAT_INTERFACE_FALLBACK);
+    else
+        log_warning("unknown network fallback '%s' queried", config);
 
     return ret;
 }

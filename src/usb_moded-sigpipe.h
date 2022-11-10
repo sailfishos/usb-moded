@@ -37,6 +37,10 @@
 
 bool sigpipe_init(void);
 
+/* ========================================================================= *
+ * Macros
+ * ========================================================================= */
+
 /* Used to retry syscalls that can return EINTR. Taken from Bionic unistd.h */
 #ifndef TEMP_FAILURE_RETRY
 #define TEMP_FAILURE_RETRY(exp) ({         \

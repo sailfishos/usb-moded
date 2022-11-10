@@ -260,6 +260,12 @@ static void control_set_target_mode(const char *mode)
     control_target_mode = g_strdup(mode);
     g_free(previous);
 
+    /* Cache settings that might be relevant for a dynamic mode, so
+     * that the same values are available and used for both entering
+     * and leaving the mode.
+     */
+    usbmoded_refresh_modedata(control_target_mode);
+
     umdbus_send_target_state_signal(control_target_mode);
 
 EXIT:
