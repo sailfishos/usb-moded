@@ -68,8 +68,6 @@
 char                *config_find_mounts             (void);
 int                  config_find_sync               (void);
 char                *config_find_alt_mount          (void);
-char                *config_find_udev_path          (void);
-char                *config_find_udev_subsystem     (void);
 char                *config_check_trigger           (void);
 char                *config_get_trigger_subsystem   (void);
 char                *config_get_trigger_mode        (void);
