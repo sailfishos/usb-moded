@@ -63,8 +63,6 @@ static int           config_validate_ip              (const char *ipadd);
 char                *config_find_mounts              (void);
 int                  config_find_sync                (void);
 char                *config_find_alt_mount           (void);
-char                *config_find_udev_path           (void);
-char                *config_find_udev_subsystem      (void);
 char                *config_check_trigger            (void);
 char                *config_get_trigger_subsystem    (void);
 char                *config_get_trigger_mode         (void);
@@ -167,20 +165,6 @@ char * config_find_alt_mount(void)
     LOG_REGISTER_CONTEXT;
 
     return config_get_conf_string(ALT_MOUNT_ENTRY, ALT_MOUNT_KEY);
-}
-
-char * config_find_udev_path(void)
-{
-    LOG_REGISTER_CONTEXT;
-
-    return config_get_conf_string(UDEV_PATH_ENTRY, UDEV_PATH_KEY);
-}
-
-char * config_find_udev_subsystem(void)
-{
-    LOG_REGISTER_CONTEXT;
-
-    return config_get_conf_string(UDEV_PATH_ENTRY, UDEV_SUBSYSTEM_KEY);
 }
 
 char * config_check_trigger(void)
