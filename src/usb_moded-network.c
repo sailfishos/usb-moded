@@ -41,7 +41,7 @@
 #include "usb_moded-dbus-private.h"
 
 #include <sys/stat.h>
-
+#include <errno.h>
 #include <unistd.h>
 
 /* ========================================================================= *

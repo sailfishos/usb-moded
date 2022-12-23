@@ -45,6 +45,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <mntent.h>
+#include <errno.h>
 
 /* ========================================================================= *
  * Types

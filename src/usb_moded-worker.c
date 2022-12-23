@@ -41,6 +41,7 @@
 #include <pthread.h> // NOTRIM
 #include <unistd.h>
 #include <pwd.h>
+#include <errno.h>
 
 /* ========================================================================= *
  * Types
