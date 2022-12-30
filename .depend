@@ -230,11 +230,15 @@ src/usb_moded-dsme.pic.o:\
 
 src/usb_moded-dyn-config.o:\
 	src/usb_moded-dyn-config.c\
+	src/usb_moded-config-private.h\
+	src/usb_moded-config.h\
 	src/usb_moded-dyn-config.h\
 	src/usb_moded-log.h\
 
 src/usb_moded-dyn-config.pic.o:\
 	src/usb_moded-dyn-config.c\
+	src/usb_moded-config-private.h\
+	src/usb_moded-config.h\
 	src/usb_moded-dyn-config.h\
 	src/usb_moded-log.h\
 
