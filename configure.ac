@@ -1,4 +1,4 @@
-AC_INIT([usb_moded], [0.86.0+mer63])
+AC_INIT([usb_moded], [0.86.0+mer64])
 AM_INIT_AUTOMAKE([-Wall -Werror foreign subdir-objects])
 AM_EXTRA_RECURSIVE_TARGETS([dbus-gmain])
 
