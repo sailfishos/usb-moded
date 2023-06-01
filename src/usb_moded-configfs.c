@@ -43,6 +43,7 @@
 #define DEFAULT_GADGET_BASE_DIRECTORY    "/config/usb_gadget/g1"
 #define DEFAULT_GADGET_FUNC_DIRECTORY    "functions"
 #define DEFAULT_GADGET_CONF_DIRECTORY    "configs/b.1"
+#define DEFAULT_GADGET_UDC_DEVICE        ""
 
 #define DEFAULT_GADGET_CTRL_UDC          "UDC"
 #define DEFAULT_GADGET_CTRL_ID_VENDOR    "idVendor"
@@ -114,6 +115,7 @@ static int configfs_probed = -1;
 static gchar *GADGET_BASE_DIRECTORY    = 0;
 static gchar *GADGET_FUNC_DIRECTORY    = 0;
 static gchar *GADGET_CONF_DIRECTORY    = 0;
+static gchar *GADGET_UDC_DEVICE        = 0;
 
 static gchar *GADGET_CTRL_UDC          = 0;
 static gchar *GADGET_CTRL_ID_VENDOR    = 0;
@@ -187,6 +189,10 @@ static void configfs_read_configuration(void)
                         GADGET_BASE_DIRECTORY,
                         temp_setting);
     g_free(temp_setting);
+
+    GADGET_UDC_DEVICE =
+        configfs_get_conf("gadget_udc_device",
+                              DEFAULT_GADGET_UDC_DEVICE);
 
     /* Gadget control files
      */
@@ -597,19 +603,24 @@ configfs_udc_enable_value(void)
     if( !probed ) {
         probed = true;
 
-        /* Find first symlink in /sys/class/udc directory */
-        struct dirent *de;
-        DIR *dir = opendir("/sys/class/udc");
-        if( dir ) {
-            while( (de = readdir(dir)) ) {
-                if( de->d_type != DT_LNK )
-                    continue;
-                if( de->d_name[0] == '.' )
-                    continue;
-                value = strdup(de->d_name);
-                break;
+        if (*GADGET_UDC_DEVICE) {
+            value = strdup(GADGET_UDC_DEVICE);
+        }
+        else {
+            /* Find first symlink in /sys/class/udc directory */
+            struct dirent *de;
+            DIR *dir = opendir("/sys/class/udc");
+            if( dir ) {
+                while( (de = readdir(dir)) ) {
+                    if( de->d_type != DT_LNK )
+                        continue;
+                    if( de->d_name[0] == '.' )
+                        continue;
+                    value = strdup(de->d_name);
+                    break;
+                }
+                closedir(dir);
             }
-            closedir(dir);
         }
     }
 
