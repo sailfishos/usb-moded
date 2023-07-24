@@ -80,8 +80,8 @@
       <arg name="mode" type="s"/>
     </signal>
     <signal name="sig_usb_taget_mode_config_ind">
-      <arg name="config" type="a{sv}"/>
-      <annotation name="org.qtproject.QtDBus.QtTypeName.In0" value="QVariantMap"/>
+      <arg name="config" type="a{sv}" direction="out"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QVariantMap"/>
     </signal>
     <signal name="sig_usb_event_ind">
       <arg name="event" type="s"/>
