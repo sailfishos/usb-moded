@@ -1031,8 +1031,8 @@ static const member_info_t usb_moded_members[] =
     ADD_SIGNAL(USB_MODE_TARGET_STATE_SIGNAL_NAME,
                "      <arg name=\"mode\" type=\"s\"/>\n"),
     ADD_SIGNAL(USB_MODE_TARGET_CONFIG_SIGNAL_NAME,
-               "      <arg name=\"config\" type=\"a{sv}\"/>\n"
-               "      <annotation name=\"org.qtproject.QtDBus.QtTypeName.In0\" value=\"QVariantMap\"/>\n"),
+               "      <arg name=\"config\" type=\"a{sv}\" direction=\"out\"/>\n"
+               "      <annotation name=\"org.qtproject.QtDBus.QtTypeName.Out0\" value=\"QVariantMap\"/>\n"),
     ADD_SIGNAL(USB_MODE_EVENT_SIGNAL_NAME,
                "      <arg name=\"event\" type=\"s\"/>\n"),
     ADD_SIGNAL(USB_MODE_CONFIG_SIGNAL_NAME,
