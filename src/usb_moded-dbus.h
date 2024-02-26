@@ -36,9 +36,6 @@
  * Constants
  * ========================================================================= */
 
-/**
- * @credential "usb-moded::usb-moded-dbus-bind"  Credential needed to connect to the bus
- **/
 # define USB_MODE_SERVICE               "com.meego.usb_moded"
 # define USB_MODE_INTERFACE             "com.meego.usb_moded"
 # define USB_MODE_OBJECT                "/com/meego/usb_moded"
