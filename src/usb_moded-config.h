@@ -63,12 +63,12 @@
  * path = /sys/class/power_supply/usb
  * subsystem = power_supply
  *
- * # Extcon device tracking: disabled by default. If enabled
+ * # Extcon device tracking: enabled by default. If enabled
  * # tracks all devices in 'extcon' subsystem for USB=N changes.
  * # In case of multiple device nodes providing conflicting
  * # state information, device path needs to be explicitly given.
  *
- * extcon_tracking = 0
+ * extcon_tracking = 1
  * extcon_path = null
  * extcon_subsystem = extcon
  *
@@ -90,7 +90,7 @@
 # define UDEV_CHARGER_SUBSYSTEM_FALLBACK "power_supply"
 
 # define UDEV_EXTCON_TRACKING_KEY        "extcon_tracking"
-# define UDEV_EXTCON_TRACKING_FALLBACK   "0"
+# define UDEV_EXTCON_TRACKING_FALLBACK   "1"
 # define UDEV_EXTCON_PATH_KEY            "extcon_path"
 # define UDEV_EXTCON_PATH_FALLBACK       NULL
 # define UDEV_EXTCON_SUBSYSTEM_KEY       "extcon_subsystem"

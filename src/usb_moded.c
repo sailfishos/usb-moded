@@ -288,8 +288,6 @@ usbmoded_get_modedata(const char *modename)
  * Note: This function should be called only from the main thread.
  *
  * @param modename  Name of mode to update
- *
- * @return Mode data object, or NULL
  */
 void
 usbmoded_refresh_modedata(const char *modename)
