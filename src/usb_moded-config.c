@@ -311,76 +311,82 @@ static char * config_get_kcmdline_string(const char *entry)
 {
     LOG_REGISTER_CONTEXT;
 
-    int fd;
-    char cmdLine[1024];
-    char *ret = NULL;
-    int len;
-    gint argc = 0;
-    gchar **argv = NULL;
-    gchar **arg_tokens = NULL, **network_tokens = NULL;
-    GError *optErr = NULL;
-    int i;
+    static const char path[]   = "/proc/cmdline";
+    static const char prefix[] = "usb_moded_ip=";
 
-    if ((fd = open("/proc/cmdline", O_RDONLY)) < 0)
-    {
-        log_debug("could not read /proc/cmdline");
-        return ret;
+    gchar  *ret   = NULL;
+    GError *error = NULL;
+    gchar  *data  = NULL;
+    gsize   size  = 0;
+    gchar **argv  = NULL;
+    gint    argc  = 0;
+    gchar **array = NULL;
+    guint   count = 0;
+
+    if( !g_file_get_contents(path, &data, &size, &error) ) {
+        log_warning("could not read %s: %s", path, error->message);
+        goto EXIT;
     }
 
-    len = read(fd, cmdLine, sizeof cmdLine - 1);
-    close(fd);
-
-    if (len <= 0)
-    {
-        log_debug("kernel command line was empty");
-        return ret;
+    if( !g_shell_parse_argv(data, &argc, &argv, &error) ) {
+        log_warning("could not parse %s: %s", path, error->message);
+        goto EXIT;
     }
 
-    cmdLine[len] = '\0';
-
-    /* we're looking for a piece of the kernel command line matching this:
-     * ip=192.168.3.100::192.168.3.1:255.255.255.0::usb0:on */
-    if (!g_shell_parse_argv(cmdLine, &argc, &argv, &optErr))
-    {
-        g_error_free(optErr);
-        return ret;
-    }
-
-    /* find the ip token */
-    for (i=0; i < argc; i++)
-    {
-        arg_tokens = g_strsplit(argv[i], "=", 2);
-        if (!g_ascii_strcasecmp(arg_tokens[0], "usb_moded_ip"))
-        {
-            network_tokens = g_strsplit(arg_tokens[1], ":", 7);
-            /* check if it is for the usb or rndis interface */
-            if(g_strrstr(network_tokens[5], "usb")|| (g_strrstr(network_tokens[5], "rndis")))
-            {
-                if(!strcmp(entry, NETWORK_IP_KEY))
-                {
-                    g_free(ret), ret = g_strdup(network_tokens[0]);
-                    log_debug("Command line ip = %s\n", ret);
-                }
-                if(!strcmp(entry, NETWORK_GATEWAY_KEY))
-                {
-                    /* gateway might be empty, so we do not want to return an empty string */
-                    if(strlen(network_tokens[2]) > 2)
-                    {
-                        g_free(ret), ret = g_strdup(network_tokens[2]);
-                        log_debug("Command line gateway = %s\n", ret);
-                    }
-                }
-                if(!strcmp(entry, NETWORK_NETMASK_KEY))
-                {
-                    g_free(ret), ret = g_strdup(network_tokens[3]);
-                    log_debug("Command line netmask = %s\n", ret);
-                }
-            }
+    // Lookup for optional "usb_moded_ip=v1:v2:..." argument
+    const gchar *arg;
+    for( gint i = 0; (arg = argv[i]); ++i ) {
+        if( !g_ascii_strncasecmp(arg, prefix, sizeof prefix - 1) ) {
+            arg += sizeof prefix - 1;
+            break;
         }
-        g_strfreev(arg_tokens);
     }
+
+    // Ignore silently if not found at all / has empty value part
+    if( !arg || !*arg )
+        goto EXIT;
+
+    // <client-ip>:<server-ip>:<gw-ip>:<netmask>:<hostname>:<device>:<autoconf>
+    //      0           1         2        3         4         5        6
+    guint expected_count = 7;
+    if( (array = g_strsplit(arg, ":", expected_count + 1)) )
+        count = g_strv_length(array);
+
+    if( count != expected_count )
+        log_warning("Command line arg %s%s has %u fields, expected %u",
+                    prefix, arg, count, expected_count);
+
+    gchar *hit = NULL;
+    if( !strcmp(entry, NETWORK_IP_KEY) ) {
+        if( count >= 1 )
+            hit = array[0];
+    }
+    else if( !strcmp(entry, NETWORK_GATEWAY_KEY) ) {
+        if( count >= 3 )
+            hit = array[2];
+    }
+    else if( !strcmp(entry, NETWORK_NETMASK_KEY) ) {
+        if( count >= 4 )
+            hit = array[3];
+    }
+    else {
+        log_warning("Unknown command line entry %s requested", entry);
+    }
+
+    if( !hit ) {
+        log_warning("Command line %s = %s", entry, "<undef>");
+    }
+    else {
+        if( *g_strstrip(hit) )
+            ret = g_strdup(hit);
+        log_debug("Command line %s = %s", entry, ret ?: "<null>");
+    }
+
+EXIT:
+    g_strfreev(array);
     g_strfreev(argv);
-    g_strfreev(network_tokens);
+    g_free(data);
+    g_clear_error(&error);
 
     return ret;
 }
@@ -389,13 +395,7 @@ char * config_get_mode_setting(uid_t uid)
 {
     LOG_REGISTER_CONTEXT;
 
-    char *mode = 0;
-
-    /* Kernel command line can be used to override settings */
-    if( (mode = config_get_kcmdline_string(MODE_SETTING_KEY)) )
-        goto EXIT;
-
-    mode = config_get_user_conf_string(MODE_SETTING_ENTRY, MODE_SETTING_KEY, uid);
+    char *mode = config_get_user_conf_string(MODE_SETTING_ENTRY, MODE_SETTING_KEY, uid);
 
     /* If no default mode is configured, treat it as charging only */
     if( !mode )
@@ -408,7 +408,6 @@ char * config_get_mode_setting(uid_t uid)
         config_set_mode_setting(mode, uid);
     }
 
-EXIT:
     return mode;
 }
 
