@@ -93,7 +93,7 @@ static const char *worker_get_activated_mode_locked(void);
 static bool        worker_set_activated_mode_locked(const char *mode);
 static const char *worker_get_requested_mode_locked(void);
 static bool        worker_set_requested_mode_locked(const char *mode);
-void               worker_request_hardware_mode    (const char *mode);
+bool               worker_request_hardware_mode    (const char *mode);
 void               worker_clear_hardware_mode      (void);
 static void        worker_execute                  (void);
 static void        worker_switch_to_mode           (const char *mode);
@@ -611,17 +611,14 @@ worker_set_activated_mode_locked(const char *mode)
     LOG_REGISTER_CONTEXT;
 
     bool changed = false;
-    const char *prev = worker_get_activated_mode_locked();
 
-    if( !g_strcmp0(prev, mode) )
-        goto EXIT;
+    if( g_strcmp0(worker_activated_mode, mode) ) {
+        log_debug("activated_mode: %s -> %s", worker_activated_mode, mode);
+        g_free(worker_activated_mode),
+            worker_activated_mode = g_strdup(mode);
+        changed = true;
+    }
 
-    log_debug("activated_mode: %s -> %s", prev, mode);
-    g_free(worker_activated_mode),
-        worker_activated_mode =  g_strdup(mode);
-    changed = true;
-
-EXIT:
     return changed;
 }
 
@@ -639,23 +636,22 @@ worker_set_requested_mode_locked(const char *mode)
     LOG_REGISTER_CONTEXT;
 
     bool changed = false;
-    const char *prev = worker_get_requested_mode_locked();
 
-    if( !g_strcmp0(prev, mode) )
-        goto EXIT;
+    if( g_strcmp0(worker_requested_mode, mode) ) {
+        log_debug("requested_mode: %s -> %s", worker_requested_mode, mode);
+        g_free(worker_requested_mode),
+            worker_requested_mode = g_strdup(mode);
+        changed = true;
+    }
 
-    log_debug("requested_mode: %s -> %s", prev, mode);
-    g_free(worker_requested_mode),
-        worker_requested_mode =  g_strdup(mode);
-    changed = true;
-
-EXIT:
     return changed;
 }
 
-void worker_request_hardware_mode(const char *mode)
+bool worker_request_hardware_mode(const char *mode)
 {
     LOG_REGISTER_CONTEXT;
+
+    bool scheduled = false;
 
     WORKER_LOCKED_ENTER;
 
@@ -663,10 +659,12 @@ void worker_request_hardware_mode(const char *mode)
         goto EXIT;
 
     worker_wakeup();
+    scheduled = true;
 
 EXIT:
     WORKER_LOCKED_LEAVE;
-    return;
+
+    return scheduled;
 }
 
 void worker_clear_hardware_mode(void)

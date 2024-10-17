@@ -372,7 +372,10 @@ static void control_set_usb_mode(const char *mode)
     control_set_external_mode(MODE_BUSY);
 
     /* Propagate down to gadget config */
-    worker_request_hardware_mode(control_internal_mode);
+    if( !worker_request_hardware_mode(control_internal_mode) ) {
+        /* No transition work to wait for -> end MODE_BUSY immediately */
+        control_update_external_mode();
+    }
 
 EXIT:
     return;
