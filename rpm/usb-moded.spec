@@ -3,7 +3,7 @@ Version:  0.86.0+mer67
 Release:  2
 Summary:  USB mode controller
 License:  LGPLv2
-URL:      https://git.merproject.org/mer-core/usb-moded
+URL:      https://github.com/sailfishos/usb-moded
 Source0:  %{name}-%{version}.tar.bz2
 Source1:  usb_moded.conf
 
@@ -304,7 +304,7 @@ when the UI fails.
 %build
 test -e Makefile || (%autogen)
 test -e Makefile || (%configure --enable-app-sync --enable-meegodevlock --enable-debug --enable-connman --enable-systemd --enable-mer-ssu --enable-sailfish-access-control)
-make all doc %{?_smp_mflags}
+%make_build all doc
 
 %install
 %make_install
@@ -360,7 +360,6 @@ systemctl daemon-reload || :
 systemctl daemon-reload || :
 
 %files
-%defattr(-,root,root,-)
 %license LICENSE
 %dir %{_sysconfdir}/usb-moded
 %dir %{_sysconfdir}/usb-moded/dyn-modes
@@ -381,50 +380,40 @@ systemctl daemon-reload || :
 /usr/share/user-managerd/remove.d/usb_mode_user_clear.sh
 
 %files devel
-%defattr(-,root,root,-)
 %{_includedir}/%{name}/*
 %{_libdir}/pkgconfig/usb_moded.pc
 
 %files doc
-%defattr(-,root,root,-)
 %{_docdir}/%{name}-%{version}
 %{_mandir}/man1/usb-moded.1.gz
 
 %files developer-mode
-%defattr(-,root,root,-)
 %{_sysconfdir}/usb-moded/dyn-modes/developer_mode.ini
 
 %files mtp-mode
-%defattr(-,root,root,-)
 %{_sysconfdir}/usb-moded/dyn-modes/mtp_mode.ini
 %{_sysconfdir}/usb-moded/run/mtp.ini
 
 %files mass-storage-mode
-%defattr(-,root,root,-)
 %{_sysconfdir}/usb-moded/dyn-modes/mass-storage.ini
 
 %files diag-mode-android
-%defattr(-,root,root,-)
 %{_sysconfdir}/usb-moded/dyn-modes/diag_mode_old.ini
 %{_sysconfdir}/usb-moded/run/adb-diag.ini
 
 %files diag-mode-androidv5-qcom
-%defattr(-,root,root,-)
 %{_sysconfdir}/usb-moded/dyn-modes/diag_mode.ini
 %{_sysconfdir}/usb-moded/run/adb-diag.ini
 %{_sysconfdir}/usb-moded/run/diag-adb-prepare.ini
 
 %files acm-mode-android
-%defattr(-,root,root,-)
 %{_sysconfdir}/usb-moded/dyn-modes/android_acm.ini
 
 %files developer-mode-android
-%defattr(-,root,root,-)
 %{_sysconfdir}/usb-moded/dyn-modes/developer_mode-android.ini
 %{_sysconfdir}/usb-moded/run/udhcpd-developer-mode.ini
 
 %files adb-mode
-%defattr(-,root,root,-)
 %{_sysconfdir}/usb-moded/dyn-modes/adb_mode.ini
 %{_sysconfdir}/usb-moded/run/adb-startserver.ini
 %{_sysconfdir}/usb-moded/run/adb-prepare.ini
@@ -434,59 +423,46 @@ systemctl daemon-reload || :
 /usr/sbin/adbd-functionfs.sh
 
 %files mtp-mode-android
-%defattr(-,root,root,-)
 %{_sysconfdir}/usb-moded/dyn-modes/mtp_mode-android.ini
 
 %files mtp-mode-android-ffs
-%defattr(-,root,root,-)
 %{_sysconfdir}/usb-moded/dyn-modes/mtp_mode-android-ffs.ini
 
 %files pc-suite-mode-android
-%defattr(-,root,root,-)
 %{_sysconfdir}/usb-moded/dyn-modes/pc_suite-android.ini
 
 %files at-mode-android
-%defattr(-,root,root,-)
 %{_sysconfdir}/usb-moded/dyn-modes/android_at.ini
 
 %files defaults
-%defattr(-,root,root,-)
 
 %files defaults-android
-%defattr(-,root,root,-)
 
 %files diagnostics-config
-%defattr(-,root,root,-)
 %dir %{_sysconfdir}/usb-moded/diag
 %dir %{_sysconfdir}/usb-moded/run-diag
 %{_sysconfdir}/usb-moded/diag/qa_diagnostic_mode.ini
 %{_sysconfdir}/usb-moded/run-diag/qa-diagnostic.ini
 
 %files connection-sharing-android-config
-%defattr(-,root,root,-)
 %{_sysconfdir}/usb-moded/dyn-modes/connection_sharing.ini
 %{_sysconfdir}/usb-moded/run/udhcpd-connection-sharing.ini
 
 %files connection-sharing-android-connman-config
-%defattr(-,root,root,-)
 %{_sysconfdir}/usb-moded/dyn-modes/connection_sharing-android-connman.ini
 
 %files mass-storage-android-config
-%defattr(-,root,root,-)
 %{_sysconfdir}/usb-moded/dyn-modes/mass_storage_android.ini
 %{_sysconfdir}/usb-moded/mass-storage-jolla.ini
 
 %files vfat-android-config
-%defattr(-,root,root,-)
 %{_sysconfdir}/usb-moded/dyn-modes/vfat_android.ini
 %{_sysconfdir}/usb-moded/run/vfat.ini
 
 %files host-mode-jolla
-%defattr(-,root,root,-)
 %{_sysconfdir}/usb-moded/dyn-modes/host_mode_jolla.ini
 
 %files systemd-rescue-mode
-%defattr(-,root,root,-)
 /var/lib/environment/usb-moded/usb-moded-args.conf
 %{_bindir}/turn-usb-rescue-mode-off
 %{_unitdir}/usb-rescue-mode-off.service
