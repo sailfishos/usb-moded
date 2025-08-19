@@ -116,6 +116,8 @@ static gchar *GADGET_BASE_DIRECTORY    = 0;
 static gchar *GADGET_FUNC_DIRECTORY    = 0;
 static gchar *GADGET_CONF_DIRECTORY    = 0;
 static gchar *GADGET_UDC_DEVICE        = 0;
+static gchar *GADGET_MAX_POWER	       = 0;
+static gchar *GADGET_MAX_POWER_PATH    = 0;
 
 static gchar *GADGET_CTRL_UDC          = 0;
 static gchar *GADGET_CTRL_ID_VENDOR    = 0;
@@ -193,6 +195,16 @@ static void configfs_read_configuration(void)
     GADGET_UDC_DEVICE =
         configfs_get_conf("gadget_udc_device",
                               DEFAULT_GADGET_UDC_DEVICE);
+
+    GADGET_MAX_POWER =
+        configfs_get_conf("gadget_max_power",
+                              NULL);
+
+    if (GADGET_MAX_POWER)
+        GADGET_MAX_POWER_PATH =
+            g_strdup_printf("%s/%s",
+                            GADGET_CONF_DIRECTORY,
+                            "MaxPower");
 
     /* Gadget control files
      */
@@ -769,6 +781,11 @@ configfs_init(void)
     if( !configfs_probe() )
         goto EXIT;
 
+    /* Before doing anything, check if we need to configure MaxPower */
+    if (GADGET_MAX_POWER) {
+        configfs_write_file(GADGET_MAX_POWER_PATH, GADGET_MAX_POWER);
+    }
+
     /* Disable */
     configfs_set_udc(false);
 
@@ -830,6 +847,11 @@ configfs_quit(void)
         GADGET_FUNC_DIRECTORY = 0;
     g_free(GADGET_CONF_DIRECTORY),
         GADGET_CONF_DIRECTORY = 0;
+
+    g_free(GADGET_MAX_POWER),
+        GADGET_MAX_POWER = 0;
+    g_free(GADGET_MAX_POWER_PATH),
+        GADGET_MAX_POWER_PATH = 0;
 
     g_free(GADGET_CTRL_UDC),
         GADGET_CTRL_UDC = 0;
