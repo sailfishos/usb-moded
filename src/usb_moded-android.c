@@ -119,7 +119,8 @@ android_get_serial(void)
 {
     LOG_REGISTER_CONTEXT;
 
-    static const char path[] = "/proc/cmdline";
+    static const char path_bootconfig[] = "/proc/bootconfig";
+    static const char path_cmdline[] = "/proc/cmdline";
     static const char find[] = "androidboot.serialno=";
     static const char pbrk[] = " \t\r\n,";
 
@@ -128,9 +129,12 @@ android_get_serial(void)
     size_t  size = 0;
     char   *data = 0;
 
-    if( !(file = fopen(path, "r")) ) {
-        log_warning("%s: %s: %m", path, "can't open");
-        goto EXIT;
+    if ( !(file = fopen(path_bootconfig, "r")) ) {
+        log_warning("%s: %s: %m", path_bootconfig, "can't open");
+        if( !(file = fopen(path_cmdline, "r")) ) {
+            log_warning("%s: %s: %m", path_cmdline, "can't open");
+            goto EXIT;
+        }
     }
 
     if( getline(&data, &size, file) < 0 ) {
