@@ -1,6 +1,7 @@
 USB_MODED_CFLAGS += -D_GNU_SOURCE \
 	$(DBUS_CFLAGS)
 USB_MODED_LIBS   += -lpthread
+USB_MODED_LIBS	 += -lsystemd
 
 sbin_PROGRAMS = usb_moded \
 		usb_moded_util 
