@@ -99,6 +99,14 @@ AC_ARG_ENABLE([ofono], AS_HELP_STRING([--enable-ofono], [Enable ofono DBUS inter
    esac],[ofono=false])
 AM_CONDITIONAL([OFONO], [test x$ofono = xtrue])
 
+AC_ARG_ENABLE([rescue], AS_HELP_STRING([--enable-rescue], [Enable rescue mode  @<:@default=true@:>@]),
+  [case "${enableval}" in
+   yes) rescue=true ; CFLAGS="-DRESCUE $CFLAGS" ;;
+   no)  rescue=false ;;
+   *) AC_MSG_ERROR([bad value ${enableval} for --enable-rescue]) ;;
+   esac],[rescue=true])
+AM_CONDITIONAL([RESCUE], [test x$rescue = xtrue])
+
 PKG_CHECK_MODULES([DBUS], dbus-1 >= 1.8)
 PKG_CHECK_MODULES([GLIB], glib-2.0 >= 2.24.0)
 PKG_CHECK_MODULES([USB_MODED], [

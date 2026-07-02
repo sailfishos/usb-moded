@@ -686,7 +686,12 @@ void usbmoded_probe_init_done(void)
 {
     LOG_REGISTER_CONTEXT;
 
+#ifdef RESCUE
     usbmoded_set_init_done(access(usbmoded_init_done_flagfile, F_OK) == 0);
+#else
+    /* If rescue mode is not enabled, bypass init done check */
+    usbmoded_set_init_done(true);
+#endif
 }
 
 /* ------------------------------------------------------------------------- *
