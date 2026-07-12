@@ -4,6 +4,7 @@
  * Copyright (c) 2011 Nokia Corporation. All rights reserved.
  * Copyright (c) 2013 - 2020 Jolla Ltd.
  * Copyright (c) 2020 Open Mobile Platform LLC.
+ * Copyright (c) 2025 Dylan Van Assche
  *
  * @author Philippe De Swert <philippe.de-swert@nokia.com>
  * @author Philippe De Swert <phdeswer@lumi.maa>
@@ -13,6 +14,7 @@
  * @author Slava Monich <slava.monich@jolla.com>
  * @author Simo Piiroinen <simo.piiroinen@jollamobile.com>
  * @author Andrew den Exter <andrew.den.exter@jolla.com>
+ * @author Dylan Van Assche <me@dylanvanassche.be>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the Lesser GNU General Public License
@@ -89,6 +91,10 @@
 #  define MODE_CONNMAN_TETHERING         "connman_tethering"
 # endif
 
+# define MODE_COMMAND_UP                 "command_up"
+# define MODE_COMMAND_DOWN               "command_down"
+# define MODE_FFS_DAEMON_MOUNTPOINT      "ffs_daemon_mountpoint"
+
 /* ========================================================================= *
  * Types
  * ========================================================================= */
@@ -128,6 +134,10 @@ typedef struct modedata_t
     gchar *cached_gateway;                 /**< Cached NETWORK_GATEWAY_KEY setting */
     gchar *cached_nat_interface;           /**< Cached NETWORK_NAT_INTERFACE_KEY setting */
     gchar *cached_netmask;                 /**< Cached NETWORK_NETMASK_KEY setting */
+
+    gchar *command_up;                     /**< Command to execute when starting an USB mode */
+    gchar *command_down;                   /**< Command to execute when stopping an USB mode */
+    gchar *ffs_daemon_mountpoint;          /**< Device mountpoint for userspace FunctionFS daemon */
 
 } modedata_t;
 
