@@ -2,16 +2,15 @@ AC_INIT([usb_moded], [0.86.0+mer70])
 AM_INIT_AUTOMAKE([-Wall -Werror foreign subdir-objects])
 AM_EXTRA_RECURSIVE_TARGETS([dbus-gmain])
 
-AM_CONFIG_HEADER([config.h])
+AC_CONFIG_HEADERS([config.h])
 
 AM_PROG_AR
 
 AC_PROG_CC
 AC_PROG_INSTALL
-AC_PROG_LIBTOOL
+LT_INIT
 
 AC_C_CONST
-AC_HEADER_STDC
 
 
 test_gcc_flag() {

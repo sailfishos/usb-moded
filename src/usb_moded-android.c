@@ -296,6 +296,9 @@ android_init(void)
     if(text)
     {
         android_set_attr("f_rndis", "ethaddr", text);
+        /* CDC-NCM exposes the same attribute when the function is built in */
+        if( access(ANDROID0_DIRECTORY "/f_ncm/ethaddr", F_OK) == 0 )
+            android_set_attr("f_ncm", "ethaddr", text);
         g_free(text);
     }
     /* For rndis to be discovered correctly in M$ Windows (vista and later) */
