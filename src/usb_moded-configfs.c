@@ -54,10 +54,12 @@
 
 #define DEFAULT_FUNCTION_MASS_STORAGE    "mass_storage.usb0"
 #define DEFAULT_FUNCTION_RNDIS           "rndis_bam.rndis"
+#define DEFAULT_FUNCTION_NCM             "ncm.usb0"
 #define DEFAULT_FUNCTION_MTP             "ffs.mtp"
 
 #define DEFAULT_RNDIS_CTRL_WCEIS         "wceis"
 #define DEFAULT_RNDIS_CTRL_ETHADDR       "ethaddr"
+#define DEFAULT_NCM_CTRL_HOST_ADDR       "host_addr"
 
 /* ========================================================================= *
  * Prototypes
@@ -128,10 +130,12 @@ static gchar *GADGET_CTRL_SERIAL       = 0;
 
 static gchar *FUNCTION_MASS_STORAGE    = 0;
 static gchar *FUNCTION_RNDIS           = 0;
+static gchar *FUNCTION_NCM             = 0;
 static gchar *FUNCTION_MTP             = 0;
 
 static gchar *RNDIS_CTRL_WCEIS         = 0;
 static gchar *RNDIS_CTRL_ETHADDR       = 0;
+static gchar *NCM_CTRL_HOST_ADDR       = 0;
 
 /* ========================================================================= *
  * Settings
@@ -154,6 +158,7 @@ static gchar *configfs_get_conf(const char *key, const char *def)
  * gadget_conf_directory = configs/b.1
  * function_mass_storage = mass_storage.usb0
  * function_rndis        = rndis_bam.rndis
+ * function_ncm          = ncm.usb0
  * function_mtp          = ffs.mtp
  */
 static void configfs_read_configuration(void)
@@ -248,6 +253,10 @@ static void configfs_read_configuration(void)
         configfs_get_conf("function_rndis",
                           DEFAULT_FUNCTION_RNDIS);
 
+    FUNCTION_NCM =
+        configfs_get_conf("function_ncm",
+                          DEFAULT_FUNCTION_NCM);
+
     FUNCTION_MTP =
         configfs_get_conf("function_mtp",
                           DEFAULT_FUNCTION_MTP);
@@ -264,6 +273,12 @@ static void configfs_read_configuration(void)
                         GADGET_FUNC_DIRECTORY,
                         FUNCTION_RNDIS,
                         DEFAULT_RNDIS_CTRL_ETHADDR);
+
+    NCM_CTRL_HOST_ADDR =
+        g_strdup_printf("%s/%s/%s",
+                        GADGET_FUNC_DIRECTORY,
+                        FUNCTION_NCM,
+                        DEFAULT_NCM_CTRL_HOST_ADDR);
 
 EXIT:
     return;
@@ -831,6 +846,14 @@ configfs_init(void)
     /* For rndis to be discovered correctly in M$ Windows (vista and later) */
     configfs_write_file(RNDIS_CTRL_WCEIS, "1");
 
+    /* Prep: CDC-NCM. Registration fails when the kernel has no ncm function. */
+    if( configfs_register_function(FUNCTION_NCM) ) {
+        if( (text = mac_read_mac()) ) {
+            configfs_write_file(NCM_CTRL_HOST_ADDR, text);
+            g_free(text);
+        }
+    }
+
     /* Leave disabled, will enable on cable connect detected */
 EXIT:
     return configfs_in_use();
@@ -870,6 +893,8 @@ configfs_quit(void)
         FUNCTION_MASS_STORAGE = 0;
     g_free(FUNCTION_RNDIS),
         FUNCTION_RNDIS = 0;
+    g_free(FUNCTION_NCM),
+        FUNCTION_NCM = 0;
     g_free(FUNCTION_MTP),
         FUNCTION_MTP = 0;
 
@@ -877,6 +902,8 @@ configfs_quit(void)
         RNDIS_CTRL_WCEIS = 0;
     g_free(RNDIS_CTRL_ETHADDR),
         RNDIS_CTRL_ETHADDR= 0;
+    g_free(NCM_CTRL_HOST_ADDR),
+        NCM_CTRL_HOST_ADDR = 0;
 }
 
 /* Set a charging mode for the configfs gadget
@@ -977,6 +1004,8 @@ configfs_map_function(const char *func)
         func = FUNCTION_MASS_STORAGE;
     else if( !strcmp(func, "rndis") )
         func = FUNCTION_RNDIS;
+    else if( !strcmp(func, "ncm") )
+        func = FUNCTION_NCM;
     else if( !strcmp(func, "mtp") )
         func = FUNCTION_MTP;
     else if( !strcmp(func, "ffs") ) // existing config files ...
