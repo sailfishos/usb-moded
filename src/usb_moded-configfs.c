@@ -58,6 +58,8 @@
 
 #define DEFAULT_RNDIS_CTRL_WCEIS         "wceis"
 #define DEFAULT_RNDIS_CTRL_ETHADDR       "ethaddr"
+#define DEFAULT_RNDIS_CTRL_COMPATIBLE_ID "os_desc/interface.rndis/compatible_id"
+#define DEFAULT_RNDIS_CTRL_SUB_COMPATIBLE_ID "os_desc/interface.rndis/sub_compatible_id"
 
 /* ========================================================================= *
  * Prototypes
@@ -132,6 +134,8 @@ static gchar *FUNCTION_MTP             = 0;
 
 static gchar *RNDIS_CTRL_WCEIS         = 0;
 static gchar *RNDIS_CTRL_ETHADDR       = 0;
+static gchar *RNDIS_CTRL_COMPATIBLE_ID = 0;
+static gchar *RNDIS_CTRL_SUB_COMPATIBLE_ID = 0;
 
 /* ========================================================================= *
  * Settings
@@ -264,6 +268,16 @@ static void configfs_read_configuration(void)
                         GADGET_FUNC_DIRECTORY,
                         FUNCTION_RNDIS,
                         DEFAULT_RNDIS_CTRL_ETHADDR);
+    RNDIS_CTRL_COMPATIBLE_ID =
+        g_strdup_printf("%s/%s/%s",
+                        GADGET_FUNC_DIRECTORY,
+                        FUNCTION_RNDIS,
+                        DEFAULT_RNDIS_CTRL_COMPATIBLE_ID);
+    RNDIS_CTRL_SUB_COMPATIBLE_ID =
+        g_strdup_printf("%s/%s/%s",
+                        GADGET_FUNC_DIRECTORY,
+                        FUNCTION_RNDIS,
+                        DEFAULT_RNDIS_CTRL_SUB_COMPATIBLE_ID);
 
 EXIT:
     return;
@@ -830,6 +844,8 @@ configfs_init(void)
     }
     /* For rndis to be discovered correctly in M$ Windows (vista and later) */
     configfs_write_file(RNDIS_CTRL_WCEIS, "1");
+    configfs_write_file(RNDIS_CTRL_COMPATIBLE_ID, "RNDIS");
+    configfs_write_file(RNDIS_CTRL_SUB_COMPATIBLE_ID, "5162001");
 
     /* Leave disabled, will enable on cable connect detected */
 EXIT:
@@ -877,6 +893,10 @@ configfs_quit(void)
         RNDIS_CTRL_WCEIS = 0;
     g_free(RNDIS_CTRL_ETHADDR),
         RNDIS_CTRL_ETHADDR= 0;
+    g_free(RNDIS_CTRL_COMPATIBLE_ID),
+        RNDIS_CTRL_COMPATIBLE_ID = 0;
+    g_free(RNDIS_CTRL_SUB_COMPATIBLE_ID),
+        RNDIS_CTRL_SUB_COMPATIBLE_ID = 0;
 }
 
 /* Set a charging mode for the configfs gadget
